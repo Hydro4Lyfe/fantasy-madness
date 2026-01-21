@@ -1,8 +1,12 @@
-import { log } from "./logger.js";
-import type { Prisma } from "@prisma/client";
+// apps/ingest/src/sync.ts
+import { Prisma as PrismaNS, type Prisma } from "@prisma/client";
 import { prisma } from "@fantasy-madness/db";
+import { log } from "./logger.js";
 import { sha256Hex } from "./hash.js";
-import { fetchDailyChangeLog, fetchTournamentSchedule, fetchGameSummary } from "./sportradar.js";
+import {
+  fetchTournamentSchedule,
+  fetchTournamentSummary,
+} from "./sportradar.js";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -14,8 +18,17 @@ async function retry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
     try {
       return await fn();
     } catch (e: any) {
+      // Don't retry permanent "not found"
+      if (String(e).includes("HTTP_404")) throw e;
+
       lastErr = e;
-      const backoff = Math.min(30_000, 500 * Math.pow(2, i)) + Math.floor(Math.random() * 250);
+      const hinted = (e as any)?.retryAfterMs;
+      const backoff =
+        typeof hinted === "number" && hinted > 0
+          ? hinted
+          : Math.min(30_000, 500 * Math.pow(2, i)) +
+            Math.floor(Math.random() * 250);
+
       log.warn({ err: String(e), backoff }, "retrying");
       await sleep(backoff);
     }
@@ -27,34 +40,6 @@ function parseDateMaybe(s: any): Date | null {
   if (!s) return null;
   const d = new Date(String(s));
   return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function pickRoundName(x: any): string {
-  return String(
-    x?.round?.name ??
-      x?.tournament_round?.name ??
-      x?.round_name ??
-      x?.sport_event?.tournament_round?.name ??
-      x?.sport_event?.tournament_round?.type ??
-      x?.round ??
-      ""
-  ).trim();
-}
-
-function pickRoundSeq(x: any): number | null {
-  const v =
-    x?.round?.sequence ??
-    x?.tournament_round?.sequence ??
-    x?.sport_event?.tournament_round?.sequence ??
-    x?.round_seq ??
-    null;
-  if (v == null) return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
-function isPlayInRound(roundName: string): boolean {
-  return /first four|play[-\s]?in/i.test(roundName);
 }
 
 type CanonGameStatus =
@@ -85,8 +70,57 @@ const KNOWN_STATUSES: Record<CanonGameStatus, true> = {
   time_tbd: true,
   if_necessary: true,
   unnecessary: true,
-  forfeited: true
+  forfeited: true,
 };
+
+function isFinalStatus(status: CanonGameStatus): boolean {
+  return status === "complete" || status === "closed" || status === "forfeited";
+}
+
+type ExistingGameLite = {
+  id: string;
+  status: string;
+  isPlayIn: boolean;
+  winnerTeamId: string | null;
+  homeTeamId: string | null;
+  awayTeamId: string | null;
+  homePoints: number | null;
+  awayPoints: number | null;
+  finalizedAt: Date | null;
+  closedAt: Date | null;
+};
+
+function didScoringRelevantChange(
+  prev: ExistingGameLite | undefined,
+  next: {
+    status: CanonGameStatus;
+    isPlayIn: boolean;
+    winnerTeamId: string | null;
+    homePoints: number | null;
+    awayPoints: number | null;
+  },
+): boolean {
+  if (!prev) {
+    // new game: only matters if it’s already final-like w/ winner
+    return isFinalStatus(next.status) && !!next.winnerTeamId && !next.isPlayIn;
+  }
+
+  const prevFinal = isFinalStatus(mapGameStatus(prev.status));
+  const nextFinal = isFinalStatus(next.status);
+
+  // winner change / flip into or out of final / play-in toggle
+  if (prev.winnerTeamId !== next.winnerTeamId) return true;
+  if (prev.isPlayIn !== next.isPlayIn) return true;
+  if (prevFinal !== nextFinal) return true;
+
+  // point corrections while final-like (rare, but real)
+  if (nextFinal) {
+    if (prev.homePoints !== next.homePoints) return true;
+    if (prev.awayPoints !== next.awayPoints) return true;
+  }
+
+  return false;
+}
 
 function mapGameStatus(raw: any): CanonGameStatus {
   const s = String(raw ?? "").trim();
@@ -106,114 +140,471 @@ function mapGameStatus(raw: any): CanonGameStatus {
   return "scheduled";
 }
 
-function extractHomeAwayFromScheduleGame(g: any): { homeId: string | null; awayId: string | null } {
-  const homeId = g?.home?.id ?? g?.home_team?.id ?? null;
-  const awayId = g?.away?.id ?? g?.away_team?.id ?? null;
+function pickRoundName(x: any): string {
+  // schedule games often have round in `title`
+  return String(
+    x?.round?.name ??
+      x?.tournament_round?.name ??
+      x?.round_name ??
+      x?.sport_event?.tournament_round?.name ??
+      x?.sport_event?.tournament_round?.type ??
+      x?.title ??
+      x?.round ??
+      "",
+  ).trim();
+}
+
+function pickRoundSeq(x: any): number | null {
+  const v =
+    x?.round?.sequence ??
+    x?.tournament_round?.sequence ??
+    x?.sport_event?.tournament_round?.sequence ??
+    x?.round_seq ??
+    null;
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function isPlayInRound(roundName: string): boolean {
+  return /first four|play[-\s]?in/i.test(roundName);
+}
+
+/** ---- Summary parsing (brackets->participants is the key for March Madness) ---- */
+type BracketMeta = {
+  bracketId: string;
+  bracketName: string | null;
+  bracketRank: number | null;
+};
+
+function extractBracketParticipants(
+  summary: any,
+): Array<{ team: any; meta: BracketMeta }> {
+  const brackets = Array.isArray(summary?.brackets) ? summary.brackets : [];
+  const out: Array<{ team: any; meta: BracketMeta }> = [];
+
+  for (const b of brackets) {
+    const meta: BracketMeta = {
+      bracketId: b?.id ? String(b.id) : "",
+      bracketName: b?.name ? String(b.name) : null,
+      bracketRank: b?.rank == null ? null : Number(b.rank),
+    };
+
+    const participants = Array.isArray(b?.participants) ? b.participants : [];
+    for (const p of participants) out.push({ team: p, meta });
+  }
+
+  // fallback
+  const top = Array.isArray(summary?.participants) ? summary.participants : [];
+  for (const p of top)
+    out.push({
+      team: p,
+      meta: { bracketId: "", bracketName: null, bracketRank: null },
+    });
+
+  return out;
+}
+
+function normalizeTeamName(t: any): {
+  name: string | null;
+  market: string | null;
+  alias: string | null;
+} {
+  const alias = t?.alias
+    ? String(t.alias)
+    : t?.abbreviation
+      ? String(t.abbreviation)
+      : null;
+
+  const market = t?.market ? String(t.market) : null;
+  const n1 = t?.name ? String(t.name) : null;
+  const full = t?.full_name ? String(t.full_name) : null;
+
+  const display =
+    full ??
+    (market && n1 ? `${market} ${n1}` : null) ??
+    n1 ??
+    market ??
+    alias ??
+    null;
+
+  return { name: display, market, alias };
+}
+
+function extractSeedRegionQuadrantFromBracketParticipant(
+  p: any,
+  meta: BracketMeta,
+) {
+  const seedRaw = p?.seed ?? null;
+  const seed = seedRaw == null ? null : Number(seedRaw);
+
+  // region/quadrant belong to the bracket
+  const region = meta.bracketName;
+  const quadrant = meta.bracketRank;
+
   return {
-    homeId: homeId ? String(homeId) : null,
-    awayId: awayId ? String(awayId) : null
+    seed: Number.isFinite(seed) ? seed : null,
+    region,
+    quadrant: Number.isFinite(quadrant) ? quadrant : null,
   };
 }
 
-function extractHomeAwayFromSummary(summary: any): { homeId: string | null; awayId: string | null } {
-  const competitors = summary?.sport_event?.competitors ?? [];
-  const homeId =
-    summary?.home?.id ??
-    competitors.find((c: any) => c?.qualifier === "home")?.id ??
-    null;
+async function upsertTeamsAndTournamentTeams(
+  db: Prisma.TransactionClient | typeof prisma,
+  tournamentId: string,
+  summary: any,
+): Promise<Set<string>> {
+  const rows = extractBracketParticipants(summary);
+  const known = new Set<string>();
 
-  const awayId =
-    summary?.away?.id ??
-    competitors.find((c: any) => c?.qualifier === "away")?.id ??
-    null;
+  for (const { team: t, meta } of rows) {
+    const teamId = t?.id ? String(t.id) : null;
+    if (!teamId) continue;
 
+    const { name, market, alias } = normalizeTeamName(t);
+
+    await db.team.upsert({
+      where: { id: teamId },
+      create: {
+        id: teamId,
+        name: name ?? teamId,
+        market,
+        alias,
+        baseTeamRaw: t,
+      },
+      update: { ...(name ? { name } : {}), market, alias, baseTeamRaw: t },
+    });
+
+    const { seed, region, quadrant } =
+      extractSeedRegionQuadrantFromBracketParticipant(t, meta);
+
+    await db.tournamentTeam.upsert({
+      where: { tournamentId_teamId: { tournamentId, teamId } },
+      create: {
+        tournamentId,
+        teamId,
+        seed,
+        region,
+        quadrant,
+        payloadRaw: { participant: t, bracket: meta },
+      },
+      update: {
+        seed: seed ?? undefined,
+        region: region ?? undefined,
+        quadrant: quadrant ?? undefined,
+        payloadRaw: { participant: t, bracket: meta },
+      },
+    });
+
+    known.add(teamId);
+  }
+
+  return known;
+}
+
+/** ---- Schedule parsing: STRICTLY use rounds[].games + follow home/away.source recursively ---- */
+function canonicalGameId(node: any): string | null {
+  // Some schedule nodes might embed sport_event; prefer sport_event.id if present
+  const id = node?.sport_event?.id ?? node?.id ?? null;
+  return id ? String(id) : null;
+}
+
+function looksLikeScheduleGameNode(node: any): boolean {
+  if (!node || typeof node !== "object" || Array.isArray(node)) return false;
+
+  const id = canonicalGameId(node);
+  if (!id) return false;
+
+  // Must have some notion of timing AND teams/sides.
+  const scheduled = node?.scheduled ?? node?.sport_event?.scheduled ?? null;
+
+  const hasSides =
+    node?.home_team != null ||
+    node?.away_team != null ||
+    node?.home?.id != null ||
+    node?.away?.id != null;
+
+  // Prevent accidentally treating team objects as games:
+  const hasTeamNameFields = node?.market != null || node?.full_name != null;
+  if (hasTeamNameFields && !scheduled) return false;
+
+  return Boolean(scheduled && hasSides);
+}
+
+function collectScheduleGames(schedule: any): Map<string, any> {
+  const out = new Map<string, any>();
+
+  const rounds: any[] =
+    schedule?.rounds ??
+    schedule?.tournament?.rounds ??
+    schedule?.bracket?.rounds ??
+    [];
+
+  const addNode = (g: any) => {
+    if (!looksLikeScheduleGameNode(g)) return;
+    const id = canonicalGameId(g);
+    if (!id) return;
+    if (!out.has(id)) out.set(id, g);
+  };
+
+  // Seed from rounds[].games
+  for (const r of rounds) {
+    const games: any[] = r?.games ?? [];
+    for (const g of games) addNode(g);
+  }
+
+  // Recursively follow sources: home.source / away.source (and home.sources/away.sources if present)
+  const stack = Array.from(out.values());
+  while (stack.length) {
+    const g = stack.pop();
+
+    for (const side of ["home", "away"] as const) {
+      const obj = g?.[side] ?? null;
+      const src = obj?.source ?? null;
+      if (src && looksLikeScheduleGameNode(src)) {
+        const id = canonicalGameId(src);
+        if (id && !out.has(id)) {
+          out.set(id, src);
+          stack.push(src);
+        }
+      }
+
+      const srcs = obj?.sources;
+      if (Array.isArray(srcs)) {
+        for (const s of srcs) {
+          if (!looksLikeScheduleGameNode(s)) continue;
+          const id = canonicalGameId(s);
+          if (id && !out.has(id)) {
+            out.set(id, s);
+            stack.push(s);
+          }
+        }
+      }
+    }
+  }
+
+  return out;
+}
+
+async function recomputeTeamTournamentStats(
+  db: Prisma.TransactionClient | typeof prisma,
+  tournamentId: string,
+) {
+  // get all teams in tournament + seeds
+  const tteams = await db.tournamentTeam.findMany({
+    where: { tournamentId },
+    select: { teamId: true, seed: true },
+  });
+
+  // count wins from FINAL games excluding play-in
+  const finals = await db.game.findMany({
+    where: {
+      tournamentId,
+      isPlayIn: false,
+      status: { in: ["complete", "closed", "forfeited"] },
+      winnerTeamId: { not: null },
+    },
+    select: { winnerTeamId: true },
+  });
+
+  const winsByTeam = new Map<string, number>();
+  for (const g of finals) {
+    const w = g.winnerTeamId!;
+    winsByTeam.set(w, (winsByTeam.get(w) ?? 0) + 1);
+  }
+
+  // upsert stats rows
+  for (const tt of tteams) {
+    const wins = winsByTeam.get(tt.teamId) ?? 0;
+    const seed = tt.seed ?? null;
+    const teamScore = seed != null ? wins * seed : null;
+
+    await db.teamTournamentStats.upsert({
+      where: { tournamentId_teamId: { tournamentId, teamId: tt.teamId } },
+      create: {
+        tournamentId,
+        teamId: tt.teamId,
+        wins,
+        teamScore,
+        lastRecalcAt: new Date(),
+      },
+      update: {
+        wins,
+        teamScore,
+        lastRecalcAt: new Date(),
+      },
+    });
+  }
+
+  await db.tournament.update({
+    where: { id: tournamentId },
+    data: { statsUpdatedAt: new Date() },
+  });
+}
+
+function pickTeamIdsFromScheduleGame(g: any): {
+  homeId: string | null;
+  awayId: string | null;
+} {
+  const homeId = g?.home_team ?? g?.home?.id ?? g?.home_team?.id ?? null;
+  const awayId = g?.away_team ?? g?.away?.id ?? g?.away_team?.id ?? null;
   return {
     homeId: homeId ? String(homeId) : null,
-    awayId: awayId ? String(awayId) : null
+    awayId: awayId ? String(awayId) : null,
   };
 }
 
-function extractPointsFromSummary(summary: any): { homePts: number | null; awayPts: number | null } {
-  const home = summary?.home_points ?? summary?.sport_event_status?.home_score ?? null;
-  const away = summary?.away_points ?? summary?.sport_event_status?.away_score ?? null;
+function pickScheduledAtFromScheduleGame(g: any): Date | null {
+  return parseDateMaybe(g?.scheduled ?? g?.sport_event?.scheduled ?? null);
+}
 
+function pickPointsFromScheduleGame(g: any): {
+  homePts: number | null;
+  awayPts: number | null;
+} {
+  const home = g?.home_points ?? g?.sport_event_status?.home_score ?? null;
+  const away = g?.away_points ?? g?.sport_event_status?.away_score ?? null;
   return {
     homePts: home == null ? null : Number(home),
-    awayPts: away == null ? null : Number(away)
+    awayPts: away == null ? null : Number(away),
   };
 }
 
-function computeWinner(
-  homePts: number | null,
-  awayPts: number | null,
-  homeId: string | null,
-  awayId: string | null
-): string | null {
-  if (homePts == null || awayPts == null) return null;
+function computeWinnerFromSchedule(g: any): string | null {
+  const explicit = g?.sport_event_status?.winner_id ?? g?.winner_id ?? null;
+  if (explicit) return String(explicit);
+
+  const { homeId, awayId } = pickTeamIdsFromScheduleGame(g);
+  const { homePts, awayPts } = pickPointsFromScheduleGame(g);
+
   if (!homeId || !awayId) return null;
+  if (homePts == null || awayPts == null) return null;
   if (homePts === awayPts) return null;
   return homePts > awayPts ? homeId : awayId;
 }
 
-function pickChangedTimestamp(item: any): string {
-  return String(item?.updated_at ?? item?.timestamp ?? item?.updatedAt ?? "").trim();
-}
+async function ensureTeamStubById(
+  db: Prisma.TransactionClient | typeof prisma,
+  tournamentId: string,
+  teamId: string,
+  knownTeamIds: Set<string>,
+) {
+  if (knownTeamIds.has(teamId)) return teamId;
 
-function pickChangeGameId(item: any): string | null {
-  const id = item?.sport_event_id ?? item?.game_id ?? item?.id ?? null;
-  return id ? String(id) : null;
-}
-
-async function getLastCursorISO(tournamentId: string): Promise<string | null> {
-  const t = await prisma.tournament.findUnique({
-    where: { id: tournamentId },
-    select: { nextCheckAt: true }
+  // minimal stub to satisfy FK if schedule references a team we didn't get in summary (rare)
+  await db.team.upsert({
+    where: { id: teamId },
+    create: {
+      id: teamId,
+      name: teamId,
+      baseTeamRaw: { id: teamId, stub: true },
+    },
+    update: {},
   });
-  return t?.nextCheckAt ? t.nextCheckAt.toISOString() : null;
-}
 
-async function advanceCursor(tournamentId: string, isoTs: string) {
-  const d = new Date(isoTs);
-  if (Number.isNaN(d.getTime())) return;
-  await prisma.tournament.update({
-    where: { id: tournamentId },
-    data: { nextCheckAt: d }
+  await db.tournamentTeam.upsert({
+    where: { tournamentId_teamId: { tournamentId, teamId } },
+    create: {
+      tournamentId,
+      teamId,
+      seed: null,
+      region: null,
+      quadrant: null,
+      payloadRaw: { stub: true },
+    },
+    update: {},
   });
+
+  knownTeamIds.add(teamId);
+  return teamId;
 }
 
-export async function runSyncOnce(params: { tournamentId: string; seasonYear: number }) {
+export async function runSyncOnce(params: {
+  tournamentId: string;
+  seasonYear: number;
+}) {
   const stats: any = {
+    summaryTeamsUpserts: 0,
     scheduleGamesSeen: 0,
     scheduleUpserts: 0,
-    changedGames: 0,
-    summariesFetched: 0,
-    summariesUpserts: 0
   };
 
-  // 1) schedule
-  const schedule = await retry(() => fetchTournamentSchedule(params.tournamentId));
-  const scheduleHash = sha256Hex(schedule);
+  // A) Tournament Summary (teams)
+  const summary = await retry(() =>
+    fetchTournamentSummary(params.tournamentId),
+  );
+  const summaryHash = sha256Hex(summary);
 
+  const bracketCount = Array.isArray(summary?.brackets)
+    ? summary.brackets.length
+    : 0;
+  const participantCount = extractBracketParticipants(summary).length;
+
+  log.info(
+    {
+      tournamentId: params.tournamentId,
+      summaryStatus: summary?.status,
+      start_date: summary?.start_date,
+      end_date: summary?.end_date,
+      bracketCount,
+      participantCount,
+    },
+    "tournament summary snapshot",
+  );
+
+  // Upsert tournament row
   await prisma.tournament.upsert({
     where: { id: params.tournamentId },
     create: {
       id: params.tournamentId,
       seasonYear: params.seasonYear,
-      name: String(schedule?.name ?? `NCAA Tournament ${params.seasonYear}`),
-      startDate: schedule?.start_date ? new Date(schedule.start_date) : null,
-      endDate: schedule?.end_date ? new Date(schedule.end_date) : null,
+      name: String(summary?.name ?? `NCAA Tournament ${params.seasonYear}`),
+      startDate: parseDateMaybe(summary?.start_date),
+      endDate: parseDateMaybe(summary?.end_date),
       syncState: "MONITORING",
-      eventStatusRaw: schedule,
+      eventStatusRaw: PrismaNS.JsonNull,
+      payloadRaw: summary,
       statsUpdatedAt: new Date(),
-      nextCheckAt: new Date(0)
+      nextCheckAt: new Date(0),
     },
     update: {
-      name: String(schedule?.name ?? `NCAA Tournament ${params.seasonYear}`),
-      startDate: schedule?.start_date ? new Date(schedule.start_date) : undefined,
-      endDate: schedule?.end_date ? new Date(schedule.end_date) : undefined,
-      eventStatusRaw: schedule,
-      statsUpdatedAt: new Date()
-    }
+      name: String(summary?.name ?? `NCAA Tournament ${params.seasonYear}`),
+      startDate: parseDateMaybe(summary?.start_date) ?? undefined,
+      endDate: parseDateMaybe(summary?.end_date) ?? undefined,
+      payloadRaw: summary,
+      statsUpdatedAt: new Date(),
+    },
+  });
+
+  await prisma.syncLog.create({
+    data: {
+      feedType: "TOURNAMENT_SUMMARY",
+      tournamentId: params.tournamentId,
+      entityId: params.tournamentId,
+      fetchedAt: new Date(),
+      httpStatus: 200,
+      payload: summary,
+      payloadHash: summaryHash,
+    },
+  });
+
+  // Upsert teams + tournamentTeams
+  const knownTeamIds = await upsertTeamsAndTournamentTeams(
+    prisma,
+    params.tournamentId,
+    summary,
+  );
+  stats.summaryTeamsUpserts = knownTeamIds.size;
+
+  // B) Tournament Schedule (games only from schedule)
+  const schedule = await retry(() =>
+    fetchTournamentSchedule(params.tournamentId),
+  );
+  const scheduleHash = sha256Hex(schedule);
+
+  await prisma.tournament.update({
+    where: { id: params.tournamentId },
+    data: { eventStatusRaw: schedule, statsUpdatedAt: new Date() },
   });
 
   await prisma.syncLog.create({
@@ -224,173 +615,156 @@ export async function runSyncOnce(params: { tournamentId: string; seasonYear: nu
       fetchedAt: new Date(),
       httpStatus: 200,
       payload: schedule,
-      payloadHash: scheduleHash
-    }
+      payloadHash: scheduleHash,
+    },
   });
 
-  const scheduleGames: any[] =
-    schedule?.games ?? schedule?.rounds?.flatMap((r: any) => r.games ?? []) ?? [];
-  stats.scheduleGamesSeen = scheduleGames.length;
+  const scheduleGameMap = collectScheduleGames(schedule);
+  stats.scheduleGamesSeen = scheduleGameMap.size;
 
-  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    for (const g of scheduleGames) {
-      const gameId = String(g?.id ?? "");
-      if (!gameId) continue;
+  if (
+    String(summary?.status ?? "").toLowerCase() === "closed" &&
+    scheduleGameMap.size < 60
+  ) {
+    log.warn(
+      {
+        tournamentId: params.tournamentId,
+        scheduleGamesSeen: scheduleGameMap.size,
+      },
+      "Closed tournament but schedule contains surprisingly few games — check your schedule payload shape / access level",
+    );
+  }
 
-      const roundName = pickRoundName(g);
-      const roundSeq = pickRoundSeq(g);
-      const playIn = isPlayInRound(roundName);
-
-      const status = mapGameStatus(g?.status);
-      const scheduledAt = parseDateMaybe(g?.scheduled);
-      const { homeId, awayId } = extractHomeAwayFromScheduleGame(g);
-
-      const homePoints = g?.home_points != null ? Number(g.home_points) : null;
-      const awayPoints = g?.away_points != null ? Number(g.away_points) : null;
-
-      await tx.game.upsert({
-        where: { id: gameId },
-        create: {
-          id: gameId,
-          tournamentId: params.tournamentId,
-          round: roundName || null,
-          roundSeq,
-          isPlayIn: playIn,
-          scheduledAt,
-          status,
-          homeTeamId: homeId,
-          awayTeamId: awayId,
-          homePoints,
-          awayPoints,
-          winnerTeamId: null,
-          finalizedAt: null,
-          closedAt: null,
-          payloadRaw: g
-        },
-        update: {
-          round: roundName || undefined,
-          roundSeq: roundSeq ?? undefined,
-          isPlayIn: playIn,
-          scheduledAt: scheduledAt ?? undefined,
-          status,
-          homeTeamId: homeId ?? undefined,
-          awayTeamId: awayId ?? undefined,
-          homePoints: homePoints ?? undefined,
-          awayPoints: awayPoints ?? undefined,
-          payloadRaw: g
-        }
-      });
-
-      stats.scheduleUpserts++;
-    }
+  // Upsert games (no summaries endpoint)
+  // Build a lookup of existing games in ONE query (avoids 60+ findUnique calls)
+  const gameIds = Array.from(scheduleGameMap.keys());
+  const existing = await prisma.game.findMany({
+    where: { id: { in: gameIds } },
+    select: {
+      id: true,
+      status: true,
+      isPlayIn: true,
+      winnerTeamId: true,
+      homeTeamId: true,
+      awayTeamId: true,
+      homePoints: true,
+      awayPoints: true,
+      finalizedAt: true,
+      closedAt: true,
+    },
   });
 
-  // 2) daily change log
-  const todayISO = new Date().toISOString().slice(0, 10);
-  const lastCursorISO = await getLastCursorISO(params.tournamentId);
+  const existingById = new Map(existing.map((g) => [g.id, g]));
 
-  const changes = await retry(() => fetchDailyChangeLog(todayISO));
-  const items: any[] = changes?.changes ?? changes?.items ?? [];
+  let shouldRecalcStats = false;
 
-  const changedGameIds = items
-    .filter((x) => /game|sport_event/i.test(String(x?.type ?? x?.sport_event_type ?? "")) || !!pickChangeGameId(x))
-    .filter((x) => (lastCursorISO ? pickChangedTimestamp(x) > lastCursorISO : true))
-    .map((x) => pickChangeGameId(x))
-    .filter((x): x is string => !!x);
-
-  stats.changedGames = changedGameIds.length;
-
-  const maxTs = items.map(pickChangedTimestamp).filter(Boolean).sort().at(-1);
-  if (maxTs) await advanceCursor(params.tournamentId, maxTs);
-
-  await prisma.syncLog.create({
-    data: {
-      feedType: "DAILY_CHANGE_LOG",
-      tournamentId: params.tournamentId,
-      entityId: todayISO,
-      fetchedAt: new Date(),
-      httpStatus: 200,
-      payload: { changedGameIds, lastCursorISO, maxTs },
-      payloadHash: sha256Hex({ changedGameIds, lastCursorISO, maxTs })
-    }
-  });
-
-  // 3) summaries
-  for (const gameId of changedGameIds) {
-    stats.summariesFetched++;
-
-    const summary = await retry(() => fetchGameSummary(gameId));
-    const hash = sha256Hex(summary);
-
-    const status = mapGameStatus(summary?.status ?? summary?.sport_event_status?.status);
-    const { homeId, awayId } = extractHomeAwayFromSummary(summary);
-    const { homePts, awayPts } = extractPointsFromSummary(summary);
-    const winner = computeWinner(homePts, awayPts, homeId, awayId);
-
-    const roundName = pickRoundName(summary);
-    const roundSeq = pickRoundSeq(summary);
+  // You can optionally collect which teams changed, but for now we’ll just
+  // recalc the whole tournament if ANY scoring-relevant change happens.
+  for (const [gameId, g] of scheduleGameMap.entries()) {
+    const roundName = pickRoundName(g);
+    const roundSeq = pickRoundSeq(g);
     const playIn = isPlayInRound(roundName);
 
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const existing = await tx.game.findUnique({
-        where: { id: gameId },
-        select: { finalizedAt: true, closedAt: true }
-      });
+    const status = mapGameStatus(
+      g?.status ?? g?.sport_event_status?.status ?? g?.sport_event?.status,
+    );
 
-      const isFinalLike = status === "complete" || status === "closed" || status === "forfeited";
-      const shouldSetFinalizedAt = isFinalLike && !existing?.finalizedAt;
-      const shouldSetClosedAt = status === "closed" && !existing?.closedAt;
+    const scheduledAt = pickScheduledAtFromScheduleGame(g);
 
-      await tx.game.upsert({
-        where: { id: gameId },
-        create: {
-          id: gameId,
-          tournamentId: params.tournamentId,
-          round: roundName || null,
-          roundSeq,
-          isPlayIn: playIn,
-          scheduledAt: parseDateMaybe(summary?.scheduled ?? summary?.sport_event?.scheduled),
-          status,
-          homeTeamId: homeId,
-          awayTeamId: awayId,
-          homePoints: homePts,
-          awayPoints: awayPts,
-          winnerTeamId: winner,
-          finalizedAt: shouldSetFinalizedAt ? new Date() : null,
-          closedAt: shouldSetClosedAt ? new Date() : null,
-          payloadRaw: summary
-        },
-        update: {
-          round: roundName || undefined,
-          roundSeq: roundSeq ?? undefined,
-          isPlayIn: playIn,
-          scheduledAt: parseDateMaybe(summary?.scheduled ?? summary?.sport_event?.scheduled) ?? undefined,
-          status,
-          homeTeamId: homeId ?? undefined,
-          awayTeamId: awayId ?? undefined,
-          homePoints: homePts ?? undefined,
-          awayPoints: awayPts ?? undefined,
-          winnerTeamId: winner ?? undefined,
-          finalizedAt: shouldSetFinalizedAt ? new Date() : undefined,
-          closedAt: shouldSetClosedAt ? new Date() : undefined,
-          payloadRaw: summary
-        }
-      });
+    const { homeId, awayId } = pickTeamIdsFromScheduleGame(g);
+    const safeHomeId = homeId
+      ? await ensureTeamStubById(
+          prisma,
+          params.tournamentId,
+          homeId,
+          knownTeamIds,
+        )
+      : null;
+    const safeAwayId = awayId
+      ? await ensureTeamStubById(
+          prisma,
+          params.tournamentId,
+          awayId,
+          knownTeamIds,
+        )
+      : null;
 
-      await tx.syncLog.create({
-        data: {
-          feedType: "GAME_SUMMARY",
-          tournamentId: params.tournamentId,
-          entityId: gameId,
-          fetchedAt: new Date(),
-          httpStatus: 200,
-          payload: summary,
-          payloadHash: hash
-        }
-      });
+    const { homePts, awayPts } = pickPointsFromScheduleGame(g);
+
+    const winnerId = computeWinnerFromSchedule(g);
+    const safeWinnerId = winnerId
+      ? await ensureTeamStubById(
+          prisma,
+          params.tournamentId,
+          winnerId,
+          knownTeamIds,
+        )
+      : null;
+
+    const prev = existingById.get(gameId);
+    const scoringChanged = didScoringRelevantChange(prev as any, {
+      status,
+      isPlayIn: playIn,
+      winnerTeamId: safeWinnerId,
+      homePoints: homePts,
+      awayPoints: awayPts,
     });
 
-    stats.summariesUpserts++;
+    if (scoringChanged) shouldRecalcStats = true;
+
+    const finalLike = isFinalStatus(status) && safeWinnerId != null;
+    const now = new Date();
+
+    // Only set finalizedAt/closedAt the FIRST time we see it happen.
+    const finalizedAt =
+      finalLike && !prev?.finalizedAt ? now : (prev?.finalizedAt ?? null);
+    const closedAt =
+      status === "closed" && !prev?.closedAt ? now : (prev?.closedAt ?? null);
+
+    await prisma.game.upsert({
+      where: { id: gameId },
+      create: {
+        id: gameId,
+        tournamentId: params.tournamentId,
+        round: roundName || null,
+        roundSeq,
+        isPlayIn: playIn,
+        scheduledAt,
+        status,
+        homeTeamId: safeHomeId,
+        awayTeamId: safeAwayId,
+        homePoints: homePts,
+        awayPoints: awayPts,
+        winnerTeamId: safeWinnerId,
+        finalizedAt,
+        closedAt,
+        payloadRaw: g,
+      },
+      update: {
+        round: roundName || undefined,
+        roundSeq: roundSeq ?? undefined,
+        isPlayIn: playIn,
+        scheduledAt: scheduledAt ?? undefined,
+        status,
+        homeTeamId: safeHomeId ?? undefined,
+        awayTeamId: safeAwayId ?? undefined,
+        homePoints: homePts ?? undefined,
+        awayPoints: awayPts ?? undefined,
+        winnerTeamId: safeWinnerId ?? undefined,
+        // IMPORTANT: don’t overwrite timestamps every run
+        finalizedAt,
+        closedAt,
+        payloadRaw: g,
+      },
+    });
+
+    stats.scheduleUpserts++;
+  }
+
+  // After games are written, recompute stats if needed
+  if (shouldRecalcStats) {
+    await recomputeTeamTournamentStats(prisma, params.tournamentId);
+    log.info({ tournamentId: params.tournamentId }, "stats recomputed");
   }
 
   log.info({ tournamentId: params.tournamentId, stats }, "sync ok");
