@@ -2,6 +2,8 @@
   "private": true,
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
+    "bootstrap": "npm install && npm run db:migrate:dev && npm -w @fantasy-madness/db run build && npm -w @fantasy-madness/ingest run build",
+    "ingest:run": "npm -w @fantasy-madness/ingest run start",
     "db:generate": "npx prisma generate --schema=packages/db/prisma/schema.prisma",
     "db:migrate:dev": "npx prisma migrate dev --schema=packages/db/prisma/schema.prisma",
     "db:migrate:deploy": "npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma",
