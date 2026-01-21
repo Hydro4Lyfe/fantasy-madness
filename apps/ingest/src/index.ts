@@ -1,10 +1,8 @@
-import pino from "pino";
+import { log } from "./logger.js";
 import { initSportradarConfig } from "./sportradar.js";
 import { withAdvisoryLock } from "./lock.js";
 import { discoverTournament } from "./discovery.js";
 import { runSyncOnce } from "./sync.js";
-
-const log = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
 initSportradarConfig();
 

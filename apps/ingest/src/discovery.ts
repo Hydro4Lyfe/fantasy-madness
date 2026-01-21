@@ -1,7 +1,5 @@
-import pino from "pino";
+import { log } from "./logger.js";
 import { fetchTournamentList, fetchTournamentSchedule } from "./sportradar.js";
-
-const log = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
 export type DiscoveredTournament = {
   tournamentId: string;

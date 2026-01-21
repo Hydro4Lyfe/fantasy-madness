@@ -1,10 +1,8 @@
-import pino from "pino";
+import { log } from "./logger.js";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@fantasy-madness/db";
 import { sha256Hex } from "./hash.js";
 import { fetchDailyChangeLog, fetchTournamentSchedule, fetchGameSummary } from "./sportradar.js";
-
-const log = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
