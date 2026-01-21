@@ -87,7 +87,7 @@ async function pickBest(items: TournamentListItem[]): Promise<TournamentListItem
 }
 
 export async function discoverTournament(): Promise<DiscoveredTournament> {
-  const seasonType = process.env.SEASON_TYPE_OVERRIDE ?? "PST";
+  const seasonType = String(process.env.SEASON_TYPE ?? "PST").replace(/^["']|["']$/g, "");
 
   const idOverride = process.env.TOURNAMENT_ID_OVERRIDE;
   const yearOverride = process.env.SEASON_YEAR_OVERRIDE;
