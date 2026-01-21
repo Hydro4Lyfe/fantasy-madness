@@ -1,0 +1,19 @@
+{
+  "name": "@fantasy-madness/ingest",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node --env-file=.env dist/index.js"
+  },
+  "dependencies": {
+    "@fantasy-madness/db": "0.0.1",
+    "@prisma/client": "^6.0.0",
+    "pino": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.9",
+    "prisma": "^6.0.0",
+    "typescript": "^5.5.0"
+  }
+}
