@@ -13,30 +13,28 @@ type CadenceSpec = {
 };
 
 export const CADENCES: CadenceSpec[] = [
+  // DISCOVERY
   { name: JOB.TOURNAMENT_LIST, phases: ["DISCOVERY"], every: "1d", jitterSeconds: 60,
     payload: ({ phase, bucketKey }) => ({ reason: phase, bucketKey }) },
 
-  // PRE_TOURNAMENT: light schedule refresh so we eventually populate without spamming
+  // PRE_TOURNAMENT
   { name: JOB.TOURNAMENT_SCHEDULE, phases: ["PRE_TOURNAMENT"], every: "1d", jitterSeconds: 90,
     payload: ({ phase, bucketKey }) => ({ reason: phase, bucketKey }) },
 
-  // SELECTION_WINDOW: moderate
+  // SELECTION_WINDOW
   { name: JOB.TOURNAMENT_SCHEDULE, phases: ["SELECTION_WINDOW"], every: "3h", jitterSeconds: 60,
     payload: ({ phase, bucketKey }) => ({ reason: phase, bucketKey }) },
   { name: JOB.DAILY_CHANGE_LOG, phases: ["SELECTION_WINDOW"], every: "1d", jitterSeconds: 60,
     payload: ({ phase, bucketKey }) => ({ reason: phase, bucketKey }) },
 
-  // LIVE: schedule more often, change log less often unless you parse it into targeted pulls
+  // TOURNAMENT_GAMEDAY baseline
   { name: JOB.TOURNAMENT_SCHEDULE, phases: ["TOURNAMENT_GAMEDAY"], every: "1h", jitterSeconds: 30,
     payload: ({ phase, bucketKey }) => ({ reason: phase, bucketKey }) },
-  { name: JOB.DAILY_CHANGE_LOG, phases: ["TOURNAMENT_GAMEDAY"], every: "3h", jitterSeconds: 30,
-    payload: ({ phase, bucketKey }) => ({ reason: phase, bucketKey }) },
 
-  // Gap days + cooldown: very light
-  { name: JOB.TOURNAMENT_SCHEDULE, phases: ["TOURNAMENT_GAPDAY"], every: "1d", jitterSeconds: 120,
-    payload: ({ phase, bucketKey }) => ({ reason: phase, bucketKey }) },
-  { name: JOB.DAILY_CHANGE_LOG, phases: ["TOURNAMENT_GAPDAY", "COOLDOWN"], every: "1d", jitterSeconds: 120,
+  // TOURNAMENT_GAPDAY + COOLDOWN
+  { name: JOB.TOURNAMENT_SCHEDULE, phases: ["TOURNAMENT_GAPDAY", "COOLDOWN"], every: "1d", jitterSeconds: 120,
     payload: ({ phase, bucketKey }) => ({ reason: phase, bucketKey }) },
 ];
+
 
 
