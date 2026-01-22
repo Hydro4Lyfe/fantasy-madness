@@ -8,14 +8,15 @@
   },
   "dependencies": {
     "@fantasy-madness/db": "0.0.1",
-    "@prisma/client": "^6.0.0",
-    "luxon": "^3.5.0",
-    "pg-boss": "^10.0.0",
+    "@prisma/client": "7.3.0",
+    "luxon": "^3.7.2",
+    "pg-boss": "^12.5.4",
     "pino": "^9.0.0"
   },
   "devDependencies": {
     "@types/node": "^25.0.9",
-    "prisma": "^6.0.0",
+    "@types/pg": "^8.16.0",
+    "prisma": "7.3.0",
     "typescript": "^5.5.0"
   }
 }

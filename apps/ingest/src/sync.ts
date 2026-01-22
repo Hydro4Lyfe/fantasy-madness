@@ -7,6 +7,10 @@ import {
   fetchTournamentSchedule,
   fetchTournamentSummary,
 } from "./sportradar.js";
+import {
+  maybeMaterializeBracketSlotsOnce,
+  resolvePlayInSlots,
+} from "./bracketSlots.js";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -648,6 +652,12 @@ export async function runSyncOnce(params: {
   );
   stats.summaryTeamsUpserts = knownTeamIds.size;
 
+  // C) Materialize canonical bracket slots ONCE (only after seeded teams exist).
+  // Uses Tournament.bracketLockedAt as the one-way latch.
+  await prisma.$transaction(async (tx) => {
+    await maybeMaterializeBracketSlotsOnce(tx, params.tournamentId);
+  });
+
   // B) Tournament Schedule (games only from schedule)
   const schedule = await retry(() =>
     fetchTournamentSchedule(params.tournamentId),
@@ -813,11 +823,27 @@ export async function runSyncOnce(params: {
     stats.scheduleUpserts++;
   }
 
+  // D) Resolve play-in winners into their canonical slots (idempotent)
+  await prisma.$transaction(async (tx) => {
+    await resolvePlayInSlots(tx, params.tournamentId);
+  });
+
   // After games are written, recompute stats if needed
   if (shouldRecalcStats) {
     await recomputeTeamTournamentStats(prisma, params.tournamentId);
     log.info({ tournamentId: params.tournamentId }, "stats recomputed");
   }
+
+  // D) Resolve play-in winners into their canonical bracket slot.
+  // Safe to run repeatedly; does not rebuild slots/candidates.
+  await prisma.$transaction(async (tx) => {
+    await resolvePlayInSlots(tx, params.tournamentId);
+  });
+
+  // Resolve any finalized play-in winners into their BracketSlot (idempotent).
+  await prisma.$transaction(async (tx) => {
+    await resolvePlayInSlots(tx, params.tournamentId);
+  });
 
   log.info({ tournamentId: params.tournamentId, stats }, "sync ok");
 }

@@ -13,14 +13,17 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "generate": "prisma generate"
+    "generate": "npx prisma generate --schema prisma/schema.prisma"
   },
   "dependencies": {
-    "@prisma/client": "^6.0.0"
+    "@prisma/adapter-pg": "7.3.0",
+    "@prisma/client": "7.3.0",
+    "pg": "^8.17.2"
   },
   "devDependencies": {
     "@types/node": "^25.0.9",
-    "prisma": "^6.0.0",
+    "@types/pg": "^8.16.0",
+    "prisma": "7.3.0",
     "typescript": "^5.5.0"
   }
 }

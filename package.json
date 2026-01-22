@@ -5,22 +5,27 @@
     "packages/*"
   ],
   "scripts": {
-    "bootstrap": "npm install && npm run db:migrate:dev && npm -w @fantasy-madness/db run build && npm -w @fantasy-madness/ingest run build",
+    "bootstrap": "npm run db:migrate:dev && npm -w @fantasy-madness/db run build && npm -w @fantasy-madness/ingest run build",
+
     "ingest:run": "npm -w @fantasy-madness/ingest run start",
-    "db:generate": "npx prisma generate --schema=packages/db/prisma/schema.prisma",
-    "db:migrate:dev": "npx prisma migrate dev --schema=packages/db/prisma/schema.prisma",
-    "db:migrate:deploy": "npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma",
+    "ingest:dev": "npm -w @fantasy-madness/ingest run dev",
+
+    "db:generate": "npx prisma generate --schema packages/db/prisma/schema.prisma",
+    "db:migrate:dev": "npx prisma migrate dev --schema packages/db/prisma/schema.prisma",
+    "db:migrate:deploy": "npx prisma migrate deploy --schema packages/db/prisma/schema.prisma",
+    "db:studio": "npx prisma studio --schema packages/db/prisma/schema.prisma",
+
     "postinstall": "npm run db:generate"
   },
   "devDependencies": {
     "@types/luxon": "^3.7.1",
-    "prisma": "^6.0.0"
-  },
-  "prisma": {
-    "schema": "packages/db/prisma/schema.prisma"
+    "prisma": "7.3.0"
   },
   "dependencies": {
-    "luxon": "^3.7.2",
-    "pg-boss": "^12.5.4"
+    "@prisma/client": "7.3.0"
+  },
+  "overrides": {
+    "prisma": "7.3.0",
+    "@prisma/client": "7.3.0"
   }
 }

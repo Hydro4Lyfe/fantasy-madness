@@ -4,8 +4,6 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 /// Sync lifecycle for the tournament ingestion.
@@ -60,6 +58,8 @@ model Tournament {
   endDate          DateTime? @db.Date @map("end_date")
 
   syncState        TournamentSyncState @default(DISCOVERED) @map("sync_state")
+
+  /// Used as the one-way latch for BracketSlot materialization (created once).
   bracketLockedAt  DateTime? @db.Timestamptz(6) @map("bracket_locked_at")
 
   /// Used as a simple cursor in our MVP+ daily change-log polling.
@@ -79,6 +79,9 @@ model Tournament {
   teams            TournamentTeam[]
   games            Game[]
   teamStats        TeamTournamentStats[]
+
+  /// NEW: canonical pick surface (64 slots)
+  bracketSlots     BracketSlot[]
 
   globalContests   GlobalContest[]
   drafts           Draft[]
@@ -112,8 +115,16 @@ model Team {
 
   teamStats   TeamTournamentStats[]
 
-  globalPicks GlobalPick[]
+  /// UPDATED: GlobalPick no longer points to Team directly (it points to BracketSlot).
+  /// globalPicks GlobalPick[]   <-- removed
+
   draftPicks  DraftPick[]
+
+  /// NEW: slot occupant relation (resolved team for a slot)
+  bracketSlotsAssigned BracketSlot[] @relation("BracketSlotAssignedTeam")
+
+  /// NEW: candidate teams for play-in slots
+  bracketSlotCandidates BracketSlotCandidate[]
 
   @@map("teams")
   @@index([alias], map: "ix_teams_alias")
@@ -141,6 +152,58 @@ model TournamentTeam {
   @@index([tournamentId, seed], map: "ix_tournament_teams_seed")
   @@index([tournamentId, quadrant], map: "ix_tournament_teams_quadrant")
   @@index([teamId], map: "ix_tournament_teams_team")
+}
+
+/// NEW: Canonical pick slots (64) per tournament.
+/// Users pick these slots; the slot resolves to a Team (assignedTeamId) when known.
+model BracketSlot {
+  id           String @id @default(uuid()) @db.Uuid @map("bracket_slot_id")
+
+  tournamentId String @db.Text @map("tournament_id")
+  quadrant     Int    @db.SmallInt @map("quadrant")
+  seed         Int    @db.SmallInt @map("seed")
+
+  /// Resolved occupant team for this slot (null for unresolved play-in slot)
+  assignedTeamId String? @db.Text @map("assigned_team_id")
+
+  /// The play-in game that decides this slot (optional)
+  playInGameId   String? @unique @db.Text @map("play_in_game_id")
+
+  createdAt      DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6) @map("updated_at")
+
+  tournament  Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  assignedTeam Team? @relation("BracketSlotAssignedTeam", fields: [assignedTeamId], references: [id], onDelete: SetNull)
+
+  playInGame     Game? @relation("PlayInDecider", fields: [playInGameId], references: [id], onDelete: SetNull)
+
+  candidates   BracketSlotCandidate[]
+  globalPicks  GlobalPick[]
+
+  @@map("bracket_slots")
+  @@unique([tournamentId, quadrant, seed], map: "ux_bracket_slots_tournament_quadrant_seed")
+  @@index([tournamentId], map: "ix_bracket_slots_tournament")
+  @@index([assignedTeamId], map: "ix_bracket_slots_assigned_team")
+  @@index([playInGameId], map: "ix_bracket_slots_playin_game")
+}
+
+/// NEW: Candidate teams for play-in slots (usually 2 candidates per play-in slot)
+model BracketSlotCandidate {
+  id      String @id @default(uuid()) @db.Uuid @map("bracket_slot_candidate_id")
+
+  slotId  String @db.Uuid @map("bracket_slot_id")
+  teamId  String @db.Text @map("team_id")
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  slot    BracketSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  team    Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("bracket_slot_candidates")
+  @@unique([slotId, teamId], map: "ux_bracket_slot_candidates_slot_team")
+  @@index([slotId], map: "ix_bracket_slot_candidates_slot")
+  @@index([teamId], map: "ix_bracket_slot_candidates_team")
 }
 
 model Game {
@@ -179,6 +242,9 @@ model Game {
   homeTeam     Team? @relation("HomeTeam", fields: [homeTeamId], references: [id])
   awayTeam     Team? @relation("AwayTeam", fields: [awayTeamId], references: [id])
   winnerTeam   Team? @relation("WinnerTeam", fields: [winnerTeamId], references: [id])
+
+  /// NEW: optional backrelation (one play-in game can decide at most one slot logically)
+  playInSlot   BracketSlot? @relation("PlayInDecider")
 
   @@map("games")
   @@index([tournamentId, status], map: "ix_games_tournament_status")
@@ -317,20 +383,21 @@ model GlobalEntry {
   @@index([userId], map: "ix_global_entries_user")
 }
 
+/// UPDATED: picks are now BracketSlot-based, not Team-based.
 model GlobalPick {
   entryId   String @db.Uuid @map("global_entry_id")
-  teamId    String @db.Text @map("team_id")
+  slotId    String @db.Uuid @map("bracket_slot_id")
   pickNo    Int    @db.SmallInt @map("pick_no")
 
   createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
 
-  entry     GlobalEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  team      Team        @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  entry     GlobalEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  slot      BracketSlot  @relation(fields: [slotId], references: [id], onDelete: Restrict)
 
   @@map("global_picks")
   @@id([entryId, pickNo])
-  @@unique([entryId, teamId], map: "ux_global_picks_entry_team")
-  @@index([teamId], map: "ix_global_picks_team")
+  @@unique([entryId, slotId], map: "ux_global_picks_entry_slot")
+  @@index([slotId], map: "ix_global_picks_slot")
 }
 
 model GlobalScore {
@@ -344,6 +411,8 @@ model GlobalScore {
   @@map("global_scores")
   @@index([score], map: "ix_global_scores_score")
 }
+
+/* ---- everything below this line is unchanged from your original schema ---- */
 
 model Draft {
   id           String @id @default(uuid()) @db.Uuid @map("draft_id")
