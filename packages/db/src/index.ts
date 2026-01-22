@@ -1,4 +1,6 @@
 import { PrismaClient } from "@prisma/client";
+export * from "@prisma/client";
+
 
 // One PrismaClient per process (prevents exhausting connections in dev/hot reload scenarios)
 declare global {

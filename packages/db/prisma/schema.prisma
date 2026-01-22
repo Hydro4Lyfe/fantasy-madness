@@ -479,3 +479,11 @@ model SyncLog {
   @@index([tournamentId, feedType, fetchedAt], map: "ix_sync_logs_tournament_feed_fetched")
   @@index([entityId, feedType, fetchedAt], map: "ix_sync_logs_entity_feed_fetched")
 }
+
+model SchedulerLease {
+  id        String   @id @default("singleton")
+  lockedBy  String?
+  lockedAt  DateTime?
+  expiresAt DateTime?
+  updatedAt DateTime @updatedAt
+}
