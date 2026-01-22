@@ -1,8 +1,0 @@
- docker build -f apps/ingest/Dockerfile -t fantasy-madness-ingest:dev .
- docker run --rm `
-   -e SPORTRADAR_BASE_URL="https://api.sportradar.com/ncaamb/trial/v8/en" `
-   -e SPORTRADAR_API_KEY="f4Qk0uMZOwV3TYVdXZW8DZDU63qxS3L2e3uO4pst" `
-   -e DIRECT_DATABASE_URL="postgresql://postgres.wyczpsaemguwtcfpchhb:FlzpZEiZk23MSVMC@aws-1-us-east-1.pooler.supabase.com:5432/postgres" `
-   -e DATABASE_URL="postgresql://postgres.wyczpsaemguwtcfpchhb:FlzpZEiZk23MSVMC@aws-1-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true" `
-   -e LOG_LEVEL="info" `
-   fantasy-madness-ingest:dev

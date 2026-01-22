@@ -11,6 +11,7 @@
     "@fantasy-madness/db": "0.0.1",
     "@prisma/client": "7.3.0",
     "luxon": "^3.7.2",
+    "pg": "^8.17.2",
     "pg-boss": "^12.5.4",
     "pino": "^9.0.0"
   },
