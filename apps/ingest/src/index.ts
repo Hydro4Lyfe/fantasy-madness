@@ -10,14 +10,18 @@ async function main() {
 
   const boss = await createBoss();
 
+  boss.on("error", (err: any) => {
+    log.error({ err }, "pg-boss error");
+  });
+
   // IMPORTANT: handle error events so Node doesn't crash
   boss.on("error", (err: any) => {
     log.error({ err }, "pg-boss error");
   });
 
   await boss.start();
-  await ensureQueues(boss);     // ✅ create queues
-  registerHandlers(boss);       // ✅ now safe
+  await ensureQueues(boss); // ✅ create queues
+  registerHandlers(boss); // ✅ now safe
 
   void startOrchestrator(boss);
 

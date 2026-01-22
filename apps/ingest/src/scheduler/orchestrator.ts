@@ -33,10 +33,7 @@ async function enqueueCadencedJobs(boss: Boss, phase: Phase) {
   // Latch: once we have an active-ish tournament, we stop polling Tournament List.
   const shouldRunTournamentList = await shouldRunTournamentListLatch();
 
-  log.info(
-    { phase, shouldRunTournamentList },
-    "orchestrator tick (leader)",
-  );
+  log.info({ phase, shouldRunTournamentList }, "orchestrator tick (leader)");
 
   for (const spec of CADENCES) {
     if (!spec.phases.includes(phase)) continue;
@@ -54,9 +51,12 @@ async function enqueueCadencedJobs(boss: Boss, phase: Phase) {
       ? Math.floor(Math.random() * spec.jitterSeconds)
       : 0;
 
-    const payload =
-      spec.payload?.({ phase, bucketKey: bKey }) ?? { phase, bucketKey: bKey };
+    const payload = spec.payload?.({ phase, bucketKey: bKey }) ?? {
+      phase,
+      bucketKey: bKey,
+    };
 
+    // inside enqueueCadencedJobs
     const id = await boss.send(spec.name, payload, {
       singletonKey,
       singletonSeconds: singletonSeconds(spec.every),
@@ -65,11 +65,17 @@ async function enqueueCadencedJobs(boss: Boss, phase: Phase) {
       retryDelay: 30,
     });
 
-    // id may be null/undefined depending on singleton dedupe behavior
-    log.info(
-      { job: spec.name, phase, bucketKey: bKey, singletonKey, id },
-      "enqueue result",
-    );
+    if (id) {
+      log.info(
+        { job: spec.name, phase, bucketKey: bKey, singletonKey, id },
+        "job enqueued",
+      );
+    } else {
+      log.debug(
+        { job: spec.name, phase, bucketKey: bKey, singletonKey },
+        "job deduped",
+      );
+    }
   }
 }
 
@@ -82,7 +88,6 @@ async function getPhaseCached(): Promise<Phase> {
   phaseCache = { value: phase, expiresAt: now + 60_000 };
   return phase;
 }
-
 
 /**
  * Returns true when we should keep polling Tournament List.

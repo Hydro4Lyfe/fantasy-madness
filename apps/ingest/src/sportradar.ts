@@ -1,4 +1,5 @@
-// apps/ingest/src/sportradar.ts
+import { log } from "./logger.js";
+
 type SportradarConfig = {
   baseUrl: string;
   apiKey: string;
@@ -28,23 +29,37 @@ async function httpGetJson(path: string): Promise<any> {
   const { baseUrl, apiKey } = getCfg();
   const url = `${baseUrl}${path}${path.includes("?") ? "&" : "?"}api_key=${apiKey}`;
 
+  const startedAt = Date.now();
+  log.info({ method: "GET", path }, "sportradar request");
+
   const res = await fetch(url, { method: "GET" });
+
+  log.info(
+    { method: "GET", path, status: res.status, ms: Date.now() - startedAt },
+    "sportradar response",
+  );
 
   if (res.status === 429) {
     const ra = res.headers.get("retry-after");
     const retryAfterMs = ra ? Number(ra) * 1000 : undefined;
     const err = new Error(`RATE_LIMIT 429 for ${path}`);
-    (err as any).retryAfterMs = Number.isFinite(retryAfterMs) ? retryAfterMs : undefined;
+    (err as any).retryAfterMs = Number.isFinite(retryAfterMs)
+      ? retryAfterMs
+      : undefined;
     throw err;
   }
 
-  if (res.status >= 500) throw new Error(`SPORTRADAR_${res.status} for ${path}`);
+  if (res.status >= 500)
+    throw new Error(`SPORTRADAR_${res.status} for ${path}`);
   if (!res.ok) throw new Error(`HTTP_${res.status} for ${path}`);
 
   return await res.json();
 }
 
-export async function fetchTournamentList(seasonYear: number, seasonType: string) {
+export async function fetchTournamentList(
+  seasonYear: number,
+  seasonType: string,
+) {
   return httpGetJson(`/tournaments/${seasonYear}/${seasonType}/schedule.json`);
 }
 
