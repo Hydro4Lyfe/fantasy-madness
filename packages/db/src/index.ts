@@ -5,10 +5,14 @@ import { Pool } from "pg";
 // In Docker + Node, this must be a DIRECT connection string (no pgbouncer).
 // If you only have DATABASE_URL, use that. If you have DIRECT_URL, prefer it.
 const connectionString =
-  process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+  process.env.DIRECT_DATABASE_URL ||
+  process.env.DIRECT_URL ||
+  process.env.DATABASE_URL;
 
 if (!connectionString) {
-  throw new Error("Missing DIRECT_URL or DATABASE_URL for Prisma Postgres connection");
+  throw new Error(
+    "Missing DIRECT_DATABASE_URL (preferred), DIRECT_URL, or DATABASE_URL for Prisma Postgres connection",
+  );
 }
 
 const pool = new Pool({ connectionString });
