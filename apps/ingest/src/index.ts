@@ -1,22 +1,27 @@
-import { log } from "./logger.js";
+import { createBoss } from "./queue/boss.js";
+import { ensureQueues } from "./queue/ensureQueues.js";
+import { registerHandlers } from "./queue/registerHandlers.js";
+import { startOrchestrator } from "./scheduler/orchestrator.js";
 import { initSportradarConfig } from "./sportradar.js";
-import { withAdvisoryLock } from "./lock.js";
-import { discoverTournament } from "./discovery.js";
-import { runSyncOnce } from "./sync.js";
-
-initSportradarConfig();
+import { log } from "./logger.js";
 
 async function main() {
-  const { tournamentId, seasonYear } = await discoverTournament();
+  initSportradarConfig();
 
-  const lockName = `ingest:tournament:${tournamentId}`;
-  const res = await withAdvisoryLock(lockName, async () => {
-    await runSyncOnce({ tournamentId, seasonYear });
+  const boss = await createBoss();
+
+  // IMPORTANT: handle error events so Node doesn't crash
+  boss.on("error", (err: any) => {
+    log.error({ err }, "pg-boss error");
   });
 
-  if (!res.ran) {
-    log.warn({ lockName }, "skipped: lock not acquired (another worker running)");
-  }
+  await boss.start();
+  await ensureQueues(boss);     // ✅ create queues
+  registerHandlers(boss);       // ✅ now safe
+
+  void startOrchestrator(boss);
+
+  log.info("ingest service started (workers + orchestrator)");
 }
 
 main().catch((e) => {

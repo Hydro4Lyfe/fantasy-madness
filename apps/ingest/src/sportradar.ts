@@ -1,6 +1,10 @@
 // apps/ingest/src/sportradar.ts
-const BASE_URL = process.env.SPORTRADAR_BASE_URL!;
-const API_KEY = process.env.SPORTRADAR_API_KEY!;
+type SportradarConfig = {
+  baseUrl: string;
+  apiKey: string;
+};
+
+let cfg: SportradarConfig | null = null;
 
 function must(v: string | undefined, name: string): string {
   if (!v) throw new Error(`Missing env ${name}`);
@@ -8,12 +12,22 @@ function must(v: string | undefined, name: string): string {
 }
 
 export function initSportradarConfig() {
-  must(BASE_URL, "SPORTRADAR_BASE_URL");
-  must(API_KEY, "SPORTRADAR_API_KEY");
+  // Read env *at call time*, not module import time
+  const baseUrl = must(process.env.SPORTRADAR_BASE_URL, "SPORTRADAR_BASE_URL");
+  const apiKey = must(process.env.SPORTRADAR_API_KEY, "SPORTRADAR_API_KEY");
+
+  cfg = { baseUrl, apiKey };
+}
+
+function getCfg(): SportradarConfig {
+  if (!cfg) initSportradarConfig();
+  return cfg!;
 }
 
 async function httpGetJson(path: string): Promise<any> {
-  const url = `${BASE_URL}${path}${path.includes("?") ? "&" : "?"}api_key=${API_KEY}`;
+  const { baseUrl, apiKey } = getCfg();
+  const url = `${baseUrl}${path}${path.includes("?") ? "&" : "?"}api_key=${apiKey}`;
+
   const res = await fetch(url, { method: "GET" });
 
   if (res.status === 429) {
@@ -31,24 +45,18 @@ async function httpGetJson(path: string): Promise<any> {
 }
 
 export async function fetchTournamentList(seasonYear: number, seasonType: string) {
-  // https://api.sportradar.com/ncaamb/{access_level}/v4/{lang}/tournaments/{season_year}/{season_type}/schedule.json
-  // (you’re using v8 elsewhere; that’s fine if your BASE_URL includes v8)
   return httpGetJson(`/tournaments/${seasonYear}/${seasonType}/schedule.json`);
 }
 
 export async function fetchTournamentSummary(tournamentId: string) {
-  // https://api.sportradar.com/ncaamb/{access_level}/v8/{lang}/tournaments/{tournament_id}/summary.json
   return httpGetJson(`/tournaments/${tournamentId}/summary.json`);
 }
 
 export async function fetchTournamentSchedule(tournamentId: string) {
-  // https://api.sportradar.com/ncaamb/{access_level}/v8/{lang}/tournaments/{tournament_id}/schedule.json
   return httpGetJson(`/tournaments/${tournamentId}/schedule.json`);
 }
 
 export async function fetchDailyChangeLog(dateISO: string) {
-  // NCAAMB Daily Change Log:
-  // https://api.sportradar.com/ncaamb/{access_level}/v8/{lang}/league/{year}/{month}/{day}/changes.json
   const [y, m, d] = dateISO.split("-");
   return httpGetJson(`/league/${y}/${m}/${d}/changes.json`);
 }
