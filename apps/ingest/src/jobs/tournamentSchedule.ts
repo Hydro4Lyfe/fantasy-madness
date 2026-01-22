@@ -12,6 +12,8 @@ import { withAdvisoryLock } from "../lock.js";
  * Falls back to discovery if the DB is empty.
  */
 export async function tournamentScheduleHandler(job: any) {
+  log.info({ jobId: job?.id, data: job?.data }, "job start: tournament schedule");
+  
   const startedAt = new Date();
   // Prefer an existing tournament id (cheaper than discovery).
   const existing = await prisma.tournament.findFirst({
