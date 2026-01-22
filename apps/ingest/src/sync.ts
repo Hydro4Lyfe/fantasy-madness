@@ -31,7 +31,7 @@ async function retry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
         typeof hinted === "number" && hinted > 0
           ? hinted
           : Math.min(30_000, 500 * Math.pow(2, i)) +
-            Math.floor(Math.random() * 250);
+          Math.floor(Math.random() * 250);
 
       log.warn({ err: String(e), backoff }, "retrying");
       await sleep(backoff);
@@ -148,13 +148,13 @@ function pickRoundName(x: any): string {
   // schedule games often have round in `title`
   return String(
     x?.round?.name ??
-      x?.tournament_round?.name ??
-      x?.round_name ??
-      x?.sport_event?.tournament_round?.name ??
-      x?.sport_event?.tournament_round?.type ??
-      x?.title ??
-      x?.round ??
-      "",
+    x?.tournament_round?.name ??
+    x?.round_name ??
+    x?.sport_event?.tournament_round?.name ??
+    x?.sport_event?.tournament_round?.type ??
+    x?.title ??
+    x?.round ??
+    "",
   ).trim();
 }
 
@@ -575,10 +575,18 @@ async function ensureTeamStubById(
   return teamId;
 }
 
+export type SyncMode = "full" | "summary";
+
 export async function runSyncOnce(params: {
   tournamentId: string;
   seasonYear: number;
+  /**
+   * - full: summary + bracket slots + schedule/games + stats
+   * - summary: summary + tournament teams + bracket slots only (skip schedule/games)
+   */
+  mode?: SyncMode;
 }) {
+  const mode: SyncMode = params.mode ?? "full";
   const stats: any = {
     summaryTeamsUpserts: 0,
     scheduleGamesSeen: 0,
@@ -654,9 +662,16 @@ export async function runSyncOnce(params: {
 
   // C) Materialize canonical bracket slots ONCE (only after seeded teams exist).
   // Uses Tournament.bracketLockedAt as the one-way latch.
-  await prisma.$transaction(async (tx) => {
-    await maybeMaterializeBracketSlotsOnce(tx, params.tournamentId);
-  });
+  await maybeMaterializeBracketSlotsOnce(prisma, params.tournamentId);
+
+
+  if (mode === "summary") {
+    log.info(
+      { tournamentId: params.tournamentId },
+      "sync ok (summary-only mode: schedule/games skipped)",
+    );
+    return;
+  }
 
   // B) Tournament Schedule (games only from schedule)
   const schedule = await retry(() =>
@@ -736,19 +751,19 @@ export async function runSyncOnce(params: {
     const { homeId, awayId } = pickTeamIdsFromScheduleGame(g);
     const safeHomeId = homeId
       ? await ensureTeamStubById(
-          prisma,
-          params.tournamentId,
-          homeId,
-          knownTeamIds,
-        )
+        prisma,
+        params.tournamentId,
+        homeId,
+        knownTeamIds,
+      )
       : null;
     const safeAwayId = awayId
       ? await ensureTeamStubById(
-          prisma,
-          params.tournamentId,
-          awayId,
-          knownTeamIds,
-        )
+        prisma,
+        params.tournamentId,
+        awayId,
+        knownTeamIds,
+      )
       : null;
 
     const { homePts, awayPts } = pickPointsFromScheduleGame(g);
@@ -756,11 +771,11 @@ export async function runSyncOnce(params: {
     const winnerId = computeWinnerFromSchedule(g);
     const safeWinnerId = winnerId
       ? await ensureTeamStubById(
-          prisma,
-          params.tournamentId,
-          winnerId,
-          knownTeamIds,
-        )
+        prisma,
+        params.tournamentId,
+        winnerId,
+        knownTeamIds,
+      )
       : null;
 
     const prev = existingById.get(gameId);
@@ -824,26 +839,13 @@ export async function runSyncOnce(params: {
   }
 
   // D) Resolve play-in winners into their canonical slots (idempotent)
-  await prisma.$transaction(async (tx) => {
-    await resolvePlayInSlots(tx, params.tournamentId);
-  });
+  await resolvePlayInSlots(prisma, params.tournamentId);
 
   // After games are written, recompute stats if needed
   if (shouldRecalcStats) {
     await recomputeTeamTournamentStats(prisma, params.tournamentId);
     log.info({ tournamentId: params.tournamentId }, "stats recomputed");
   }
-
-  // D) Resolve play-in winners into their canonical bracket slot.
-  // Safe to run repeatedly; does not rebuild slots/candidates.
-  await prisma.$transaction(async (tx) => {
-    await resolvePlayInSlots(tx, params.tournamentId);
-  });
-
-  // Resolve any finalized play-in winners into their BracketSlot (idempotent).
-  await prisma.$transaction(async (tx) => {
-    await resolvePlayInSlots(tx, params.tournamentId);
-  });
 
   log.info({ tournamentId: params.tournamentId, stats }, "sync ok");
 }

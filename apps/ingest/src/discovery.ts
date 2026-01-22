@@ -121,3 +121,48 @@ export async function discoverTournament(): Promise<DiscoveredTournament> {
 
   throw new Error(`Could not discover tournament via TournamentList. Last error: ${String(lastErr)}`);
 }
+
+/**
+ * Historical/backfill helper: discover the best tournament for an explicit season year.
+ *
+ * This avoids the "guess around current year" logic in discoverTournament(), and is
+ * intended for command-line backfills.
+ */
+export async function discoverTournamentForSeason(params: {
+  seasonYear: number;
+  seasonType?: string;
+}): Promise<DiscoveredTournament> {
+  const seasonType = String(params.seasonType ?? process.env.SEASON_TYPE ?? "PST").replace(
+    /^["']|["']$/g,
+    "",
+  );
+
+  const payload = await fetchTournamentList(params.seasonYear, seasonType);
+  const items = normalizeTournamentListPayload(payload);
+
+  if (!items.length) {
+    throw new Error(
+      `No tournaments returned for seasonYear=${params.seasonYear} seasonType=${seasonType}`,
+    );
+  }
+
+  const best = await pickBest(items);
+  if (!best) {
+    throw new Error(
+      `Could not pick tournament for seasonYear=${params.seasonYear} seasonType=${seasonType}`,
+    );
+  }
+
+  log.info(
+    { seasonYear: params.seasonYear, seasonType, tournamentId: best.id, name: best.name },
+    "discovered tournament (explicit season)",
+  );
+
+  return {
+    tournamentId: best.id,
+    seasonYear: params.seasonYear,
+    seasonType,
+    pickedFrom: "tournament_list",
+    candidateName: best.name,
+  };
+}
