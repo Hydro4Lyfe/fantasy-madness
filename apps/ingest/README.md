@@ -10,9 +10,10 @@ Node/TypeScript ingestion worker for Sportradar NCAAMB that:
 
 ## Runtime requirements
 
-- Node 20+ (Node 24 is fine)
+- Node 22+ (matches the Docker image)
 - Environment variables:
-  - `DATABASE_URL` (or `DIRECT_DATABASE_URL`) – Postgres connection string (Supabase recommended: direct)
+  - `DATABASE_URL` – Postgres connection string
+  - `DIRECT_URL` – (recommended) direct connection string for migrations (Supabase "direct" URL)
   - `SPORTRADAR_BASE_URL` – base path like `https://api.sportradar.com/ncaamb/{access_level}/v8/{lang}`
   - `SPORTRADAR_API_KEY`
   - Optional:
@@ -28,8 +29,29 @@ Node/TypeScript ingestion worker for Sportradar NCAAMB that:
 ## Local run
 
 ```bash
+# one-time
+cp .env.example .env
+cp apps/ingest/.env.example apps/ingest/.env
+npm install
+npm run db:generate
+npm run db:migrate:dev
+
+# build + run (compiled)
 npm -w @fantasy-madness/ingest run build
-node apps/ingest/dist/index.js
+node apps/ingest/dist/index.js sync --tournamentId <id> --seasonYear 2024 --mode summary --print
+
+# dev (runs TypeScript directly)
+npm -w @fantasy-madness/ingest run dev -- sync --tournamentId <id> --seasonYear 2024 --mode full
+```
+
+## Docker run
+
+```bash
+docker build -f apps/ingest/Dockerfile -t fantasy-madness-ingest:dev .
+
+# IMPORTANT: .env files MUST NOT wrap values in quotes when using --env-file
+docker run --rm --env-file apps/ingest/.env fantasy-madness-ingest:dev \
+  sync --tournamentId <id> --seasonYear 2024 --mode summary --print
 ```
 
 ## Kubernetes notes

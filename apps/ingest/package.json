@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "dev": "node --env-file=.env --loader tsx src/index.ts",
     "start": "node --env-file=.env dist/index.js"
   },
   "dependencies": {
@@ -17,6 +18,7 @@
     "@types/node": "^25.0.9",
     "@types/pg": "^8.16.0",
     "prisma": "7.3.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.5.0"
   }
 }
