@@ -310,76 +310,92 @@ function canonicalGameId(node: any): string | null {
 }
 
 function looksLikeScheduleGameNode(node: any): boolean {
-  if (!node || typeof node !== "object" || Array.isArray(node)) return false;
+  if (!node || typeof node !== "object") return false;
 
+  // Prefer an explicit game id if present (direct or sport_event wrapper)
   const id = canonicalGameId(node);
   if (!id) return false;
 
-  // Must have some notion of timing AND teams/sides.
-  const scheduled = node?.scheduled ?? node?.sport_event?.scheduled ?? null;
+  // Weed out team objects (teams also have `id` + `name`)
+  const looksLikeTeam =
+    typeof node?.market === "string" ||
+    typeof node?.full_name === "string" ||
+    typeof node?.alias === "string";
+  if (looksLikeTeam) return false;
 
+  // A game should have a scheduled timestamp somewhere
+  const hasScheduled = Boolean(
+    node?.scheduled ||
+    node?.sport_event?.scheduled ||
+    node?.sport_event?.start_time,
+  );
+
+  // And it should have competitors/participants in some recognizable form
   const hasSides =
     node?.home_team != null ||
     node?.away_team != null ||
-    node?.home?.id != null ||
-    node?.away?.id != null;
+    node?.home != null ||
+    node?.away != null ||
+    (Array.isArray(node?.sport_event?.competitors) &&
+      node.sport_event.competitors.length >= 2) ||
+    (Array.isArray(node?.competitors) && node.competitors.length >= 2);
 
-  // Prevent accidentally treating team objects as games:
-  const hasTeamNameFields = node?.market != null || node?.full_name != null;
-  if (hasTeamNameFields && !scheduled) return false;
-
-  return Boolean(scheduled && hasSides);
+  return hasScheduled && hasSides;
 }
 
 function collectScheduleGames(schedule: any): Map<string, any> {
   const out = new Map<string, any>();
 
-  const rounds: any[] =
-    schedule?.rounds ??
-    schedule?.tournament?.rounds ??
-    schedule?.bracket?.rounds ??
-    [];
+  // Iterative walk (safer than deep recursion for big JSON)
+  const stack: any[] = [schedule];
+  const seen = new Set<any>();
 
-  const addNode = (g: any) => {
-    if (!looksLikeScheduleGameNode(g)) return;
-    const id = canonicalGameId(g);
-    if (!id) return;
-    if (!out.has(id)) out.set(id, g);
+  const push = (v: any) => {
+    if (!v) return;
+    if (Array.isArray(v)) {
+      for (const item of v) stack.push(item);
+    } else if (typeof v === "object") {
+      stack.push(v);
+    }
   };
 
-  // Seed from rounds[].games
-  for (const r of rounds) {
-    const games: any[] = r?.games ?? [];
-    for (const g of games) addNode(g);
-  }
+  const getCandidateId = (node: any): string => {
+    const id =
+      node?.id ??
+      node?.game?.id ??
+      node?.sport_event?.id ??
+      node?.sport_event?.sport_event_id ??
+      "";
+    return id ? String(id) : "";
+  };
 
-  // Recursively follow sources: home.source / away.source (and home.sources/away.sources if present)
-  const stack = Array.from(out.values());
   while (stack.length) {
-    const g = stack.pop();
+    const node = stack.pop();
+    if (!node || typeof node !== "object") continue;
+    if (seen.has(node)) continue;
+    seen.add(node);
 
-    for (const side of ["home", "away"] as const) {
-      const obj = g?.[side] ?? null;
-      const src = obj?.source ?? null;
-      if (src && looksLikeScheduleGameNode(src)) {
-        const id = canonicalGameId(src);
-        if (id && !out.has(id)) {
-          out.set(id, src);
-          stack.push(src);
-        }
-      }
+    // If this looks like a game node, capture it.
+    // (This is what feeds your upsert loop.)
+    if (looksLikeScheduleGameNode(node)) {
+      const id = getCandidateId(node);
+      if (id) out.set(id, node);
+    }
 
-      const srcs = obj?.sources;
-      if (Array.isArray(srcs)) {
-        for (const s of srcs) {
-          if (!looksLikeScheduleGameNode(s)) continue;
-          const id = canonicalGameId(s);
-          if (id && !out.has(id)) {
-            out.set(id, s);
-            stack.push(s);
-          }
-        }
-      }
+    // Walk the common Sportradar shapes + a couple of generic containers.
+    push(node.games);
+    push(node.sport_events);
+    push(node.rounds);
+    push(node.brackets); // <-- this is the big missing one for March Madness regions
+    push(node.bracket);
+    push(node.tournament);
+    push(node.stage);
+    push(node.regions);
+
+    // Also: scan shallowly through object values in case Sportradar adds a new wrapper
+    // (keeps this resilient without being expensive).
+    for (const v of Object.values(node)) {
+      if (v && typeof v === "object") push(v);
     }
   }
 
@@ -446,16 +462,52 @@ function pickTeamIdsFromScheduleGame(g: any): {
   homeId: string | null;
   awayId: string | null;
 } {
-  const homeId = g?.home_team ?? g?.home?.id ?? g?.home_team?.id ?? null;
-  const awayId = g?.away_team ?? g?.away?.id ?? g?.away_team?.id ?? null;
-  return {
-    homeId: homeId ? String(homeId) : null,
-    awayId: awayId ? String(awayId) : null,
-  };
+  // Common "rounds -> games" shapes
+  const directHome = g?.home_team ?? g?.home?.id ?? g?.home_team?.id ?? null;
+
+  const directAway = g?.away_team ?? g?.away?.id ?? g?.away_team?.id ?? null;
+
+  if (directHome || directAway) {
+    return {
+      homeId: directHome ? String(directHome) : null,
+      awayId: directAway ? String(directAway) : null,
+    };
+  }
+
+  // "sport_events" shape: { sport_event: { competitors:[{id, qualifier:'home'|'away'}] } }
+  const competitors =
+    (Array.isArray(g?.sport_event?.competitors) && g.sport_event.competitors) ||
+    (Array.isArray(g?.competitors) && g.competitors) ||
+    [];
+
+  if (competitors.length) {
+    const home =
+      competitors.find((c: any) => c?.qualifier === "home") ?? competitors[0];
+    const away =
+      competitors.find((c: any) => c?.qualifier === "away") ??
+      competitors.find((c: any) => c !== home) ??
+      competitors[1];
+
+    const homeId = home?.id ?? home?.competitor?.id ?? null;
+    const awayId = away?.id ?? away?.competitor?.id ?? null;
+
+    return {
+      homeId: homeId ? String(homeId) : null,
+      awayId: awayId ? String(awayId) : null,
+    };
+  }
+
+  return { homeId: null, awayId: null };
 }
 
 function pickScheduledAtFromScheduleGame(g: any): Date | null {
-  return parseDateMaybe(g?.scheduled ?? g?.sport_event?.scheduled ?? null);
+  const raw =
+    g?.scheduled ??
+    g?.sport_event?.scheduled ??
+    g?.sport_event?.start_time ??
+    null;
+
+  return parseDateMaybe(raw);
 }
 
 function pickPointsFromScheduleGame(g: any): {
