@@ -14,7 +14,7 @@ export async function startOrchestrator(boss: Boss) {
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
-      const phase = await computePhase();
+      const phase = await getPhaseCached();
 
       if (phase !== "OFFSEASON") {
         await withAdvisoryLock("ingest:orchestrator", async () => {
@@ -72,6 +72,17 @@ async function enqueueCadencedJobs(boss: Boss, phase: Phase) {
     );
   }
 }
+
+let phaseCache: { value: Phase; expiresAt: number } | null = null;
+
+async function getPhaseCached(): Promise<Phase> {
+  const now = Date.now();
+  if (phaseCache && phaseCache.expiresAt > now) return phaseCache.value;
+  const phase = await computePhase();
+  phaseCache = { value: phase, expiresAt: now + 60_000 };
+  return phase;
+}
+
 
 /**
  * Returns true when we should keep polling Tournament List.
