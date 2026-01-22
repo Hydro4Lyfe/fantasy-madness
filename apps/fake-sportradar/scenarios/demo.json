@@ -1,0 +1,447 @@
+{
+  "tournamentId": "t-demo-2026",
+  "base": {
+    "tournamentList": {
+      "tournaments": [
+        {
+          "id": "t-demo-2026",
+          "name": "Demo Invitational 2026",
+          "season": 2026,
+          "season_type": "PST",
+          "start_date": "2026-03-18",
+          "end_date": "2026-03-23"
+        }
+      ]
+    },
+    "summary": {
+      "id": "t-demo-2026",
+      "name": "Demo Invitational 2026",
+      "season": 2026,
+      "season_type": "PST",
+      "updated_at": "2026-03-17T12:00:00Z",
+      "teams": [
+        {
+          "id": "T1",
+          "name": "Avalanche State",
+          "alias": "AVA",
+          "market": "Avalanche",
+          "seed": 1,
+          "rank": 4,
+          "record": { "wins": 29, "losses": 4 },
+          "conference": "Summit",
+          "quadrant": "Q1",
+          "logo": "https://example.invalid/logos/ava.png"
+        },
+        {
+          "id": "T8",
+          "name": "Bay City",
+          "alias": "BAY",
+          "market": "Bay",
+          "seed": 8,
+          "rank": 48,
+          "record": { "wins": 19, "losses": 14 },
+          "conference": "Coastal",
+          "quadrant": "Q1",
+          "logo": "https://example.invalid/logos/bay.png"
+        },
+        {
+          "id": "T4",
+          "name": "Canyon Tech",
+          "alias": "CYN",
+          "market": "Canyon",
+          "seed": 4,
+          "rank": 18,
+          "record": { "wins": 24, "losses": 9 },
+          "conference": "Frontier",
+          "quadrant": "Q2",
+          "logo": "https://example.invalid/logos/cyn.png"
+        },
+        {
+          "id": "T5",
+          "name": "Delta Northern",
+          "alias": "DLT",
+          "market": "Delta",
+          "seed": 5,
+          "rank": 26,
+          "record": { "wins": 22, "losses": 11 },
+          "conference": "Frontier",
+          "quadrant": "Q2",
+          "logo": "https://example.invalid/logos/dlt.png"
+        },
+        {
+          "id": "T2",
+          "name": "Eclipse U",
+          "alias": "ECL",
+          "market": "Eclipse",
+          "seed": 2,
+          "rank": 9,
+          "record": { "wins": 27, "losses": 6 },
+          "conference": "Metro",
+          "quadrant": "Q3",
+          "logo": "https://example.invalid/logos/ecl.png"
+        },
+        {
+          "id": "T7",
+          "name": "Forest College",
+          "alias": "FOR",
+          "market": "Forest",
+          "seed": 7,
+          "rank": 41,
+          "record": { "wins": 20, "losses": 13 },
+          "conference": "Metro",
+          "quadrant": "Q3",
+          "logo": "https://example.invalid/logos/for.png"
+        },
+        {
+          "id": "T3",
+          "name": "Granite Institute",
+          "alias": "GRN",
+          "market": "Granite",
+          "seed": 3,
+          "rank": 13,
+          "record": { "wins": 26, "losses": 7 },
+          "conference": "Pioneer",
+          "quadrant": "Q4",
+          "logo": "https://example.invalid/logos/grn.png"
+        },
+        {
+          "id": "T6",
+          "name": "Harbor A&M",
+          "alias": "HBR",
+          "market": "Harbor",
+          "seed": 6,
+          "rank": 33,
+          "record": { "wins": 21, "losses": 12 },
+          "conference": "Pioneer",
+          "quadrant": "Q4",
+          "logo": "https://example.invalid/logos/hbr.png"
+        }
+      ]
+    },
+    "schedule": {
+      "id": "t-demo-2026",
+      "name": "Demo Invitational 2026",
+      "games": [
+        {
+          "id": "qf1",
+          "sr_id": "sr:match:qf1",
+          "title": "Quarterfinal 1",
+          "round": "quarterfinal",
+          "sequence": 1,
+          "bracket": { "round": 1, "slot": "QF1" },
+          "home": { "id": "T1", "seed": 1 },
+          "away": { "id": "T8", "seed": 8 },
+          "status": "scheduled",
+          "status_detail": "scheduled",
+          "scheduled": "2026-03-18T18:00:00Z",
+          "venue": { "name": "Summit Arena", "city": "Denver", "state": "CO", "capacity": 18000 },
+          "broadcast": { "network": "ESPN2" },
+          "neutral_site": false,
+          "attendance": null,
+          "clock": null,
+          "period": null,
+          "home_points": null,
+          "away_points": null,
+          "winner_id": null,
+          "created_at": "2026-03-17T12:00:00Z",
+          "updated_at": "2026-03-17T12:00:00Z"
+        },
+        {
+          "id": "qf2",
+          "sr_id": "sr:match:qf2",
+          "title": "Quarterfinal 2",
+          "round": "quarterfinal",
+          "sequence": 2,
+          "bracket": { "round": 1, "slot": "QF2" },
+          "home": { "id": "T4", "seed": 4 },
+          "away": { "id": "T5", "seed": 5 },
+          "status": "scheduled",
+          "status_detail": "scheduled",
+          "scheduled": "2026-03-18T20:00:00Z",
+          "venue": { "name": "Summit Arena", "city": "Denver", "state": "CO", "capacity": 18000 },
+          "broadcast": { "network": "TBS" },
+          "neutral_site": false,
+          "attendance": null,
+          "clock": null,
+          "period": null,
+          "home_points": null,
+          "away_points": null,
+          "winner_id": null,
+          "created_at": "2026-03-17T12:00:00Z",
+          "updated_at": "2026-03-17T12:00:00Z"
+        },
+        {
+          "id": "qf3",
+          "sr_id": "sr:match:qf3",
+          "title": "Quarterfinal 3",
+          "round": "quarterfinal",
+          "sequence": 3,
+          "bracket": { "round": 1, "slot": "QF3" },
+          "home": { "id": "T2", "seed": 2 },
+          "away": { "id": "T7", "seed": 7 },
+          "status": "scheduled",
+          "status_detail": "scheduled",
+          "scheduled": "2026-03-19T18:00:00Z",
+          "venue": { "name": "Civic Center", "city": "Phoenix", "state": "AZ", "capacity": 15000 },
+          "broadcast": { "network": "CBS" },
+          "neutral_site": true,
+          "attendance": null,
+          "clock": null,
+          "period": null,
+          "home_points": null,
+          "away_points": null,
+          "winner_id": null,
+          "created_at": "2026-03-17T12:00:00Z",
+          "updated_at": "2026-03-17T12:00:00Z"
+        },
+        {
+          "id": "qf4",
+          "sr_id": "sr:match:qf4",
+          "title": "Quarterfinal 4",
+          "round": "quarterfinal",
+          "sequence": 4,
+          "bracket": { "round": 1, "slot": "QF4" },
+          "home": { "id": "T3", "seed": 3 },
+          "away": { "id": "T6", "seed": 6 },
+          "status": "scheduled",
+          "status_detail": "scheduled",
+          "scheduled": "2026-03-19T20:00:00Z",
+          "venue": { "name": "Civic Center", "city": "Phoenix", "state": "AZ", "capacity": 15000 },
+          "broadcast": { "network": "truTV" },
+          "neutral_site": true,
+          "attendance": null,
+          "clock": null,
+          "period": null,
+          "home_points": null,
+          "away_points": null,
+          "winner_id": null,
+          "created_at": "2026-03-17T12:00:00Z",
+          "updated_at": "2026-03-17T12:00:00Z"
+        },
+
+        {
+          "id": "sf1",
+          "sr_id": "sr:match:sf1",
+          "title": "Semifinal 1",
+          "round": "semifinal",
+          "sequence": 5,
+          "bracket": { "round": 2, "slot": "SF1" },
+          "home": { "id": null, "seed": null },
+          "away": { "id": null, "seed": null },
+          "status": "scheduled",
+          "status_detail": "scheduled",
+          "scheduled": "2026-03-21T19:00:00Z",
+          "venue": { "name": "Grand Dome", "city": "Las Vegas", "state": "NV", "capacity": 20000 },
+          "broadcast": { "network": "ESPN" },
+          "neutral_site": true,
+          "attendance": null,
+          "clock": null,
+          "period": null,
+          "home_points": null,
+          "away_points": null,
+          "winner_id": null,
+          "created_at": "2026-03-17T12:00:00Z",
+          "updated_at": "2026-03-17T12:00:00Z"
+        },
+        {
+          "id": "sf2",
+          "sr_id": "sr:match:sf2",
+          "title": "Semifinal 2",
+          "round": "semifinal",
+          "sequence": 6,
+          "bracket": { "round": 2, "slot": "SF2" },
+          "home": { "id": null, "seed": null },
+          "away": { "id": null, "seed": null },
+          "status": "scheduled",
+          "status_detail": "scheduled",
+          "scheduled": "2026-03-21T21:30:00Z",
+          "venue": { "name": "Grand Dome", "city": "Las Vegas", "state": "NV", "capacity": 20000 },
+          "broadcast": { "network": "ESPN" },
+          "neutral_site": true,
+          "attendance": null,
+          "clock": null,
+          "period": null,
+          "home_points": null,
+          "away_points": null,
+          "winner_id": null,
+          "created_at": "2026-03-17T12:00:00Z",
+          "updated_at": "2026-03-17T12:00:00Z"
+        },
+
+        {
+          "id": "ch1",
+          "sr_id": "sr:match:ch1",
+          "title": "Championship",
+          "round": "championship",
+          "sequence": 7,
+          "bracket": { "round": 3, "slot": "CH" },
+          "home": { "id": null, "seed": null },
+          "away": { "id": null, "seed": null },
+          "status": "scheduled",
+          "status_detail": "scheduled",
+          "scheduled": "2026-03-23T01:00:00Z",
+          "venue": { "name": "Grand Dome", "city": "Las Vegas", "state": "NV", "capacity": 20000 },
+          "broadcast": { "network": "CBS" },
+          "neutral_site": true,
+          "attendance": null,
+          "clock": null,
+          "period": null,
+          "home_points": null,
+          "away_points": null,
+          "winner_id": null,
+          "created_at": "2026-03-17T12:00:00Z",
+          "updated_at": "2026-03-17T12:00:00Z"
+        }
+      ]
+    }
+  },
+  "ticks": [
+    {
+      "label": "QF1 tipoff (inprogress + clock/period)",
+      "patch": {
+        "schedule": {
+          "games": [
+            { "id": "qf1", "status": "inprogress", "status_detail": "1st_half", "clock": "19:42", "period": 1, "updated_at": "2026-03-18T18:05:00Z" }
+          ]
+        }
+      }
+    },
+    {
+      "label": "QF1 final (T1 advances + attendance)",
+      "patch": {
+        "schedule": {
+          "games": [
+            { "id": "qf1", "status": "closed", "status_detail": "final", "home_points": 81, "away_points": 63, "winner_id": "T1", "attendance": 17321, "clock": "00:00", "period": 2, "updated_at": "2026-03-18T20:01:00Z" }
+          ]
+        }
+      }
+    },
+
+    {
+      "label": "QF2 tipoff",
+      "patch": {
+        "schedule": {
+          "games": [
+            { "id": "qf2", "status": "inprogress", "status_detail": "1st_half", "clock": "19:55", "period": 1, "updated_at": "2026-03-18T20:05:00Z" }
+          ]
+        }
+      }
+    },
+    {
+      "label": "QF2 final (upset: T5 advances)",
+      "patch": {
+        "schedule": {
+          "games": [
+            { "id": "qf2", "status": "closed", "status_detail": "final", "home_points": 70, "away_points": 74, "winner_id": "T5", "attendance": 16402, "clock": "00:00", "period": 2, "updated_at": "2026-03-18T22:01:00Z" }
+          ]
+        }
+      }
+    },
+
+    {
+      "label": "QF3 canceled then rescheduled (edge-case status churn)",
+      "patch": {
+        "schedule": {
+          "games": [
+            { "id": "qf3", "status": "canceled", "status_detail": "venue_issue", "note": "temporary cancellation", "updated_at": "2026-03-19T17:00:00Z" },
+            { "id": "qf3", "status": "scheduled", "status_detail": "scheduled", "scheduled": "2026-03-19T19:30:00Z", "note": "rescheduled tip", "updated_at": "2026-03-19T17:15:00Z" }
+          ]
+        }
+      }
+    },
+    {
+      "label": "QF3 tipoff",
+      "patch": {
+        "schedule": {
+          "games": [
+            { "id": "qf3", "status": "inprogress", "status_detail": "1st_half", "clock": "19:58", "period": 1, "updated_at": "2026-03-19T19:35:00Z" }
+          ]
+        }
+      }
+    },
+    {
+      "label": "QF3 final (T2 advances)",
+      "patch": {
+        "schedule": {
+          "games": [
+            { "id": "qf3", "status": "closed", "status_detail": "final", "home_points": 77, "away_points": 60, "winner_id": "T2", "attendance": 14110, "clock": "00:00", "period": 2, "updated_at": "2026-03-19T21:30:00Z" }
+          ]
+        }
+      }
+    },
+
+    {
+      "label": "QF4 tipoff",
+      "patch": {
+        "schedule": {
+          "games": [
+            { "id": "qf4", "status": "inprogress", "status_detail": "1st_half", "clock": "19:51", "period": 1, "updated_at": "2026-03-19T20:05:00Z" }
+          ]
+        }
+      }
+    },
+    {
+      "label": "QF4 final (T3 advances)",
+      "patch": {
+        "schedule": {
+          "games": [
+            { "id": "qf4", "status": "closed", "status_detail": "final", "home_points": 68, "away_points": 64, "winner_id": "T3", "attendance": 14655, "clock": "00:00", "period": 2, "updated_at": "2026-03-19T22:10:00Z" }
+          ]
+        }
+      }
+    },
+
+    {
+      "label": "Populate semifinal matchups (winners fill placeholders)",
+      "patch": {
+        "schedule": {
+          "games": [
+            { "id": "sf1", "home": { "id": "T1", "seed": 1 }, "away": { "id": "T5", "seed": 5 }, "updated_at": "2026-03-20T02:00:00Z" },
+            { "id": "sf2", "home": { "id": "T2", "seed": 2 }, "away": { "id": "T3", "seed": 3 }, "updated_at": "2026-03-20T02:00:00Z" }
+          ]
+        }
+      }
+    },
+
+    {
+      "label": "SF1 inprogress",
+      "patch": { "schedule": { "games": [{ "id": "sf1", "status": "inprogress", "status_detail": "1st_half", "clock": "19:40", "period": 1, "updated_at": "2026-03-21T19:05:00Z" }] } }
+    },
+    {
+      "label": "SF1 final (T1 advances)",
+      "patch": { "schedule": { "games": [{ "id": "sf1", "status": "closed", "status_detail": "final", "home_points": 79, "away_points": 71, "winner_id": "T1", "attendance": 19210, "clock": "00:00", "period": 2, "updated_at": "2026-03-21T21:01:00Z" }] } }
+    },
+
+    {
+      "label": "SF2 inprogress",
+      "patch": { "schedule": { "games": [{ "id": "sf2", "status": "inprogress", "status_detail": "1st_half", "clock": "19:47", "period": 1, "updated_at": "2026-03-21T21:35:00Z" }] } }
+    },
+    {
+      "label": "SF2 final (T3 advances)",
+      "patch": { "schedule": { "games": [{ "id": "sf2", "status": "closed", "status_detail": "final", "home_points": 66, "away_points": 72, "winner_id": "T3", "attendance": 19402, "clock": "00:00", "period": 2, "updated_at": "2026-03-21T23:25:00Z" }] } }
+    },
+
+    {
+      "label": "Populate championship matchup",
+      "patch": { "schedule": { "games": [{ "id": "ch1", "home": { "id": "T1", "seed": 1 }, "away": { "id": "T3", "seed": 3 }, "updated_at": "2026-03-22T02:00:00Z" }] } }
+    },
+
+    {
+      "label": "CH inprogress",
+      "patch": { "schedule": { "games": [{ "id": "ch1", "status": "inprogress", "status_detail": "1st_half", "clock": "19:39", "period": 1, "updated_at": "2026-03-23T01:05:00Z" }] } }
+    },
+    {
+      "label": "CH final (T1 wins title)",
+      "patch": { "schedule": { "games": [{ "id": "ch1", "status": "closed", "status_detail": "final", "home_points": 84, "away_points": 80, "winner_id": "T1", "attendance": 19911, "clock": "00:00", "period": 2, "updated_at": "2026-03-23T03:12:00Z" }] } }
+    },
+
+    {
+      "label": "Late correction: CH score corrected (tests update-after-close)",
+      "patch": { "schedule": { "games": [{ "id": "ch1", "status": "closed", "status_detail": "final", "home_points": 83, "away_points": 80, "winner_id": "T1", "note": "official correction", "updated_at": "2026-03-23T06:00:00Z" }] } }
+    },
+    {
+      "label": "Second correction: attendance corrected (tests non-score updates)",
+      "patch": { "schedule": { "games": [{ "id": "ch1", "attendance": 19874, "updated_at": "2026-03-23T06:30:00Z" }] } }
+    }
+  ]
+}
