@@ -1,0 +1,18 @@
+{
+  "name": "@fantasy-madness/dal",
+  "private": true,
+  "version": "0.0.1",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@fantasy-madness/db": "0.0.1",
+    "@fantasy-madness/domain": "0.0.1",
+    "@prisma/client": "^7.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

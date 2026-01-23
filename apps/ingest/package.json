@@ -1,11 +1,13 @@
 {
   "name": "@fantasy-madness/ingest",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "tsx --env-file=.env src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "dev": "node --env-file=.env --loader tsx src/index.ts",
-    "start": "node --env-file=.env dist/index.js"
+    "start": "node --env-file=.env dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@fantasy-madness/db": "0.0.1",
@@ -16,6 +18,7 @@
     "pino": "^9.0.0"
   },
   "devDependencies": {
+    "@types/luxon": "^3.7.1",
     "@types/node": "^25.0.9",
     "@types/pg": "^8.16.0",
     "prisma": "7.3.0",

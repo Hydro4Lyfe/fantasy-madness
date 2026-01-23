@@ -3,21 +3,18 @@ import { Prisma as PrismaNS, type Prisma } from "@prisma/client";
 import { prisma } from "@fantasy-madness/db";
 import { log } from "./logger.js";
 import { sha256Hex } from "./hash.js";
-import {
-  fetchTournamentSchedule,
-  fetchTournamentSummary,
-} from "./sportradar.js";
+import { fetchTournamentSchedule, fetchTournamentSummary } from "./sportradar.js";
 import {
   maybeMaterializeBracketSlotsOnce,
   resolvePlayInSlots,
 } from "./bracketSlots.js";
 
-function sleep(ms: number) {
+function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
 async function retry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
-  let lastErr: any;
+  let lastErr: unknown;
   for (let i = 0; i < tries; i++) {
     try {
       return await fn();
@@ -31,7 +28,7 @@ async function retry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
         typeof hinted === "number" && hinted > 0
           ? hinted
           : Math.min(30_000, 500 * Math.pow(2, i)) +
-          Math.floor(Math.random() * 250);
+            Math.floor(Math.random() * 250);
 
       log.warn({ err: String(e), backoff }, "retrying");
       await sleep(backoff);
@@ -148,13 +145,13 @@ function pickRoundName(x: any): string {
   // schedule games often have round in `title`
   return String(
     x?.round?.name ??
-    x?.tournament_round?.name ??
-    x?.round_name ??
-    x?.sport_event?.tournament_round?.name ??
-    x?.sport_event?.tournament_round?.type ??
-    x?.title ??
-    x?.round ??
-    "",
+      x?.tournament_round?.name ??
+      x?.round_name ??
+      x?.sport_event?.tournament_round?.name ??
+      x?.sport_event?.tournament_round?.type ??
+      x?.title ??
+      x?.round ??
+      "",
   ).trim();
 }
 
@@ -200,11 +197,12 @@ function extractBracketParticipants(
 
   // fallback
   const top = Array.isArray(summary?.participants) ? summary.participants : [];
-  for (const p of top)
+  for (const p of top) {
     out.push({
       team: p,
       meta: { bracketId: "", bracketName: null, bracketRank: null },
     });
+  }
 
   return out;
 }
@@ -330,8 +328,8 @@ function looksLikeScheduleGameNode(node: any): boolean {
   // A game should have a scheduled timestamp somewhere
   const hasScheduled = Boolean(
     node?.scheduled ||
-    node?.sport_event?.scheduled ||
-    node?.sport_event?.start_time,
+      node?.sport_event?.scheduled ||
+      node?.sport_event?.start_time,
   );
 
   // And it should have competitors/participants in some recognizable form
@@ -387,17 +385,16 @@ function collectScheduleGames(schedule: any): Map<string, any> {
     }
 
     // Walk the common Sportradar shapes + a couple of generic containers.
-    push(node.games);
-    push(node.sport_events);
-    push(node.rounds);
-    push(node.brackets); // <-- this is the big missing one for March Madness regions
-    push(node.bracket);
-    push(node.tournament);
-    push(node.stage);
-    push(node.regions);
+    push((node as any).games);
+    push((node as any).sport_events);
+    push((node as any).rounds);
+    push((node as any).brackets); // <-- key for March Madness regions
+    push((node as any).bracket);
+    push((node as any).tournament);
+    push((node as any).stage);
+    push((node as any).regions);
 
     // Also: scan shallowly through object values in case Sportradar adds a new wrapper
-    // (keeps this resilient without being expensive).
     for (const v of Object.values(node)) {
       if (v && typeof v === "object") push(v);
     }
@@ -468,7 +465,6 @@ function pickTeamIdsFromScheduleGame(g: any): {
 } {
   // Common "rounds -> games" shapes
   const directHome = g?.home_team ?? g?.home?.id ?? g?.home_team?.id ?? null;
-
   const directAway = g?.away_team ?? g?.away?.id ?? g?.away_team?.id ?? null;
 
   if (directHome || directAway) {
@@ -478,7 +474,7 @@ function pickTeamIdsFromScheduleGame(g: any): {
     };
   }
 
-  // "sport_events" shape: { sport_event: { competitors:[{id, qualifier:'home'|'away'}] } }
+  // "sport_events" shape
   const competitors =
     (Array.isArray(g?.sport_event?.competitors) && g.sport_event.competitors) ||
     (Array.isArray(g?.competitors) && g.competitors) ||
@@ -510,7 +506,6 @@ function pickScheduledAtFromScheduleGame(g: any): Date | null {
     g?.sport_event?.scheduled ??
     g?.sport_event?.start_time ??
     null;
-
   return parseDateMaybe(raw);
 }
 
@@ -594,14 +589,10 @@ export async function runSyncOnce(params: {
   };
 
   // A) Tournament Summary (teams)
-  const summary = await retry(() =>
-    fetchTournamentSummary(params.tournamentId),
-  );
+  const summary = await retry(() => fetchTournamentSummary(params.tournamentId));
   const summaryHash = sha256Hex(summary);
 
-  const bracketCount = Array.isArray(summary?.brackets)
-    ? summary.brackets.length
-    : 0;
+  const bracketCount = Array.isArray(summary?.brackets) ? summary.brackets.length : 0;
   const participantCount = extractBracketParticipants(summary).length;
 
   log.info(
@@ -660,10 +651,8 @@ export async function runSyncOnce(params: {
   );
   stats.summaryTeamsUpserts = knownTeamIds.size;
 
-  // C) Materialize canonical bracket slots ONCE (only after seeded teams exist).
-  // Uses Tournament.bracketLockedAt as the one-way latch.
+  // C) Materialize canonical bracket slots ONCE
   await maybeMaterializeBracketSlotsOnce(prisma, params.tournamentId);
-
 
   if (mode === "summary") {
     log.info(
@@ -674,9 +663,7 @@ export async function runSyncOnce(params: {
   }
 
   // B) Tournament Schedule (games only from schedule)
-  const schedule = await retry(() =>
-    fetchTournamentSchedule(params.tournamentId),
-  );
+  const schedule = await retry(() => fetchTournamentSchedule(params.tournamentId));
   const scheduleHash = sha256Hex(schedule);
 
   await prisma.tournament.update({
@@ -708,14 +695,13 @@ export async function runSyncOnce(params: {
         tournamentId: params.tournamentId,
         scheduleGamesSeen: scheduleGameMap.size,
       },
-      "Closed tournament but schedule contains surprisingly few games — check your schedule payload shape / access level",
+      "Closed tournament but schedule contains surprisingly few games — check schedule payload shape / access level",
     );
   }
 
-  // Upsert games (no summaries endpoint)
-  // Build a lookup of existing games in ONE query (avoids 60+ findUnique calls)
+  // Build a lookup of existing games in ONE query
   const gameIds = Array.from(scheduleGameMap.keys());
-  const existing = await prisma.game.findMany({
+  const existing: ExistingGameLite[] = await prisma.game.findMany({
     where: { id: { in: gameIds } },
     select: {
       id: true,
@@ -731,12 +717,12 @@ export async function runSyncOnce(params: {
     },
   });
 
-  const existingById = new Map(existing.map((g) => [g.id, g]));
+  const existingById = new Map<string, ExistingGameLite>(
+    existing.map((g) => [g.id, g]),
+  );
 
   let shouldRecalcStats = false;
 
-  // You can optionally collect which teams changed, but for now we’ll just
-  // recalc the whole tournament if ANY scoring-relevant change happens.
   for (const [gameId, g] of scheduleGameMap.entries()) {
     const roundName = pickRoundName(g);
     const roundSeq = pickRoundSeq(g);
@@ -750,36 +736,22 @@ export async function runSyncOnce(params: {
 
     const { homeId, awayId } = pickTeamIdsFromScheduleGame(g);
     const safeHomeId = homeId
-      ? await ensureTeamStubById(
-        prisma,
-        params.tournamentId,
-        homeId,
-        knownTeamIds,
-      )
+      ? await ensureTeamStubById(prisma, params.tournamentId, homeId, knownTeamIds)
       : null;
     const safeAwayId = awayId
-      ? await ensureTeamStubById(
-        prisma,
-        params.tournamentId,
-        awayId,
-        knownTeamIds,
-      )
+      ? await ensureTeamStubById(prisma, params.tournamentId, awayId, knownTeamIds)
       : null;
 
     const { homePts, awayPts } = pickPointsFromScheduleGame(g);
 
     const winnerId = computeWinnerFromSchedule(g);
     const safeWinnerId = winnerId
-      ? await ensureTeamStubById(
-        prisma,
-        params.tournamentId,
-        winnerId,
-        knownTeamIds,
-      )
+      ? await ensureTeamStubById(prisma, params.tournamentId, winnerId, knownTeamIds)
       : null;
 
     const prev = existingById.get(gameId);
-    const scoringChanged = didScoringRelevantChange(prev as any, {
+
+    const scoringChanged = didScoringRelevantChange(prev, {
       status,
       isPlayIn: playIn,
       winnerTeamId: safeWinnerId,
@@ -795,6 +767,7 @@ export async function runSyncOnce(params: {
     // Only set finalizedAt/closedAt the FIRST time we see it happen.
     const finalizedAt =
       finalLike && !prev?.finalizedAt ? now : (prev?.finalizedAt ?? null);
+
     const closedAt =
       status === "closed" && !prev?.closedAt ? now : (prev?.closedAt ?? null);
 

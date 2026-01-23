@@ -1,10 +1,10 @@
 {
   "name": "@fantasy-madness/db",
-  "version": "0.0.1",
   "private": true,
+  "version": "0.0.1",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -12,18 +12,22 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "generate": "npx prisma generate --schema prisma/schema.prisma"
+    "build": "tsc -p tsconfig.build.json",
+    "prisma": "prisma",
+    "generate": "prisma generate",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "lint": "echo \"(stub)\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "7.3.0",
-    "@prisma/client": "7.3.0",
+    "@prisma/adapter-pg": "^7.3.0",
+    "@prisma/client": "^7.0.0",
     "pg": "^8.17.2"
   },
   "devDependencies": {
-    "@types/node": "^25.0.9",
-    "@types/pg": "^8.16.0",
-    "prisma": "7.3.0",
-    "typescript": "^5.5.0"
+    "prisma": "^7.0.0",
+    "typescript": "^5.6.3",
+    "@types/node": "^25.0.9"
   }
 }

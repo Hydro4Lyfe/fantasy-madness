@@ -1,87 +1,9 @@
-# -----------------------------
-# OS / Editor junk
-# -----------------------------
+node_modules
+.next
+dist
+.turbo
 .DS_Store
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Optional: keep VS Code settings but ignore workspace noise
-# !.vscode/settings.json
-# !.vscode/extensions.json
-
-# -----------------------------
-# Logs
-# -----------------------------
-logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# -----------------------------
-# Dependencies
-# -----------------------------
-node_modules/
-.pnp/
-.pnp.js
-
-# -----------------------------
-# Build outputs
-# -----------------------------
-.next/
-out/
-dist/
-build/
-coverage/
-.turbo/
-.vercel/
-.cache/
-
-# -----------------------------
-# Env files (SECRETS!)
-# -----------------------------
 .env
 .env.*
 !.env.example
-!.env.template
-
-# -----------------------------
-# Next.js / React
-# -----------------------------
-.next-cache/
-
-# -----------------------------
-# TypeScript
-# -----------------------------
-*.tsbuildinfo
-
-# -----------------------------
-# Prisma
-# -----------------------------
-prisma/.env
-# If you use SQLite locally, ignore DB files:
-*.db
-*.db-journal
-
-# -----------------------------
-# Testing
-# -----------------------------
-playwright-report/
-test-results/
-cypress/videos/
-cypress/screenshots/
-
-# -----------------------------
-# Misc
-# -----------------------------
-*.pem
-*.key
-*.cert

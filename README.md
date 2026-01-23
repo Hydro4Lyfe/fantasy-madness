@@ -1,72 +1,42 @@
-# Fantasy Madness
+# Fantasy Madness — Monorepo Skeleton (npm workspaces + Prisma 7)
 
-A monorepo for **Fantasy Madness**, a March-Madness-style fantasy game.
+This is a **project skeleton** matching the architecture discussed:
 
-Right now the repo focuses on the **data layer**:
+- `apps/web` — Next.js App Router web application (stateless)
+- `apps/ingest` — drop-in slot for your existing ingest service (keep your current design)
+- `packages/db` — Prisma schema + migrations + Prisma client factory (**Prisma 7**)
+- `packages/domain` — shared domain types/enums/zod/rules/errors (no DB imports)
+- `packages/dal` — all Prisma access (queries + mutations) accepting `db` arg
+- `infra` — Kubernetes and Docker manifest stubs
+- `tooling` — shared tsconfig (stub)
 
-- `packages/db` – Prisma schema + a shared `prisma` client (Postgres via `@prisma/adapter-pg`).
-- `apps/ingest` – CLI + worker/orchestrator that ingests Sportradar NCAA MBB tournament data.
-- `apps/fake-sportradar` – (optional) local stub server for testing without hitting Sportradar.
+## Using npm workspaces
 
-## Quick start (local)
-
-1) Create env files
-
-```bash
-cp .env.example .env
-cp apps/ingest/.env.example apps/ingest/.env
-```
-
-2) Install + generate
-
+Install:
 ```bash
 npm install
-npm run db:generate
 ```
 
-3) Run migrations
-
+Run web:
 ```bash
-npm run db:migrate:dev
+npm run dev:web
 ```
 
-4) Ingest a tournament
-
+Prisma (from packages/db):
 ```bash
-npm -w @fantasy-madness/ingest run build
-node apps/ingest/dist/index.js sync --tournamentId <id> --seasonYear 2024 --mode summary --print
+npm run prisma -w @fantasy-madness/db -- -v
+npm run generate -w @fantasy-madness/db
+npm run migrate:dev -w @fantasy-madness/db
 ```
 
-## Docker one-shot ingest
+## Dropping in your existing ingest service
 
-```bash
-docker build -f apps/ingest/Dockerfile -t fantasy-madness-ingest:dev .
+Option A (simplest): **copy your current ingest repo contents into `apps/ingest/`**
+- Replace this stub `apps/ingest/package.json` with your real one.
+- Keep the package name `@fantasy-madness/ingest` (recommended).
+- Run `npm install` again at the repo root.
 
-# IMPORTANT: when using --env-file, do NOT wrap values in quotes
-#   ✅ SPORTRADAR_BASE_URL=https://...
-#   ❌ SPORTRADAR_BASE_URL="https://..."
+Option B: If your ingest already lives elsewhere in this monorepo, just ensure it sits under `apps/ingest`
+and that it has a valid workspace `package.json`.
 
-docker run --rm --env-file apps/ingest/.env fantasy-madness-ingest:dev \
-  sync --tournamentId <id> --seasonYear 2024 --mode full --print
-```
-
-## Common commands
-
-- Generate Prisma client: `npm run db:generate`
-- Dev migration: `npm run db:migrate:dev`
-- Deploy migrations (prod): `npm run db:migrate:deploy`
-- Prisma Studio: `npm run db:studio`
-- Build ingest: `npm -w @fantasy-madness/ingest run build`
-- Dev ingest (TypeScript): `npm -w @fantasy-madness/ingest run dev -- sync ...`
-
-## What’s “ready” vs. what’s next?
-
-**Ready now**:
-- Schema + migrations workflow
-- Ingest CLI for deterministic backfills (summary-only or full)
-- Bracket slot materialization (64 canonical slots; play-ins resolved over time)
-
-**Next**:
-- The web app UI + game logic screens (draft/global picks, scoring views)
-- Job scheduling policy for ongoing “live” tournament updates (cron / k8s)
-
+> This skeleton intentionally does not redesign ingest.

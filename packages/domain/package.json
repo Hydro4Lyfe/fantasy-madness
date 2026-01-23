@@ -1,0 +1,16 @@
+{
+  "name": "@fantasy-madness/domain",
+  "private": true,
+  "version": "0.0.1",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

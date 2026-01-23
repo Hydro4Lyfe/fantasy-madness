@@ -1,27 +1,28 @@
 {
+  "name": "fantasy-madness",
   "private": true,
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "tooling/*"
   ],
-  "scripts": {
-    "bootstrap": "npm run db:generate && npm run db:migrate:dev && npm -w @fantasy-madness/db run build && npm -w @fantasy-madness/ingest run build",
+"scripts": {
+    "dev:web": "npm run dev -w @fantasy-madness/web",
+    "dev:ingest": "npm run dev -w @fantasy-madness/ingest",
 
-    "ingest:run": "npm -w @fantasy-madness/ingest run start",
-    "ingest:dev": "npm -w @fantasy-madness/ingest run dev",
+    "build:db": "npm run generate -w @fantasy-madness/db && npm run build -w @fantasy-madness/db",
+    "build:dal": "npm run build -w @fantasy-madness/dal",
+    "build:domain": "npm run build -w @fantasy-madness/domain",
 
-    "db:generate": "npx prisma generate --schema packages/db/prisma/schema.prisma",
-    "db:migrate:dev": "npx prisma migrate dev --schema packages/db/prisma/schema.prisma",
-    "db:migrate:deploy": "npx prisma migrate deploy --schema packages/db/prisma/schema.prisma",
-    "db:studio": "npx prisma studio --schema packages/db/prisma/schema.prisma"
-  },
-  "devDependencies": {
-    "@types/luxon": "^3.7.1",
-    "@prisma/client": "7.3.0",
-    "prisma": "7.3.0"
+    "build:web": "npm run build -w @fantasy-madness/web",
+    "build:ingest": "npm run build -w @fantasy-madness/ingest",
+
+    "build": "npm run build:db && npm run build:domain && npm run build:dal && npm run build:web && npm run build:ingest",
+
+    "start:web": "npm run start -w @fantasy-madness/web",
+    "start:ingest": "npm run start -w @fantasy-madness/ingest"
   },
   "overrides": {
-    "prisma": "7.3.0",
-    "@prisma/client": "7.3.0"
+    "lodash": "^4.17.23"
   }
 }
