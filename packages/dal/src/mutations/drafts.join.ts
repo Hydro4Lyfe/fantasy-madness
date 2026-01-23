@@ -1,17 +1,32 @@
 import type { DbClient } from "@fantasy-madness/db";
-import { JoinDraftInputSchema, type JoinDraftInput, DomainError } from "@fantasy-madness/domain";
+import { DomainError } from "@fantasy-madness/domain";
 import { Prisma } from "@prisma/client";
 import { mapPrismaError } from "../errors/mapPrismaError.js";
 
+export type JoinDraftInput = {
+  draftId: string;
+  userId: string; // NOTE: Prisma User.id is cuid() (text) — not uuid.
+  idempotencyKey?: string;
+};
+
 export type JoinDraftResult = { draftId: string; pickOrder: number };
 
+function isUuid(v: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+
 export async function joinDraft(args: { db: DbClient; input: JoinDraftInput }): Promise<JoinDraftResult> {
-  const input = JoinDraftInputSchema.parse(args.input);
+  const input = args.input;
   const db = args.db;
 
+  // Minimal validation (avoid rejecting cuid userIds)
+  if (!input || typeof input !== "object") throw new DomainError("CONFLICT", "Invalid input");
+  if (!input.draftId || !isUuid(String(input.draftId))) throw new DomainError("CONFLICT", "Invalid draftId");
+  if (!input.userId || typeof input.userId !== "string" || input.userId.length < 1) {
+    throw new DomainError("CONFLICT", "Invalid userId");
+  }
+
   try {
-    // IMPORTANT: if `db` is already a tx, $transaction still works with PrismaClient but not with TransactionClient.
-    // So we only run a transaction if we have a PrismaClient.
     const run = async (tx: any) => {
       // 1) idempotent: already joined?
       const existing = await tx.draftParticipant.findUnique({
@@ -20,7 +35,7 @@ export async function joinDraft(args: { db: DbClient; input: JoinDraftInput }): 
       });
       if (existing) return { draftId: input.draftId, pickOrder: existing.pickOrder };
 
-      // 2) (optional) check draft joinable
+      // 2) ensure draft exists + joinable
       const draft = await tx.draft.findUnique({
         where: { id: input.draftId },
         select: { id: true, lockAt: true, rosterSize: true },
@@ -28,14 +43,11 @@ export async function joinDraft(args: { db: DbClient; input: JoinDraftInput }): 
       if (!draft) throw new DomainError("NOT_FOUND", "Draft not found");
       if (draft.lockAt && draft.lockAt <= new Date()) throw new DomainError("INVALID_STATE", "Draft is locked");
 
-      // 3) claim next pickOrder safely
-      // We compute "next = currentCount + 1". Concurrency is handled by unique(draftId, pickOrder).
-      // If two pods race, one insert will fail with P2002 and we retry.
+      // 3) claim next pickOrder safely (unique index handles contention)
       for (let attempt = 0; attempt < 10; attempt++) {
         const count = await tx.draftParticipant.count({ where: { draftId: input.draftId } });
         const nextPickOrder = count + 1;
 
-        // Optional capacity guard if rosterSize is your max participants
         if (draft.rosterSize && nextPickOrder > draft.rosterSize) {
           throw new DomainError("DRAFT_FULL", "Draft is full");
         }
@@ -46,20 +58,12 @@ export async function joinDraft(args: { db: DbClient; input: JoinDraftInput }): 
               draftId: input.draftId,
               userId: input.userId,
               pickOrder: nextPickOrder,
-
-              // ---- FILL OTHER REQUIRED FIELDS HERE ----
-              // Examples (only include what your schema requires):
-              // role: "PLAYER",
-              // joinedAt: new Date(),
-              // isOwner: false,
-              // status: "ACTIVE",
+              // isHost defaults false
             },
             select: { pickOrder: true },
           });
-
           return { draftId: input.draftId, pickOrder: created.pickOrder };
         } catch (e) {
-          // If pickOrder collision, retry loop
           if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") continue;
           throw e;
         }
@@ -68,7 +72,6 @@ export async function joinDraft(args: { db: DbClient; input: JoinDraftInput }): 
       throw new DomainError("CONFLICT", "Could not claim a pickOrder after retries");
     };
 
-    // If `db` has $transaction (PrismaClient), use it; otherwise assume we're already in a tx
     const maybePrismaClient = db as any;
     if (typeof maybePrismaClient.$transaction === "function") {
       return await maybePrismaClient.$transaction((tx: any) => run(tx));

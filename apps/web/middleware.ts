@@ -2,7 +2,8 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 export function middleware(_req: NextRequest) {
-  // Stub: add auth gating for (game) routes if needed.
+  // Optional: add auth gating here once you wire a real auth provider.
+  // For now, guards live in server/auth/guards.ts.
   return NextResponse.next();
 }
 

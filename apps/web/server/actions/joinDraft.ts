@@ -2,12 +2,8 @@
 
 import { withTx } from "@fantasy-madness/db";
 import { joinDraft } from "@fantasy-madness/dal";
-import { revalidatePath } from "next/cache";
-
-// Replace with your auth layer (Supabase, etc.)
-function requireUserId(): string {
-  throw new Error("requireUserId not implemented");
-}
+import { revalidatePath, revalidateTag } from "next/cache";
+import { requireUserId } from "@/server/auth/guards";
 
 export async function joinDraftAction(input: { draftId: string; idempotencyKey?: string }) {
   const userId = requireUserId();
@@ -17,5 +13,6 @@ export async function joinDraftAction(input: { draftId: string; idempotencyKey?:
   );
 
   revalidatePath(`/drafts/${input.draftId}`);
+  revalidateTag(`draft:${input.draftId}`);
   return result;
 }
