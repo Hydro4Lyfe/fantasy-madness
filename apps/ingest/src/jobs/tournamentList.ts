@@ -1,10 +1,10 @@
 import { prisma } from "@fantasy-madness/db";
 import { SyncFeedType } from "@prisma/client";
+import { createSyncLog, createSyncLogBestEffort, withAdvisoryLock } from "@fantasy-madness/dal";
 import { discoverTournament } from "../discovery.js";
 import { sha256Hex } from "../hash.js";
 import { log } from "../logger.js";
 import { runSyncOnce } from "../sync.js";
-import { withAdvisoryLock } from "../lock.js";
 
 /**
  * Job: pull:tournament_list
@@ -19,16 +19,15 @@ export async function tournamentListHandler(job: any) {
     const discovered = await discoverTournament();
     const payloadHash = sha256Hex(discovered);
 
-    await prisma.syncLog.create({
-      data: {
-        feedType: SyncFeedType.TOURNAMENT_LIST,
-        tournamentId: discovered.tournamentId,
-        entityId: String(discovered.seasonYear),
-        fetchedAt: startedAt,
-        httpStatus: 200,
-        payload: discovered as any,
-        payloadHash,
-      },
+    await createSyncLog({
+      db: prisma,
+      feedType: SyncFeedType.TOURNAMENT_LIST,
+      tournamentId: discovered.tournamentId,
+      entityId: String(discovered.seasonYear),
+      fetchedAt: startedAt,
+      httpStatus: 200,
+      payload: discovered as any,
+      payloadHash,
     });
 
     log.info(
@@ -61,20 +60,15 @@ export async function tournamentListHandler(job: any) {
     log.error({ err, jobId: job?.id }, "tournament_list job failed");
 
     // Best-effort log record (no tournamentId if discovery failed)
-    try {
-      await prisma.syncLog.create({
-        data: {
-          feedType: SyncFeedType.TOURNAMENT_LIST,
-          tournamentId: null,
-          entityId: null,
-          fetchedAt: startedAt,
-          httpStatus: guessHttpStatus(e),
-          error: err,
-        },
-      });
-    } catch {
-      // ignore
-    }
+    await createSyncLogBestEffort({
+      db: prisma,
+      feedType: SyncFeedType.TOURNAMENT_LIST,
+      tournamentId: null,
+      entityId: null,
+      fetchedAt: startedAt,
+      httpStatus: guessHttpStatus(e),
+      error: err,
+    });
 
     throw e;
   }

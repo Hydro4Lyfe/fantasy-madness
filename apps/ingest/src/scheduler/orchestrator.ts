@@ -1,7 +1,7 @@
 import { CADENCES } from "./cadences.js";
 import { bucketKey } from "./buckets.js";
 import { computePhase, Phase } from "./phase.js";
-import { withAdvisoryLock } from "../lock.js";
+import { hasTournamentInStates, withAdvisoryLock } from "@fantasy-madness/dal";
 import type { Boss } from "../queue/types.js";
 import { JOB } from "../queue/names.js";
 import { prisma } from "@fantasy-madness/db";
@@ -100,17 +100,13 @@ async function shouldRunTournamentListLatch(): Promise<boolean> {
   const now = Date.now();
   if (latchCache && latchCache.expiresAt > now) return latchCache.value;
 
-  const t = await prisma.tournament.findFirst({
-    where: {
-      syncState: {
-        in: ["DISCOVERED", "MONITORING", "BRACKET_LOCKED", "LIVE"] as any,
-      },
-    },
-    select: { id: true },
+  const hasActive = await hasTournamentInStates({
+    db: prisma,
+    states: ["DISCOVERED", "MONITORING", "BRACKET_LOCKED", "LIVE"] as any,
   });
 
   // If no active-ish tournament exists, keep polling tournament list.
-  const shouldRun = !t;
+  const shouldRun = !hasActive;
 
   latchCache = { value: shouldRun, expiresAt: now + 5 * 60_000 };
   return shouldRun;

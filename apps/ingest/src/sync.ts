@@ -1,13 +1,23 @@
 // apps/ingest/src/sync.ts
-import { Prisma as PrismaNS, type Prisma } from "@prisma/client";
+import { SyncFeedType } from "@prisma/client";
+import type { DbClient } from "@fantasy-madness/db";
 import { prisma } from "@fantasy-madness/db";
 import { log } from "./logger.js";
 import { sha256Hex } from "./hash.js";
 import { fetchTournamentSchedule, fetchTournamentSummary } from "./sportradar.js";
 import {
+  createSyncLog,
+  upsertTournamentFromSummary,
+  updateTournamentEventStatusRaw,
+  upsertTeamAndTournamentTeam,
+  ensureTeamStubForTournament,
   maybeMaterializeBracketSlotsOnce,
   resolvePlayInSlots,
-} from "./bracketSlots.js";
+  findExistingGamesLite,
+  upsertGameFromSchedule,
+  recomputeTeamTournamentStats,
+  type ExistingGameLite,
+} from "@fantasy-madness/dal";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -78,18 +88,6 @@ function isFinalStatus(status: CanonGameStatus): boolean {
   return status === "complete" || status === "closed" || status === "forfeited";
 }
 
-type ExistingGameLite = {
-  id: string;
-  status: string;
-  isPlayIn: boolean;
-  winnerTeamId: string | null;
-  homeTeamId: string | null;
-  awayTeamId: string | null;
-  homePoints: number | null;
-  awayPoints: number | null;
-  finalizedAt: Date | null;
-  closedAt: Date | null;
-};
 
 function didScoringRelevantChange(
   prev: ExistingGameLite | undefined,
@@ -252,7 +250,7 @@ function extractSeedRegionQuadrantFromBracketParticipant(
 }
 
 async function upsertTeamsAndTournamentTeams(
-  db: Prisma.TransactionClient | typeof prisma,
+  db: DbClient,
   tournamentId: string,
   summary: any,
 ): Promise<Set<string>> {
@@ -264,38 +262,21 @@ async function upsertTeamsAndTournamentTeams(
     if (!teamId) continue;
 
     const { name, market, alias } = normalizeTeamName(t);
-
-    await db.team.upsert({
-      where: { id: teamId },
-      create: {
-        id: teamId,
-        name: name ?? teamId,
-        market,
-        alias,
-        baseTeamRaw: t,
-      },
-      update: { ...(name ? { name } : {}), market, alias, baseTeamRaw: t },
-    });
-
     const { seed, region, quadrant } =
       extractSeedRegionQuadrantFromBracketParticipant(t, meta);
 
-    await db.tournamentTeam.upsert({
-      where: { tournamentId_teamId: { tournamentId, teamId } },
-      create: {
-        tournamentId,
-        teamId,
-        seed,
-        region,
-        quadrant,
-        payloadRaw: { participant: t, bracket: meta },
-      },
-      update: {
-        seed: seed ?? undefined,
-        region: region ?? undefined,
-        quadrant: quadrant ?? undefined,
-        payloadRaw: { participant: t, bracket: meta },
-      },
+    await upsertTeamAndTournamentTeam({
+      db,
+      tournamentId,
+      teamId,
+      name,
+      market,
+      alias,
+      baseTeamRaw: t,
+      seed,
+      region,
+      quadrant,
+      payloadRaw: { participant: t, bracket: meta } as any,
     });
 
     known.add(teamId);
@@ -403,61 +384,6 @@ function collectScheduleGames(schedule: any): Map<string, any> {
   return out;
 }
 
-async function recomputeTeamTournamentStats(
-  db: Prisma.TransactionClient | typeof prisma,
-  tournamentId: string,
-) {
-  // get all teams in tournament + seeds
-  const tteams = await db.tournamentTeam.findMany({
-    where: { tournamentId },
-    select: { teamId: true, seed: true },
-  });
-
-  // count wins from FINAL games excluding play-in
-  const finals = await db.game.findMany({
-    where: {
-      tournamentId,
-      isPlayIn: false,
-      status: { in: ["complete", "closed", "forfeited"] },
-      winnerTeamId: { not: null },
-    },
-    select: { winnerTeamId: true },
-  });
-
-  const winsByTeam = new Map<string, number>();
-  for (const g of finals) {
-    const w = g.winnerTeamId!;
-    winsByTeam.set(w, (winsByTeam.get(w) ?? 0) + 1);
-  }
-
-  // upsert stats rows
-  for (const tt of tteams) {
-    const wins = winsByTeam.get(tt.teamId) ?? 0;
-    const seed = tt.seed ?? null;
-    const teamScore = seed != null ? wins * seed : null;
-
-    await db.teamTournamentStats.upsert({
-      where: { tournamentId_teamId: { tournamentId, teamId: tt.teamId } },
-      create: {
-        tournamentId,
-        teamId: tt.teamId,
-        wins,
-        teamScore,
-        lastRecalcAt: new Date(),
-      },
-      update: {
-        wins,
-        teamScore,
-        lastRecalcAt: new Date(),
-      },
-    });
-  }
-
-  await db.tournament.update({
-    where: { id: tournamentId },
-    data: { statsUpdatedAt: new Date() },
-  });
-}
 
 function pickTeamIdsFromScheduleGame(g: any): {
   homeId: string | null;
@@ -535,7 +461,7 @@ function computeWinnerFromSchedule(g: any): string | null {
 }
 
 async function ensureTeamStubById(
-  db: Prisma.TransactionClient | typeof prisma,
+  db: DbClient,
   tournamentId: string,
   teamId: string,
   knownTeamIds: Set<string>,
@@ -543,28 +469,7 @@ async function ensureTeamStubById(
   if (knownTeamIds.has(teamId)) return teamId;
 
   // minimal stub to satisfy FK if schedule references a team we didn't get in summary (rare)
-  await db.team.upsert({
-    where: { id: teamId },
-    create: {
-      id: teamId,
-      name: teamId,
-      baseTeamRaw: { id: teamId, stub: true },
-    },
-    update: {},
-  });
-
-  await db.tournamentTeam.upsert({
-    where: { tournamentId_teamId: { tournamentId, teamId } },
-    create: {
-      tournamentId,
-      teamId,
-      seed: null,
-      region: null,
-      quadrant: null,
-      payloadRaw: { stub: true },
-    },
-    update: {},
-  });
+  await ensureTeamStubForTournament({ db, tournamentId, teamId });
 
   knownTeamIds.add(teamId);
   return teamId;
@@ -608,39 +513,25 @@ export async function runSyncOnce(params: {
   );
 
   // Upsert tournament row
-  await prisma.tournament.upsert({
-    where: { id: params.tournamentId },
-    create: {
-      id: params.tournamentId,
-      seasonYear: params.seasonYear,
-      name: String(summary?.name ?? `NCAA Tournament ${params.seasonYear}`),
-      startDate: parseDateMaybe(summary?.start_date),
-      endDate: parseDateMaybe(summary?.end_date),
-      syncState: "MONITORING",
-      eventStatusRaw: PrismaNS.JsonNull,
-      payloadRaw: summary,
-      statsUpdatedAt: new Date(),
-      nextCheckAt: new Date(0),
-    },
-    update: {
-      name: String(summary?.name ?? `NCAA Tournament ${params.seasonYear}`),
-      startDate: parseDateMaybe(summary?.start_date) ?? undefined,
-      endDate: parseDateMaybe(summary?.end_date) ?? undefined,
-      payloadRaw: summary,
-      statsUpdatedAt: new Date(),
-    },
+  await upsertTournamentFromSummary({
+    db: prisma,
+    tournamentId: params.tournamentId,
+    seasonYear: params.seasonYear,
+    name: String(summary?.name ?? `NCAA Tournament ${params.seasonYear}`),
+    startDate: parseDateMaybe(summary?.start_date),
+    endDate: parseDateMaybe(summary?.end_date),
+    payloadRaw: summary as any,
   });
 
-  await prisma.syncLog.create({
-    data: {
-      feedType: "TOURNAMENT_SUMMARY",
-      tournamentId: params.tournamentId,
-      entityId: params.tournamentId,
-      fetchedAt: new Date(),
-      httpStatus: 200,
-      payload: summary,
-      payloadHash: summaryHash,
-    },
+  await createSyncLog({
+    db: prisma,
+    feedType: SyncFeedType.TOURNAMENT_SUMMARY,
+    tournamentId: params.tournamentId,
+    entityId: params.tournamentId,
+    fetchedAt: new Date(),
+    httpStatus: 200,
+    payload: summary as any,
+    payloadHash: summaryHash,
   });
 
   // Upsert teams + tournamentTeams
@@ -652,7 +543,7 @@ export async function runSyncOnce(params: {
   stats.summaryTeamsUpserts = knownTeamIds.size;
 
   // C) Materialize canonical bracket slots ONCE
-  await maybeMaterializeBracketSlotsOnce(prisma, params.tournamentId);
+  await maybeMaterializeBracketSlotsOnce({ db: prisma, tournamentId: params.tournamentId });
 
   if (mode === "summary") {
     log.info(
@@ -666,21 +557,21 @@ export async function runSyncOnce(params: {
   const schedule = await retry(() => fetchTournamentSchedule(params.tournamentId));
   const scheduleHash = sha256Hex(schedule);
 
-  await prisma.tournament.update({
-    where: { id: params.tournamentId },
-    data: { eventStatusRaw: schedule, statsUpdatedAt: new Date() },
+  await updateTournamentEventStatusRaw({
+    db: prisma,
+    tournamentId: params.tournamentId,
+    eventStatusRaw: schedule as any,
   });
 
-  await prisma.syncLog.create({
-    data: {
-      feedType: "TOURNAMENT_SCHEDULE",
-      tournamentId: params.tournamentId,
-      entityId: params.tournamentId,
-      fetchedAt: new Date(),
-      httpStatus: 200,
-      payload: schedule,
-      payloadHash: scheduleHash,
-    },
+  await createSyncLog({
+    db: prisma,
+    feedType: SyncFeedType.TOURNAMENT_SCHEDULE,
+    tournamentId: params.tournamentId,
+    entityId: params.tournamentId,
+    fetchedAt: new Date(),
+    httpStatus: 200,
+    payload: schedule as any,
+    payloadHash: scheduleHash,
   });
 
   const scheduleGameMap = collectScheduleGames(schedule);
@@ -701,21 +592,7 @@ export async function runSyncOnce(params: {
 
   // Build a lookup of existing games in ONE query
   const gameIds = Array.from(scheduleGameMap.keys());
-  const existing: ExistingGameLite[] = await prisma.game.findMany({
-    where: { id: { in: gameIds } },
-    select: {
-      id: true,
-      status: true,
-      isPlayIn: true,
-      winnerTeamId: true,
-      homeTeamId: true,
-      awayTeamId: true,
-      homePoints: true,
-      awayPoints: true,
-      finalizedAt: true,
-      closedAt: true,
-    },
-  });
+  const existing: ExistingGameLite[] = await findExistingGamesLite({ db: prisma, ids: gameIds });
 
   const existingById = new Map<string, ExistingGameLite>(
     existing.map((g) => [g.id, g]),
@@ -771,52 +648,34 @@ export async function runSyncOnce(params: {
     const closedAt =
       status === "closed" && !prev?.closedAt ? now : (prev?.closedAt ?? null);
 
-    await prisma.game.upsert({
-      where: { id: gameId },
-      create: {
-        id: gameId,
-        tournamentId: params.tournamentId,
-        round: roundName || null,
-        roundSeq,
-        isPlayIn: playIn,
-        scheduledAt,
-        status,
-        homeTeamId: safeHomeId,
-        awayTeamId: safeAwayId,
-        homePoints: homePts,
-        awayPoints: awayPts,
-        winnerTeamId: safeWinnerId,
-        finalizedAt,
-        closedAt,
-        payloadRaw: g,
-      },
-      update: {
-        round: roundName || undefined,
-        roundSeq: roundSeq ?? undefined,
-        isPlayIn: playIn,
-        scheduledAt: scheduledAt ?? undefined,
-        status,
-        homeTeamId: safeHomeId ?? undefined,
-        awayTeamId: safeAwayId ?? undefined,
-        homePoints: homePts ?? undefined,
-        awayPoints: awayPts ?? undefined,
-        winnerTeamId: safeWinnerId ?? undefined,
-        // IMPORTANT: don’t overwrite timestamps every run
-        finalizedAt,
-        closedAt,
-        payloadRaw: g,
-      },
+    await upsertGameFromSchedule({
+      db: prisma,
+      gameId,
+      tournamentId: params.tournamentId,
+      round: roundName || null,
+      roundSeq,
+      isPlayIn: playIn,
+      scheduledAt,
+      status,
+      homeTeamId: safeHomeId,
+      awayTeamId: safeAwayId,
+      homePoints: homePts,
+      awayPoints: awayPts,
+      winnerTeamId: safeWinnerId,
+      finalizedAt,
+      closedAt,
+      payloadRaw: g as any,
     });
 
     stats.scheduleUpserts++;
   }
 
   // D) Resolve play-in winners into their canonical slots (idempotent)
-  await resolvePlayInSlots(prisma, params.tournamentId);
+  await resolvePlayInSlots({ db: prisma, tournamentId: params.tournamentId });
 
   // After games are written, recompute stats if needed
   if (shouldRecalcStats) {
-    await recomputeTeamTournamentStats(prisma, params.tournamentId);
+    await recomputeTeamTournamentStats({ db: prisma, tournamentId: params.tournamentId });
     log.info({ tournamentId: params.tournamentId }, "stats recomputed");
   }
 

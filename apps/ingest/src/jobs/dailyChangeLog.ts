@@ -1,5 +1,6 @@
 import { prisma } from "@fantasy-madness/db";
 import { SyncFeedType } from "@prisma/client";
+import { createSyncLog, createSyncLogBestEffort } from "@fantasy-madness/dal";
 import { DateTime } from "luxon";
 import { sha256Hex } from "../hash.js";
 import { log } from "../logger.js";
@@ -26,16 +27,15 @@ export function makeDailyChangeLogHandler(boss: Boss) {
       const payloadJson = JSON.stringify(payload);
       const payloadHash = sha256Hex(payloadJson);
 
-      await prisma.syncLog.create({
-        data: {
-          feedType: SyncFeedType.DAILY_CHANGE_LOG,
-          tournamentId: null,
-          entityId: dateISO,
-          fetchedAt: startedAt,
-          httpStatus: 200,
-          payload: payload as any, // Json is fine; Prisma accepts plain objects
-          payloadHash,
-        },
+      await createSyncLog({
+        db: prisma,
+        feedType: SyncFeedType.DAILY_CHANGE_LOG,
+        tournamentId: null,
+        entityId: dateISO,
+        fetchedAt: startedAt,
+        httpStatus: 200,
+        payload: payload as any,
+        payloadHash,
       });
 
       const changeCount = Array.isArray(payload?.changes)
@@ -67,18 +67,15 @@ export function makeDailyChangeLogHandler(boss: Boss) {
       log.error({ err, jobId: job?.id, dateISO }, "daily change log job failed");
 
       // Best effort logging
-      await prisma.syncLog
-        .create({
-          data: {
-            feedType: SyncFeedType.DAILY_CHANGE_LOG,
-            tournamentId: null,
-            entityId: dateISO,
-            fetchedAt: startedAt,
-            httpStatus: guessHttpStatus(e),
-            error: err,
-          },
-        })
-        .catch(() => undefined);
+      await createSyncLogBestEffort({
+        db: prisma,
+        feedType: SyncFeedType.DAILY_CHANGE_LOG,
+        tournamentId: null,
+        entityId: dateISO,
+        fetchedAt: startedAt,
+        httpStatus: guessHttpStatus(e),
+        error: err,
+      });
 
       throw e;
     }

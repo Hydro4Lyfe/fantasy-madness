@@ -1,7 +1,7 @@
 import type { DbClient } from "@fantasy-madness/db";
 import { JoinDraftInputSchema, type JoinDraftInput, DomainError } from "@fantasy-madness/domain";
 import { Prisma } from "@prisma/client";
-import { mapPrismaError } from "../errors/mapPrismaError";
+import { mapPrismaError } from "../errors/mapPrismaError.js";
 
 export type JoinDraftResult = { draftId: string; pickOrder: number };
 

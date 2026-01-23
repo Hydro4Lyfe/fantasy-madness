@@ -1,4 +1,5 @@
 import { prisma } from "@fantasy-madness/db";
+import { getTournamentSnapshot } from "@fantasy-madness/dal";
 
 import { discoverTournamentForSeason } from "./discovery.js";
 import { log } from "./logger.js";
@@ -142,42 +143,8 @@ function parseCli(argv: string[]): Cli {
 }
 
 async function printTournamentSnapshot(tournamentId: string) {
-  const [t, ttTotal, ttSeeded, slotsTotal, slotsAssigned, candTotal] = await Promise.all([
-    prisma.tournament.findUnique({
-      where: { id: tournamentId },
-      select: {
-        id: true,
-        seasonYear: true,
-        name: true,
-        syncState: true,
-        bracketLockedAt: true,
-        startDate: true,
-        endDate: true,
-      },
-    }),
-    prisma.tournamentTeam.count({ where: { tournamentId } }),
-    prisma.tournamentTeam.count({
-      where: { tournamentId, seed: { not: null }, quadrant: { not: null } },
-    }),
-    prisma.bracketSlot.count({ where: { tournamentId } }),
-    prisma.bracketSlot.count({ where: { tournamentId, assignedTeamId: { not: null } } }),
-    prisma.bracketSlotCandidate.count({ where: { slot: { tournamentId } } }),
-  ]);
-
-  const slotsUnassigned = slotsTotal - slotsAssigned;
-  log.info(
-    {
-      tournament: t,
-      tournamentTeams: { total: ttTotal, seeded: ttSeeded },
-      bracket: {
-        slotsTotal,
-        slotsAssigned,
-        slotsUnassigned,
-        candidatesTotal: candTotal,
-      },
-    },
-    "tournament snapshot",
-  );
+  const snapshot = await getTournamentSnapshot({ db: prisma, tournamentId });
+  log.info(snapshot, "tournament snapshot");
 }
 
 async function startService() {

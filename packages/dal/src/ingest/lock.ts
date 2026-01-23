@@ -25,12 +25,8 @@ const connectionString =
   process.env.DIRECT_URL ??
   process.env.DATABASE_URL;
 
-if (!connectionString) {
-  // Don't throw at import time in case this module is bundled/loaded for tooling.
-  // We'll throw when someone tries to use the lock.
-}
-
 let pool: Pool | null = null;
+
 function getPool(): Pool {
   if (pool) return pool;
   if (!connectionString) {

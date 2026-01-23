@@ -1,4 +1,5 @@
 import { prisma } from "@fantasy-madness/db";
+import { getPhaseInputs } from "@fantasy-madness/dal";
 import { DateTime } from "luxon";
 
 const TZ = "UTC";
@@ -28,13 +29,13 @@ export async function computePhase(): Promise<Phase> {
   const now = DateTime.now().setZone(TZ);
 
   // "Active-ish" includes anything we might care about syncing.
-  const t = await prisma.tournament.findFirst({
-    where: {
-      syncState: { in: ["DISCOVERED", "MONITORING", "BRACKET_LOCKED", "LIVE", "COMPLETED"] as any },
-    },
-    orderBy: [{ seasonYear: "desc" }, { startDate: "desc" }],
-    select: { id: true, startDate: true, endDate: true, syncState: true },
+  const inputs = await getPhaseInputs({
+    db: prisma,
+    states: ["DISCOVERED", "MONITORING", "BRACKET_LOCKED", "LIVE", "COMPLETED"] as any,
+    now: new Date(),
   });
+
+  const t = inputs.tournament;
 
   // No tournament in DB: honor your Sep 1 rule.
   if (!t) {
@@ -42,32 +43,18 @@ export async function computePhase(): Promise<Phase> {
     return now < sep1 ? "OFFSEASON" : "DISCOVERY";
   }
 
-  // Pull some simple “truth” signals.
-  const [gameCount, teamCount, nextGame, lastClosed] = await Promise.all([
-    prisma.game.count({ where: { tournamentId: t.id } }),
-    // If your model is named differently, change this.
-    prisma.tournamentTeam.count({ where: { tournamentId: t.id } }),
-    prisma.game.findFirst({
-      where: { tournamentId: t.id, scheduledAt: { gte: new Date() } },
-      orderBy: { scheduledAt: "asc" },
-      select: { scheduledAt: true },
-    }),
-    prisma.game.findFirst({
-      where: { tournamentId: t.id, closedAt: { not: null } },
-      orderBy: { closedAt: "desc" },
-      select: { closedAt: true },
-    }),
-  ]);
+  const gameCount = inputs.gameCount;
+  const teamCount = inputs.teamCount;
 
   const start = t.startDate ? DateTime.fromJSDate(t.startDate).setZone(TZ) : null;
   const end = t.endDate ? DateTime.fromJSDate(t.endDate).setZone(TZ) : null;
 
-  const nextGameAt = nextGame?.scheduledAt
-    ? DateTime.fromJSDate(nextGame.scheduledAt).setZone(TZ)
+  const nextGameAt = inputs.nextGameAt
+    ? DateTime.fromJSDate(inputs.nextGameAt).setZone(TZ)
     : null;
 
-  const lastClosedAt = lastClosed?.closedAt
-    ? DateTime.fromJSDate(lastClosed.closedAt as Date).setZone(TZ)
+  const lastClosedAt = inputs.lastClosedAt
+    ? DateTime.fromJSDate(inputs.lastClosedAt).setZone(TZ)
     : null;
 
   const hoursToNext = nextGameAt ? nextGameAt.diff(now, "hours").hours : null;
@@ -79,7 +66,12 @@ export async function computePhase(): Promise<Phase> {
   }
 
   // COMPLETED: inferred (end passed, no upcoming games, nothing closed recently).
-  if (end && now > end.plus({ days: 2 }) && !nextGameAt && (hoursSinceClose == null || hoursSinceClose > 72)) {
+  if (
+    end &&
+    now > end.plus({ days: 2 }) &&
+    !nextGameAt &&
+    (hoursSinceClose == null || hoursSinceClose > 72)
+  ) {
     return "COMPLETED";
   }
 

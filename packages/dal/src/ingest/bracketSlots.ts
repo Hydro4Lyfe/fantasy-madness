@@ -1,13 +1,4 @@
-// apps/ingest/src/bracketSlots.ts
-//
-// Materializes canonical bracket slots (64 positions) derived from TournamentTeam
-// exactly once, and then resolves play-in winners into those slots over time.
-
-import type { Prisma } from "@prisma/client";
-import { prisma } from "@fantasy-madness/db";
-import { log } from "./logger.js";
-
-type Db = Prisma.TransactionClient | typeof prisma;
+import type { DbClient } from "@fantasy-madness/db";
 
 export type MaterializeBracketSlotsResult =
   | {
@@ -43,14 +34,14 @@ const FINAL_STATUSES = new Set(["complete", "closed", "forfeited"]);
  * Create the canonical 64 bracket slots (quadrant x seed) exactly once.
  *
  * IMPORTANT:
- * - This runs ONLY after we have seeded TournamentTeams (seed+quadrant present).
- * - We use Tournament.bracketLockedAt as the "one-way latch".
- * - We only touch BracketSlot/BracketSlotCandidate here (no games).
+ * - Runs ONLY after we have seeded TournamentTeams (seed+quadrant present).
+ * - Uses Tournament.bracketLockedAt as the one-way latch.
  */
 export async function maybeMaterializeBracketSlotsOnce(
-  db: Db,
-  tournamentId: string,
+  args: { db: DbClient; tournamentId: string },
 ): Promise<MaterializeBracketSlotsResult> {
+  const { db, tournamentId } = args;
+
   const t = await db.tournament.findUnique({
     where: { id: tournamentId },
     select: { bracketLockedAt: true },
@@ -81,7 +72,6 @@ export async function maybeMaterializeBracketSlotsOnce(
   const quadrants = Array.from(quadrantsSet).sort((a, b) => a - b);
 
   // Gate: don't build until we have a complete bracket's worth of seeded teams.
-  // (This naturally excludes schedule-created stubs because those have seed/quadrant null.)
   if (seeded.length < 64 || quadrants.length !== 4) {
     return { ran: false, reason: "not_ready", seededCount: seeded.length, quadrants };
   }
@@ -129,11 +119,6 @@ export async function maybeMaterializeBracketSlotsOnce(
           data: teamIds.map((teamId) => ({ slotId: slot.id, teamId })),
           skipDuplicates: true,
         });
-      } else if (teamIds.length !== 1) {
-        log.warn(
-          { tournamentId, quadrant: q, seed, teamIds },
-          "Bracket slot has unexpected team count",
-        );
       }
 
       slots++;
@@ -149,7 +134,6 @@ export async function maybeMaterializeBracketSlotsOnce(
     },
   });
 
-  log.info({ tournamentId, slots, seededCount: seeded.length }, "bracket slots materialized");
   return { ran: true, seededCount: seeded.length, quadrants, slots };
 }
 
@@ -160,9 +144,10 @@ export async function maybeMaterializeBracketSlotsOnce(
  * play-in slots once the play-in game is final.
  */
 export async function resolvePlayInSlots(
-  db: Db,
-  tournamentId: string,
+  args: { db: DbClient; tournamentId: string },
 ): Promise<ResolvePlayInSlotsResult> {
+  const { db, tournamentId } = args;
+
   const t = await db.tournament.findUnique({
     where: { id: tournamentId },
     select: { bracketLockedAt: true },
@@ -205,10 +190,6 @@ export async function resolvePlayInSlots(
     });
 
     slotsUpdated += res.count;
-  }
-
-  if (slotsUpdated) {
-    log.info({ tournamentId, slotsUpdated }, "play-in slots resolved");
   }
 
   return { ran: true, gamesSeen: playins.length, slotsUpdated };

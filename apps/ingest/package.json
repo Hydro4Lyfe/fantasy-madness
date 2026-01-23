@@ -15,7 +15,8 @@
     "luxon": "^3.7.2",
     "pg": "^8.17.2",
     "pg-boss": "^12.5.4",
-    "pino": "^9.0.0"
+    "pino": "^9.0.0",
+    "@fantasy-madness/dal": "0.0.1"
   },
   "devDependencies": {
     "@types/luxon": "^3.7.1",
