@@ -2,7 +2,7 @@ import { requireUserId } from "@/server/auth/guards";
 
 export default async function DraftRoomPage({ params }: { params: Promise<{ draftId: string }> }) {
   const { draftId } = await params;
-  requireUserId();
+  await requireUserId();
 
   return (
     <main style={{ display: "grid", gap: 12, maxWidth: 900 }}>

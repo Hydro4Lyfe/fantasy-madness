@@ -3,7 +3,7 @@ import { requireUserId } from "@/server/auth/guards";
 export default async function SoloEntryPage({ params }: { params: Promise<{ year: string }> }) {
   const { year } = await params;
   // For now this just proves the auth boundary works.
-  const userId = requireUserId();
+  const userId = await requireUserId();
 
   return (
     <main style={{ display: "grid", gap: 12, maxWidth: 900 }}>

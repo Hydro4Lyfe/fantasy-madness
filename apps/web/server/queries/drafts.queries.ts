@@ -1,7 +1,17 @@
 import { getDraftById, listDraftsForUser } from "@fantasy-madness/dal";
 
 export type DraftListRow = { id: string; title: string; status: string };
-export type DraftPageDTO = { id: string; title: string; status: string; participantCount?: number | null };
+
+export type DraftPageDTO = {
+  id: string;
+  title: string;
+  status: string;
+  inviteCode: string | null;
+  draftType: string;
+  rosterSize: number;
+  participantCount: number;
+  isPrivate: boolean;
+};
 
 /**
  * Query used by /drafts
@@ -24,6 +34,10 @@ export async function getDraftByIdQuery(draftId: string): Promise<DraftPageDTO> 
     id: d.id,
     title: d.name ?? d.title ?? `Draft ${String(d.id).slice(0, 6)}`,
     status: d.status ?? "UNKNOWN",
-    participantCount: d.participantCount ?? null,
+    inviteCode: d.inviteCode ?? null,
+    draftType: d.draftType ?? "SNAKE",
+    rosterSize: d.rosterSize ?? 8,
+    participantCount: d.participantCount ?? 0,
+    isPrivate: d.isPrivate ?? true,
   };
 }

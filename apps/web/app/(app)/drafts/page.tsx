@@ -3,7 +3,7 @@ import { requireUserId } from "@/server/auth/guards";
 import { listDraftsForUserQuery } from "@/server/queries/drafts.queries";
 
 export default async function DraftsPage() {
-  const userId = requireUserId();
+  const userId = await requireUserId();
   const drafts = await listDraftsForUserQuery(userId);
 
   return (

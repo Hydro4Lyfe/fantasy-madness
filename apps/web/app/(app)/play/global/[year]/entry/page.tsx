@@ -2,7 +2,7 @@ import { requireUserId } from "@/server/auth/guards";
 
 export default async function GlobalEntryPage({ params }: { params: Promise<{ year: string }> }) {
   const { year } = await params;
-  const userId = requireUserId();
+  const userId = await requireUserId();
 
   return (
     <main style={{ display: "grid", gap: 12, maxWidth: 900 }}>

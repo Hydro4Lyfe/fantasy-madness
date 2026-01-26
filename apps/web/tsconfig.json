@@ -17,6 +17,9 @@
       ],
       "@/server/*": [
         "server/*"
+      ],
+      "@/lib/*": [
+        "lib/*"
       ]
     },
     "isolatedModules": true,

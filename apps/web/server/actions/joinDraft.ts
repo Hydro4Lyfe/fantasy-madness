@@ -6,7 +6,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { requireUserId } from "@/server/auth/guards";
 
 export async function joinDraftAction(input: { draftId: string; idempotencyKey?: string }) {
-  const userId = requireUserId();
+  const userId = await requireUserId();
 
   const result = await withTx((tx) =>
     joinDraft({ db: tx, input: { draftId: input.draftId, userId, idempotencyKey: input.idempotencyKey } })

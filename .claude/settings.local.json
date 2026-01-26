@@ -4,7 +4,10 @@
       "Bash(wc:*)",
       "Bash(grep:*)",
       "Bash(npm run build:*)",
-      "Bash(npm run dev:web:*)"
+      "Bash(npm run dev:web:*)",
+      "Bash(find:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run typecheck:*)"
     ]
   }
 }

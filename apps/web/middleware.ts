@@ -1,12 +1,12 @@
 import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { updateSession } from "@/lib/supabase/middleware";
 
-export function middleware(_req: NextRequest) {
-  // Optional: add auth gating here once you wire a real auth provider.
-  // For now, guards live in server/auth/guards.ts.
-  return NextResponse.next();
+export async function middleware(request: NextRequest) {
+  return await updateSession(request);
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };
