@@ -1,9 +1,53 @@
 @import "tailwindcss";
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 :root {
   color-scheme: dark;
 }
 
 body {
-  @apply bg-slate-950 text-white;
+  background: linear-gradient(135deg, #0A0E1A 0%, #1a1f3a 100%);
+  min-height: 100vh;
+  @apply text-gray-100;
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+.glass-card {
+  background: rgba(31, 41, 55, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+}
+
+.glass-card-hover {
+  transition: all 0.3s ease;
+}
+
+.glass-card-hover:hover {
+  background: rgba(31, 41, 55, 0.8);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+}
+
+.glow-border {
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+}
+
+.gradient-primary {
+  @apply bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400;
+}
+
+.gradient-create {
+  @apply bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500;
+}
+
+.gradient-live {
+  @apply bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500;
+}
+
+.gradient-starting {
+  @apply bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500;
 }

@@ -1,6 +1,6 @@
-import { getDraftById, listDraftsForUser } from "@fantasy-madness/dal";
+import { getDraftById, listDraftsForUser, type DraftListRow } from "@fantasy-madness/dal";
 
-export type DraftListRow = { id: string; title: string; status: string };
+export type { DraftListRow };
 
 export type DraftPageDTO = {
   id: string;
@@ -17,12 +17,7 @@ export type DraftPageDTO = {
  * Query used by /drafts
  */
 export async function listDraftsForUserQuery(userId: string): Promise<DraftListRow[]> {
-  const drafts = await listDraftsForUser({ userId });
-  return (drafts ?? []).map((d: any) => ({
-    id: d.id,
-    title: d.name ?? d.title ?? `Draft ${String(d.id).slice(0, 6)}`,
-    status: d.status ?? "UNKNOWN",
-  }));
+  return listDraftsForUser({ userId });
 }
 
 /**

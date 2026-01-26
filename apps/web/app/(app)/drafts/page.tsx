@@ -1,33 +1,64 @@
 import Link from "next/link";
 import { requireUserId } from "@/server/auth/guards";
 import { listDraftsForUserQuery } from "@/server/queries/drafts.queries";
+import { DraftCard } from "@/components/features/drafts/DraftCard";
 
 export default async function DraftsPage() {
   const userId = await requireUserId();
   const drafts = await listDraftsForUserQuery(userId);
 
   return (
-    <main style={{ display: "grid", gap: 12, maxWidth: 900 }}>
-      <h1 style={{ margin: 0 }}>Drafts</h1>
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <Link href="/drafts/new">Create draft</Link>
-      </div>
+    <main className="max-w-7xl mx-auto px-6 py-8">
+      {/* Hero section */}
+      <section className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">Draft Lobby</h1>
+            <p className="text-gray-400">Join an existing draft or create your own tournament</p>
+          </div>
+        </div>
 
+        <div className="flex items-center gap-4">
+          <Link
+            href="/drafts/new"
+            className="px-8 py-4 gradient-create text-white font-bold rounded-xl transition glow-border flex items-center gap-2 no-underline"
+          >
+            <span className="text-lg">+</span>
+            <span>Create Draft</span>
+          </Link>
+        </div>
+      </section>
+
+      {/* Draft cards grid */}
       {drafts.length === 0 ? (
-        <p style={{ opacity: 0.85 }}>No drafts yet.</p>
+        <div className="glass-card rounded-xl p-12 text-center">
+          <p className="text-gray-400 mb-4">You haven&apos;t joined any drafts yet.</p>
+          <Link
+            href="/drafts/new"
+            className="inline-block px-6 py-3 gradient-primary text-white font-semibold rounded-lg no-underline"
+          >
+            Create Your First Draft
+          </Link>
+        </div>
       ) : (
-        <ul style={{ margin: 0, paddingLeft: 18 }}>
-          {drafts.map((d) => (
-            <li key={d.id}>
-              <Link href={`/drafts/${d.id}`}>{d.title}</Link> <span style={{ opacity: 0.7 }}>({d.status})</span>
-            </li>
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {drafts.map((draft) => (
+            <DraftCard
+              key={draft.id}
+              id={draft.id}
+              name={draft.name}
+              status={draft.status as "OPEN" | "DRAFTING" | "LOCKED" | "COMPLETE"}
+              tournamentName={draft.tournamentName}
+              tournamentYear={draft.tournamentYear}
+              isPrivate={draft.isPrivate}
+              participantCount={draft.participantCount}
+              rosterSize={draft.rosterSize}
+              pickTimerSec={draft.pickTimerSec}
+              isParticipant={true}
+            />
           ))}
-        </ul>
+        </section>
       )}
-
-      <p style={{ margin: 0, opacity: 0.7, fontSize: 13 }}>
-        Logged in as <code>{userId}</code> (DEV). Replace with real auth.
-      </p>
     </main>
   );
 }

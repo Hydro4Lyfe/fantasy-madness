@@ -40,9 +40,11 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/account") ||
     request.nextUrl.pathname.startsWith("/admin");
 
-  const isAuthRoute =
-    request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/auth");
+  const isLoginRoute = request.nextUrl.pathname.startsWith("/login") ||
+    request.nextUrl.pathname.startsWith("/signup");
+
+  // Don't redirect from /auth/callback - let the callback process
+  const isAuthCallback = request.nextUrl.pathname.startsWith("/auth/callback");
 
   if (isProtectedRoute && !user) {
     const url = request.nextUrl.clone();
@@ -51,8 +53,8 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirect logged-in users away from login page
-  if (isAuthRoute && user) {
+  // Redirect logged-in users away from login/signup pages (but not auth callback)
+  if (isLoginRoute && user && !isAuthCallback) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);

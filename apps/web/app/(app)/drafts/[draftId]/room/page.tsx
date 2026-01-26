@@ -1,16 +1,34 @@
 import { requireUserId } from "@/server/auth/guards";
+import { getDraftRoomState, getDraftById } from "@fantasy-madness/dal";
+import { DraftRoom } from "@/components/features/drafts/DraftRoom";
+import { DraftWaitingRoom } from "./DraftWaitingRoom";
 
-export default async function DraftRoomPage({ params }: { params: Promise<{ draftId: string }> }) {
+export default async function DraftRoomPage({
+  params,
+}: {
+  params: Promise<{ draftId: string }>;
+}) {
   const { draftId } = await params;
-  await requireUserId();
+  const userId = await requireUserId();
 
-  return (
-    <main style={{ display: "grid", gap: 12, maxWidth: 900 }}>
-      <h1 style={{ margin: 0 }}>Draft Room</h1>
-      <p style={{ margin: 0, opacity: 0.85 }}>Draft: <code>{draftId}</code></p>
-      <p style={{ margin: 0, opacity: 0.85 }}>
-        MVP: poll <code>/api/drafts/{draftId}/state</code> every 2–3 seconds. Later: SSE/WebSockets.
-      </p>
-    </main>
-  );
+  const state = await getDraftRoomState({ draftId });
+
+  // For OPEN drafts, show the waiting room
+  if (state.status === "OPEN") {
+    const draft = await getDraftById({ draftId });
+    const isHost = state.participants.some(
+      (p) => p.oduserId === userId && p.isHost
+    );
+
+    return (
+      <DraftWaitingRoom
+        state={state}
+        currentUserId={userId}
+        inviteCode={draft.inviteCode}
+        isHost={isHost}
+      />
+    );
+  }
+
+  return <DraftRoom initialState={state} currentUserId={userId} />;
 }
