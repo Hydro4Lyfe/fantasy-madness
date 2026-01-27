@@ -9,18 +9,20 @@ export type DraftParticipantDTO = {
   pickOrder: number;
   isHost: boolean;
   picks: {
-    teamId: string;
-    teamName: string;
-    teamSeed: number | null;
+    slotId: string;
+    displayName: string;
+    seed: number;
+    quadrant: number;
     overallPickNo: number;
   }[];
 };
 
-export type AvailableTeamDTO = {
-  teamId: string;
-  teamName: string;
-  seed: number | null;
-  region: string | null;
+export type AvailableSlotDTO = {
+  slotId: string;
+  displayName: string;
+  seed: number;
+  quadrant: number;
+  isPlayIn: boolean;
 };
 
 export type DraftRoomStateDTO = {
@@ -35,7 +37,7 @@ export type DraftRoomStateDTO = {
   currentPickNumber: number;
   currentPickerUserId: string | null;
   participants: DraftParticipantDTO[];
-  availableTeams: AvailableTeamDTO[];
+  availableSlots: AvailableSlotDTO[];
   totalPicks: number;
 };
 
@@ -68,9 +70,19 @@ export async function getDraftRoomState(args: {
       picks: {
         select: {
           userId: true,
-          teamId: true,
+          slotId: true,
           overallPickNo: true,
-          team: { select: { name: true } },
+          slot: {
+            select: {
+              seed: true,
+              quadrant: true,
+              assignedTeam: { select: { name: true } },
+              candidates: {
+                select: { team: { select: { name: true } } },
+                orderBy: { team: { name: "asc" } },
+              },
+            },
+          },
         },
         orderBy: { overallPickNo: "asc" },
       },
@@ -79,43 +91,68 @@ export async function getDraftRoomState(args: {
 
   if (!draft) throw new DomainError("NOT_FOUND", "Draft not found");
 
-  // Get picked team IDs
-  const pickedTeamIds = new Set(draft.picks.map((p: any) => p.teamId));
+  // Get picked slot IDs
+  const pickedSlotIds = new Set(draft.picks.map((p: any) => p.slotId));
 
-  // Get available teams from tournament
-  const tournamentTeams = await db.tournamentTeam.findMany({
+  // Get available slots from bracket (64 slots per tournament)
+  const bracketSlots = await db.bracketSlot.findMany({
     where: { tournamentId: draft.tournamentId },
     select: {
-      teamId: true,
+      id: true,
       seed: true,
-      region: true,
-      team: { select: { name: true } },
+      quadrant: true,
+      assignedTeam: { select: { name: true } },
+      candidates: {
+        select: { team: { select: { name: true } } },
+        orderBy: { team: { name: "asc" } },
+      },
     },
-    orderBy: [{ seed: "asc" }, { region: "asc" }],
+    orderBy: [{ quadrant: "asc" }, { seed: "asc" }],
   });
 
-  const availableTeams: AvailableTeamDTO[] = tournamentTeams
-    .filter((t: any) => !pickedTeamIds.has(t.teamId))
-    .map((t: any) => ({
-      teamId: t.teamId,
-      teamName: t.team.name,
-      seed: t.seed,
-      region: t.region,
+  // Helper to build display name for a slot
+  const getDisplayName = (slot: any): string => {
+    if (slot.assignedTeam) {
+      return slot.assignedTeam.name;
+    }
+    if (slot.candidates.length > 0) {
+      return slot.candidates.map((c: any) => c.team.name).join(" / ");
+    }
+    return `Slot ${slot.quadrant}-${slot.seed}`;
+  };
+
+  const availableSlots: AvailableSlotDTO[] = bracketSlots
+    .filter((s: any) => !pickedSlotIds.has(s.id))
+    .map((s: any) => ({
+      slotId: s.id,
+      displayName: getDisplayName(s),
+      seed: s.seed,
+      quadrant: s.quadrant,
+      isPlayIn: s.candidates.length > 1,
     }));
+
+  // Helper to build display name for a pick's slot
+  const getPickDisplayName = (slot: any): string => {
+    if (slot.assignedTeam) {
+      return slot.assignedTeam.name;
+    }
+    if (slot.candidates.length > 0) {
+      return slot.candidates.map((c: any) => c.team.name).join(" / ");
+    }
+    return `Slot ${slot.quadrant}-${slot.seed}`;
+  };
 
   // Build participants with their picks
   const participants: DraftParticipantDTO[] = draft.participants.map((p: any) => {
     const userPicks = draft.picks
       .filter((pick: any) => pick.userId === p.userId)
-      .map((pick: any) => {
-        const team = tournamentTeams.find((t: any) => t.teamId === pick.teamId);
-        return {
-          teamId: pick.teamId,
-          teamName: pick.team?.name ?? "Unknown",
-          teamSeed: team?.seed ?? null,
-          overallPickNo: pick.overallPickNo,
-        };
-      });
+      .map((pick: any) => ({
+        slotId: pick.slotId,
+        displayName: getPickDisplayName(pick.slot),
+        seed: pick.slot.seed,
+        quadrant: pick.slot.quadrant,
+        overallPickNo: pick.overallPickNo,
+      }));
 
     return {
       oduserId: p.userId,
@@ -160,7 +197,7 @@ export async function getDraftRoomState(args: {
     currentPickNumber,
     currentPickerUserId,
     participants,
-    availableTeams,
+    availableSlots,
     totalPicks,
   };
 }

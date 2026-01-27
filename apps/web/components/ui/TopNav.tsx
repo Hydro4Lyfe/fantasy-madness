@@ -60,9 +60,9 @@ export async function TopNav(props: { variant?: "app" | "admin" }) {
           <div className="flex items-center gap-3">
             {user ? (
               <>
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-500 to-pink-600 flex items-center justify-center text-sm font-bold text-white">
+                <Link className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-500 to-pink-600 flex items-center justify-center text-sm font-bold text-white" href={"/account"}>
                   {initials}
-                </div>
+                </Link>
                 <LogoutButton />
               </>
             ) : (

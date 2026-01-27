@@ -19,13 +19,13 @@ export function DraftRoom({ initialState, currentUserId }: Props) {
     (p) => p.oduserId === state.currentPickerUserId
   );
 
-  const handlePick = async (teamId: string) => {
+  const handlePick = async (slotId: string) => {
     if (!isMyTurn || isSubmitting) return;
 
     setIsSubmitting(true);
     setError(null);
 
-    const result = await makePickAction(state.id, teamId);
+    const result = await makePickAction(state.id, slotId);
 
     if (!result.success) {
       setError(result.error ?? "Failed to make pick");
@@ -99,34 +99,38 @@ export function DraftRoom({ initialState, currentUserId }: Props) {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Available Teams */}
+        {/* Available Slots */}
         <div className="lg:col-span-2">
           <div className="glass-card rounded-xl p-6">
             <h2 className="text-lg font-semibold text-white mb-4">
-              Available Teams ({state.availableTeams.length})
+              Available Picks ({state.availableSlots.length})
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[500px] overflow-y-auto">
-              {state.availableTeams.map((team) => (
+              {state.availableSlots.map((slot) => (
                 <button
-                  key={team.teamId}
-                  onClick={() => handlePick(team.teamId)}
+                  key={slot.slotId}
+                  onClick={() => handlePick(slot.slotId)}
                   disabled={!isMyTurn || isSubmitting || state.status !== "DRAFTING"}
                   className={`p-3 rounded-lg text-left transition-all ${
                     isMyTurn && state.status === "DRAFTING"
                       ? "bg-dark-800 hover:bg-indigo-600/30 hover:border-indigo-500/50 border border-gray-700 cursor-pointer"
                       : "bg-dark-800/50 border border-gray-700/50 cursor-not-allowed opacity-60"
-                  }`}
+                  } ${slot.isPlayIn ? "ring-1 ring-amber-500/30" : ""}`}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded bg-indigo-500/20 text-indigo-400 text-xs font-bold flex items-center justify-center">
-                      {team.seed ?? "?"}
+                    <span className={`w-6 h-6 rounded text-xs font-bold flex items-center justify-center ${
+                      slot.isPlayIn
+                        ? "bg-amber-500/20 text-amber-400"
+                        : "bg-indigo-500/20 text-indigo-400"
+                    }`}>
+                      {slot.seed}
                     </span>
                     <span className="text-white text-sm font-medium truncate">
-                      {team.teamName}
+                      {slot.displayName}
                     </span>
                   </div>
-                  {team.region && (
-                    <p className="text-xs text-gray-500 mt-1 ml-8">{team.region}</p>
+                  {slot.isPlayIn && (
+                    <p className="text-xs text-amber-500/70 mt-1 ml-8">Play-In</p>
                   )}
                 </button>
               ))}
@@ -179,11 +183,11 @@ export function DraftRoom({ initialState, currentUserId }: Props) {
                     <div className="flex flex-wrap gap-1 ml-11">
                       {participant.picks.map((pick) => (
                         <span
-                          key={pick.teamId}
+                          key={pick.slotId}
                           className="px-2 py-0.5 bg-dark-700 rounded text-xs text-gray-300"
-                          title={pick.teamName}
+                          title={pick.displayName}
                         >
-                          {pick.teamSeed ?? "?"} {pick.teamName.split(" ").pop()}
+                          {pick.seed} {pick.displayName.split(" / ")[0].split(" ").pop()}
                         </span>
                       ))}
                     </div>

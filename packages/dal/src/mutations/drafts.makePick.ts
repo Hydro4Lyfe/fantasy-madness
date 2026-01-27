@@ -5,7 +5,7 @@ import { mapPrismaError } from "../errors/mapPrismaError.js";
 export type MakePickInput = {
   draftId: string;
   userId: string;
-  teamId: string;
+  slotId: string;
 };
 
 export type MakePickResult = {
@@ -32,7 +32,7 @@ export async function makePick(args: {
           orderBy: { pickOrder: "asc" },
         },
         picks: {
-          select: { teamId: true, userId: true, overallPickNo: true },
+          select: { slotId: true, userId: true, overallPickNo: true },
           orderBy: { overallPickNo: "desc" },
           take: 1,
         },
@@ -51,12 +51,12 @@ export async function makePick(args: {
       throw new DomainError("UNAUTHORIZED", "You are not a participant in this draft");
     }
 
-    // Check if team is already picked
+    // Check if slot is already picked
     const existingPick = await (db as any).draftPick.findFirst({
-      where: { draftId: input.draftId, teamId: input.teamId },
+      where: { draftId: input.draftId, slotId: input.slotId },
     });
     if (existingPick) {
-      throw new DomainError("CONFLICT", "This team has already been drafted");
+      throw new DomainError("CONFLICT", "This slot has already been drafted");
     }
 
     // Calculate whose turn it is (snake draft)
@@ -82,7 +82,7 @@ export async function makePick(args: {
       data: {
         draftId: input.draftId,
         userId: input.userId,
-        teamId: input.teamId,
+        slotId: input.slotId,
         overallPickNo,
         rosterSlot,
       },

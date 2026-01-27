@@ -13,14 +13,14 @@ export type MakePickResult = {
 
 export async function makePickAction(
   draftId: string,
-  teamId: string
+  slotId: string
 ): Promise<MakePickResult> {
   const userId = await requireUserId();
 
   try {
     const result = await makePick({
       db: prisma,
-      input: { draftId, userId, teamId },
+      input: { draftId, userId, slotId },
     });
 
     revalidatePath(`/drafts/${draftId}/room`);

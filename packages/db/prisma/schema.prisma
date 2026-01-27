@@ -118,8 +118,6 @@ model Team {
   /// UPDATED: GlobalPick no longer points to Team directly (it points to BracketSlot).
   /// globalPicks GlobalPick[]   <-- removed
 
-  draftPicks  DraftPick[]
-
   /// NEW: slot occupant relation (resolved team for a slot)
   bracketSlotsAssigned BracketSlot[] @relation("BracketSlotAssignedTeam")
 
@@ -180,6 +178,7 @@ model BracketSlot {
 
   candidates   BracketSlotCandidate[]
   globalPicks  GlobalPick[]
+  draftPicks   DraftPick[]
 
   @@map("bracket_slots")
   @@unique([tournamentId, quadrant, seed], map: "ux_bracket_slots_tournament_quadrant_seed")
@@ -465,7 +464,7 @@ model DraftPick {
   id            String @id @default(uuid()) @db.Uuid @map("draft_pick_id")
   draftId       String @db.Uuid @map("draft_id")
   userId        String @db.Text @map("user_id")
-  teamId        String @db.Text @map("team_id")
+  slotId        String @db.Uuid @map("bracket_slot_id")
 
   overallPickNo Int  @map("overall_pick_no")
   rosterSlot    Int? @db.SmallInt @map("roster_slot")
@@ -474,14 +473,14 @@ model DraftPick {
 
   draft Draft @relation(fields: [draftId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team  Team  @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  slot  BracketSlot @relation(fields: [slotId], references: [id], onDelete: Restrict)
 
   @@map("draft_picks")
-  @@unique([draftId, teamId], map: "ux_draft_picks_draft_team")
+  @@unique([draftId, slotId], map: "ux_draft_picks_draft_slot")
   @@unique([draftId, overallPickNo], map: "ux_draft_picks_draft_overallpick")
   @@unique([draftId, userId, rosterSlot], map: "ux_draft_picks_user_rosterslot")
   @@index([draftId, userId], map: "ix_draft_picks_draft_user")
-  @@index([teamId], map: "ix_draft_picks_team")
+  @@index([slotId], map: "ix_draft_picks_slot")
 }
 
 model DraftScore {
