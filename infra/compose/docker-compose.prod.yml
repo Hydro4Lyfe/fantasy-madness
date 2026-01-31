@@ -1,29 +1,21 @@
 services:
-  traefik:
-    image: traefik:v3.3
-    container_name: traefik
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
     restart: unless-stopped
     environment:
-      DOCKER_API_VERSION: "1.44"
-    command:
-      - "--api.dashboard=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
-      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      DOMAIN: ${DOMAIN}
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - letsencrypt:/letsencrypt
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
     networks:
       - fm-network
+    depends_on:
+      - web
 
   redis:
     image: redis:7-alpine
@@ -59,18 +51,6 @@ services:
         condition: service_healthy
     networks:
       - fm-network
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.fm-web.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.fm-web.entrypoints=websecure"
-      - "traefik.http.routers.fm-web.tls.certresolver=letsencrypt"
-      - "traefik.http.services.fm-web.loadbalancer.server.port=3000"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
   ingest:
     env_file:
@@ -93,4 +73,5 @@ networks:
 
 volumes:
   redis-data:
-  letsencrypt:
+  caddy-data:
+  caddy-config:
