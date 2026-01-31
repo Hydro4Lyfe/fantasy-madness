@@ -9,6 +9,7 @@ export * from "./queries/drafts.listForUser.js";
 export * from "./queries/drafts.getRoomState.js";
 export * from "./queries/drafts.getForEdit.js";
 export * from "./queries/drafts.selectOptimalSlot.js";
+export * from "./queries/drafts.getResults.js";
 
 // Web mutations
 export * from "./mutations/drafts.join.js";

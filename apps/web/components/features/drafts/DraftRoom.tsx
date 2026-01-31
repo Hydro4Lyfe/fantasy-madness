@@ -201,7 +201,13 @@ export function DraftRoom({ initialState, currentUserId }: Props) {
               <div className="text-center py-12">
                 <div className="text-6xl mb-4">🏁</div>
                 <h3 className="text-2xl font-bold text-white mb-2">Draft Complete!</h3>
-                <p className="text-gray-400">All picks have been made. Good luck!</p>
+                <p className="text-gray-400 mb-6">All picks have been made. Good luck!</p>
+                <a
+                  href={`/drafts/${state.id}/results`}
+                  className="inline-block px-6 py-3 bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-semibold rounded-lg hover:from-indigo-600 hover:to-purple-700 transition-all no-underline shadow-lg"
+                >
+                  View Results
+                </a>
               </div>
             ) : state.availableSlots.length === 0 ? (
               <div className="text-center py-12 text-gray-400">

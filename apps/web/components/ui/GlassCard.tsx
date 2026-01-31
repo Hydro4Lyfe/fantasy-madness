@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 type GlassCardProps = {
-  title?: string;
+  title?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
   className?: string;
