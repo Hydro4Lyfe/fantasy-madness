@@ -6,23 +6,23 @@
     "packages/*",
     "tooling/*"
   ],
-"scripts": {
-    "dev:web": "npm run dev -w @fantasy-madness/web",
+  "scripts": {
+    "dev:web": "npm run dev:ws -w @fantasy-madness/web",
+    "dev:web-no-websocket": "npm run dev -w @fantasy-madness/web",
     "dev:ingest": "npm run dev -w @fantasy-madness/ingest",
-
     "build:db": "npm run generate -w @fantasy-madness/db && npm run build -w @fantasy-madness/db",
     "build:dal": "npm run build -w @fantasy-madness/dal",
     "build:domain": "npm run build -w @fantasy-madness/domain",
-
     "build:web": "npm run build -w @fantasy-madness/web",
     "build:ingest": "npm run build -w @fantasy-madness/ingest",
-
     "build": "npm run build:db && npm run build:domain && npm run build:dal && npm run build:web && npm run build:ingest",
-
     "start:web": "npm run start -w @fantasy-madness/web",
     "start:ingest": "npm run start -w @fantasy-madness/ingest"
   },
   "overrides": {
     "lodash": "^4.17.23"
+  },
+  "devDependencies": {
+    "dotenv": "^17.2.3"
   }
 }

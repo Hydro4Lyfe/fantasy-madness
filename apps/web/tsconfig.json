@@ -20,6 +20,9 @@
       ],
       "@/lib/*": [
         "lib/*"
+      ],
+      "@/hooks/*": [
+        "hooks/*"
       ]
     },
     "isolatedModules": true,
@@ -36,6 +39,7 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "**/__tests__/**"
   ]
 }

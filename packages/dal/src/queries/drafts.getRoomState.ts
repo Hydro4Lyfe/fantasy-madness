@@ -39,6 +39,8 @@ export type DraftRoomStateDTO = {
   participants: DraftParticipantDTO[];
   availableSlots: AvailableSlotDTO[];
   totalPicks: number;
+  timerDeadlineAt: string | null;
+  timerSecondsRemaining: number | null;
 };
 
 export async function getDraftRoomState(args: {
@@ -185,6 +187,26 @@ export async function getDraftRoomState(args: {
     currentPickerUserId = currentPicker?.oduserId ?? null;
   }
 
+  // Fetch timer info
+  const timer = await db.draftTurnTimer.findUnique({
+    where: { draftId: args.draftId },
+    select: {
+      deadlineAt: true,
+      currentPickNumber: true,
+      timerPausedAt: true,
+    },
+  });
+
+  let timerDeadlineAt: string | null = null;
+  let timerSecondsRemaining: number | null = null;
+
+  if (timer && draft.status === "DRAFTING" && !timer.timerPausedAt) {
+    timerDeadlineAt = timer.deadlineAt.toISOString();
+    const now = new Date();
+    const remaining = timer.deadlineAt.getTime() - now.getTime();
+    timerSecondsRemaining = Math.max(0, Math.floor(remaining / 1000));
+  }
+
   return {
     id: draft.id,
     name: draft.name,
@@ -199,5 +221,7 @@ export async function getDraftRoomState(args: {
     participants,
     availableSlots,
     totalPicks,
+    timerDeadlineAt,
+    timerSecondsRemaining,
   };
 }

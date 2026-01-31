@@ -1,14 +1,27 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+
   web:
     env_file:
       - ../../.env
     build:
       context: ../../
       dockerfile: infra/docker/web.Dockerfile
+      args:
+        DISABLE_TIMER_WORKER: "true"
     ports:
       - "3000:3000"
     environment:
       NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
 
   ingest:
     env_file:
@@ -18,3 +31,6 @@ services:
       dockerfile: infra/docker/ingest.Dockerfile
     environment:
       NODE_ENV: production
+
+volumes:
+  redis-data:

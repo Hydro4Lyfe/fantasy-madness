@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { InviteLinkCard } from "@/components/features/drafts/InviteLinkCard";
 import {
   updateDraftAction,
@@ -94,41 +95,35 @@ export function DraftEditForm({ draft }: Props) {
       {/* Settings Form */}
       <GlassCard title="Draft Settings">
         <form onSubmit={handleUpdateSettings} className="grid gap-4">
-          <div>
-            <label className="block text-sm text-white/70 mb-1">Draft Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-indigo-500"
-            />
-          </div>
+          <Input
+            id="draft-name"
+            name="draftName"
+            label="Draft Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
 
-          <div>
-            <label className="block text-sm text-white/70 mb-1">Roster Size (picks per player)</label>
-            <input
-              type="number"
-              min={1}
-              max={16}
-              value={rosterSize}
-              onChange={(e) => setRosterSize(parseInt(e.target.value) || 1)}
-              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-indigo-500"
-            />
-          </div>
+          <Input
+            id="draft-roster-size"
+            name="rosterSize"
+            label="Roster Size (picks per player)"
+            type="number"
+            min={1}
+            max={16}
+            value={rosterSize}
+            onChange={(e) => setRosterSize(parseInt(e.target.value) || 1)}
+          />
 
-          <div>
-            <label className="block text-sm text-white/70 mb-1">
-              Pick Timer (seconds, 0 = no timer)
-            </label>
-            <input
-              type="number"
-              min={0}
-              max={300}
-              value={pickTimerSec}
-              onChange={(e) => setPickTimerSec(parseInt(e.target.value) || 0)}
-              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:border-indigo-500"
-            />
-          </div>
+          <Input
+            id="draft-pick-timer"
+            name="pickTimerSec"
+            label="Pick Timer (seconds, 0 = no timer)"
+            type="number"
+            min={0}
+            max={300}
+            value={pickTimerSec}
+            onChange={(e) => setPickTimerSec(parseInt(e.target.value) || 0)}
+          />
 
           <Button type="submit" disabled={isUpdating}>
             {isUpdating ? "Saving..." : "Save Settings"}
