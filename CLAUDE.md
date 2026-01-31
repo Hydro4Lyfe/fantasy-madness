@@ -100,6 +100,68 @@ Uses pg-boss for job queuing with handlers in `src/queue/` and scheduling logic 
 - **GlobalContest**: Site-wide contest where users pick 8 teams individually
 - **TournamentSyncState**: DISCOVERED → MONITORING → BRACKET_LOCKED → LIVE → COMPLETED
 
+## Product Requirements
+
+### Data Source
+
+- **SportRadar API** is the source of truth for all tournament data and scoring
+- The ingest service pulls data and stores it in PostgreSQL
+- Game results trigger score recalculations
+
+### Scoring System
+
+- **Formula**: Seed × Wins (excluding play-in games)
+- Example: 16-seed with 1 win = 16 pts, 1-seed with 1 win = 1 pt
+- This rewards picking upsets (higher seeds are worth more per win)
+
+### Game Modes
+
+#### Draft Mode
+- **Participants**: Exactly 8 required to start (configurable to 2 for testing)
+- **Picks**: Users draft BracketSlots (not teams directly) to handle pre-play-in picks
+- **Host Controls**:
+  - Pick timer (optional - no time limit if not set)
+  - Draft start date/time
+- **Real-time**: WebSocket connections for live draft updates
+- **Auto-pick**: When timer expires, system auto-picks optimal available slot
+- **Reconnection**: Users can rejoin active drafts after disconnection/crash
+- **Authentication**: Required to participate
+
+#### Global Mode
+- Users pick 8 BracketSlots they believe will score highest
+- No draft constraints - pick any slots you want
+- Theoretically allows higher scores than Draft mode since no competition for picks
+
+### Availability Windows
+
+- Both modes **open** after Selection Sunday (when bracket is announced)
+- Both modes **close** when Play-ins end (Thursday after Selection Sunday, Round 1 starts)
+- Play-in games (Tuesday & Wednesday after Selection Sunday) do not count for scoring
+
+### Leaderboards
+
+1. **Global Leaderboard**: Scores from Global mode participants
+2. **Draft Leaderboard**: Scores from all drafts in that tournament year
+
+### Historical Page
+
+- View past tournament results
+- Display:
+  - Highest possible score (theoretical max given tournament outcomes)
+  - Highest draft score achieved
+  - Highest global score achieved
+
+### Algorithms
+
+#### Theoretical Maximum Points
+- Calculate highest possible remaining points at any point during tournament
+- Recalculate after each game concludes
+- Used for historical comparisons and live "best possible" tracking
+
+#### Optimal Pick (Auto-draft)
+- Determines best available BracketSlot when draft timer expires
+- Prevents drafts from stalling on absent participants
+
 ### Docker
 
 ```bash
@@ -121,3 +183,110 @@ Web-specific:
 
 Ingest-specific:
 - Sportradar API credentials
+
+## Draft Room Architecture (MVP)
+
+> Full documentation: `/docs/ADR-001-DRAFT-ROOM-ARCHITECTURE.md`
+
+### System Topology
+
+```
+┌─────────────────────────────────────────────────┐
+│             Kubernetes Cluster                   │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐        │
+│  │Web Pod 1 │ │Web Pod 2 │ │Web Pod N │        │
+│  │+ WS + PG │ │+ WS + PG │ │+ WS + PG │        │
+│  │ LISTEN   │ │ LISTEN   │ │ LISTEN   │        │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘        │
+│       └────────────┼────────────┘               │
+│              ┌─────▼─────┐                      │
+│              │   Redis   │ (cross-pod pub/sub)  │
+│              └─────┬─────┘                      │
+│              ┌─────▼─────┐                      │
+│              │PostgreSQL │ (source of truth)    │
+│              │+ pg-boss  │ (timer scheduling)   │
+│              └───────────┘                      │
+└─────────────────────────────────────────────────┘
+```
+
+### Key Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Real-time | **WebSocket** | Bi-directional, low-latency |
+| State | **PostgreSQL** | Pod-safe, ACID transactions |
+| Cross-pod events | **Redis pub/sub** | Horizontal scaling |
+| Timer triggers | **pg-boss + PG NOTIFY** | Sub-second latency |
+| Auto-pick | **Highest seed first** | Maximizes expected value |
+
+### New Components
+
+```
+apps/web/lib/
+├── websocket/           # WebSocket server + handlers
+│   ├── server.ts
+│   ├── handler.ts
+│   └── events.ts
+├── redis/               # Redis pub/sub client
+│   ├── client.ts
+│   └── pubsub.ts
+└── draft/               # Timer worker + auto-pick
+    ├── timer-worker.ts
+    └── cron.ts
+
+packages/dal/src/
+├── mutations/
+│   ├── drafts.makePick.ts    # Timer logic added
+│   └── drafts.start.ts       # Timer initialization
+└── queries/
+    └── drafts.selectOptimalSlot.ts  # Auto-pick algorithm
+```
+
+### Database Additions
+
+```prisma
+model DraftTurnTimer {
+  draftId           String   @id @db.Uuid
+  turnStartedAt     DateTime
+  currentPickNumber Int
+  deadlineAt        DateTime
+  timerPausedAt     DateTime?
+  draft             Draft    @relation(...)
+}
+
+model DraftPick {
+  // ... existing fields
+  isAutoPick Boolean @default(false)
+}
+```
+
+### Event Protocol
+
+**Server → Client:**
+- `draft:state` - Full room state on connect/reconnect
+- `pick:made` - Someone made a pick
+- `turn:changed` - Next picker + deadline
+- `draft:completed` - Draft finished
+- `error` - Validation/system error
+
+**Client → Server:**
+- `pick:submit` - User submits pick
+- `ping` - Heartbeat
+
+### Implementation Phases
+
+| Phase | Focus | Key Deliverables |
+|-------|-------|------------------|
+| 1 | Database & DAL | Timer schema, makePick updates |
+| 2 | Redis + Timer | Pub/sub, pg-boss timer jobs |
+| 3 | WebSocket Server | Real-time event broadcasting |
+| 4 | Client Integration | Live React draft room |
+| 5 | Testing & Deploy | E2E tests, K8s configs |
+
+### Success Criteria
+
+- 8 users complete full 64-pick draft
+- Picks broadcast to all clients within 500ms
+- Auto-pick triggers within 1 second of deadline
+- Graceful reconnection after disconnect
+- Handles 10+ concurrent drafts (scales horizontally)

@@ -38,7 +38,7 @@ export function DraftWaitingRoom({ state, currentUserId, inviteCode, isHost }: P
   return (
     <div className="max-w-2xl mx-auto grid gap-6">
       {/* Header */}
-      <div className="glass-card rounded-xl p-6">
+      <GlassCard className="rounded-xl p-6">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-2xl font-bold text-white m-0">{state.name}</h1>
           <span className="px-4 py-2 text-sm font-semibold rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
@@ -46,7 +46,7 @@ export function DraftWaitingRoom({ state, currentUserId, inviteCode, isHost }: P
           </span>
         </div>
         <p className="text-gray-400 m-0">{state.tournamentName}</p>
-      </div>
+      </GlassCard>
 
       {error && (
         <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400">
@@ -137,11 +137,11 @@ export function DraftWaitingRoom({ state, currentUserId, inviteCode, isHost }: P
           )}
         </div>
       ) : (
-        <div className="glass-card rounded-xl p-6 text-center">
+        <GlassCard className="rounded-xl p-6 text-center">
           <p className="text-white/70 m-0">
             Waiting for the host to start the draft...
           </p>
-        </div>
+        </GlassCard>
       )}
     </div>
   );

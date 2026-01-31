@@ -438,9 +438,26 @@ model Draft {
   picks        DraftPick[]
   scores       DraftScore[]
   invites      DraftInvite[]
+  timer        DraftTurnTimer?
 
   @@map("drafts")
   @@index([tournamentId, status], map: "ix_drafts_tournament_status")
+}
+
+model DraftTurnTimer {
+  draftId          String    @id @db.Uuid @map("draft_id")
+  turnStartedAt    DateTime  @db.Timestamptz(6) @map("turn_started_at")
+  currentPickNumber Int      @map("current_pick_number")
+  deadlineAt       DateTime  @db.Timestamptz(6) @map("deadline_at")
+  timerPausedAt    DateTime? @db.Timestamptz(6) @map("timer_paused_at")
+
+  createdAt        DateTime  @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(6) @map("updated_at")
+
+  draft            Draft     @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@map("draft_turn_timers")
+  @@index([deadlineAt], map: "ix_draft_turn_timers_deadline")
 }
 
 model DraftParticipant {
@@ -468,6 +485,7 @@ model DraftPick {
 
   overallPickNo Int  @map("overall_pick_no")
   rosterSlot    Int? @db.SmallInt @map("roster_slot")
+  isAutoPick    Boolean @default(false) @map("is_auto_pick")
 
   createdAt     DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
 

@@ -1,9 +1,29 @@
-export function GlassCard(props: { title?: string; children: React.ReactNode; footer?: React.ReactNode }) {
+import { cn } from "@/lib/utils";
+
+type GlassCardProps = {
+  title?: string;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+  className?: string;
+  titleClassName?: string;
+};
+
+export function GlassCard({
+  title,
+  children,
+  footer,
+  className,
+  titleClassName,
+}: GlassCardProps) {
   return (
-    <section className="border border-white/10 bg-white/5 rounded-2xl p-4 shadow-xl backdrop-blur-md">
-      {props.title && <h2 className="m-0 mb-3 text-lg font-semibold">{props.title}</h2>}
-      <div>{props.children}</div>
-      {props.footer && <div className="mt-3">{props.footer}</div>}
+    <section className={cn("glass-card rounded-2xl p-4 shadow-xl", className)}>
+      {title && (
+        <h2 className={cn("m-0 mb-3 text-lg font-semibold text-white", titleClassName)}>
+          {title}
+        </h2>
+      )}
+      <div>{children}</div>
+      {footer && <div className="mt-3">{footer}</div>}
     </section>
   );
 }

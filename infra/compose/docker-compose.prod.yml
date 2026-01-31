@@ -1,0 +1,94 @@
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+    networks:
+      - fm-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: fm-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - fm-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  web:
+    env_file:
+      - ../../.env
+    build:
+      context: ../../
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        DISABLE_TIMER_WORKER: "false"
+    container_name: fm-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      REDIS_URL: redis://redis:6379
+      PORT: 3000
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - fm-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fm-web.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.fm-web.entrypoints=websecure"
+      - "traefik.http.routers.fm-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.fm-web.loadbalancer.server.port=3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  ingest:
+    env_file:
+      - ../../.env
+    build:
+      context: ../../
+      dockerfile: infra/docker/ingest.Dockerfile
+    container_name: fm-ingest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    depends_on:
+      - redis
+    networks:
+      - fm-network
+
+networks:
+  fm-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  letsencrypt:

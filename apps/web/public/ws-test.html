@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebSocket Test</title>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #fff; }
+    #log { background: #000; padding: 10px; height: 400px; overflow-y: auto; margin: 10px 0; }
+    input, button, select { padding: 8px; margin: 5px; }
+    .success { color: #0f0; }
+    .error { color: #f00; }
+    .info { color: #0ff; }
+    .warn { color: #ff0; }
+  </style>
+</head>
+<body>
+  <h1>WebSocket Test</h1>
+
+  <div style="margin-bottom: 20px; padding: 10px; background: #333;">
+    <h3>Test 1: Minimal WebSocket (no DB, no Redis)</h3>
+    <button onclick="connectTest()">Connect to /api/ws-test</button>
+    <button onclick="disconnect()">Disconnect</button>
+  </div>
+
+  <div style="margin-bottom: 20px; padding: 10px; background: #333;">
+    <h3>Test 2: Draft Room WebSocket (full handler)</h3>
+    <input type="text" id="draftId" placeholder="Draft ID" style="width: 300px;">
+    <button onclick="connectDraft()">Connect to Draft</button>
+  </div>
+
+  <div>
+    <button onclick="clearLog()">Clear Log</button>
+    <button onclick="sendPing()">Send Ping</button>
+  </div>
+
+  <div id="log"></div>
+
+  <div>
+    <input type="text" id="message" placeholder="Custom message (JSON)" style="width: 300px;">
+    <button onclick="send()">Send</button>
+  </div>
+
+  <script>
+    let ws = null;
+    const log = document.getElementById('log');
+
+    function addLog(msg, type = 'info') {
+      const div = document.createElement('div');
+      div.className = type;
+      div.textContent = `[${new Date().toISOString()}] ${msg}`;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+      console.log(`[${type}] ${msg}`);
+    }
+
+    function clearLog() {
+      log.innerHTML = '';
+    }
+
+    function connectTest() {
+      connectTo('/api/ws-test');
+    }
+
+    function connectDraft() {
+      const draftId = document.getElementById('draftId').value;
+      if (!draftId) {
+        addLog('Please enter a draft ID', 'error');
+        return;
+      }
+      connectTo(`/api/draft/${draftId}/ws`);
+    }
+
+    function connectTo(path) {
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        addLog('Already connected or connecting. Disconnect first.', 'warn');
+        return;
+      }
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const url = `${protocol}//${window.location.host}${path}`;
+
+      addLog(`Connecting to ${url}...`, 'info');
+      addLog(`Browser: ${navigator.userAgent}`, 'info');
+
+      try {
+        ws = new WebSocket(url);
+        addLog(`WebSocket created, readyState: ${ws.readyState}`, 'info');
+      } catch (e) {
+        addLog(`WebSocket constructor error: ${e}`, 'error');
+        return;
+      }
+
+      ws.onopen = () => {
+        addLog(`Connected! readyState: ${ws.readyState}`, 'success');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          addLog(`Received: ${JSON.stringify(data)}`, 'success');
+        } catch {
+          addLog(`Received (raw): ${event.data}`, 'success');
+        }
+      };
+
+      ws.onerror = (event) => {
+        addLog(`Error event fired. readyState: ${ws?.readyState}`, 'error');
+      };
+
+      ws.onclose = (event) => {
+        addLog(`Closed: code=${event.code}, reason="${event.reason || ''}", wasClean=${event.wasClean}`, event.code === 1000 ? 'info' : 'error');
+        ws = null;
+      };
+
+      // Log readyState changes
+      const checkState = setInterval(() => {
+        if (!ws) {
+          clearInterval(checkState);
+          return;
+        }
+        // WebSocket states: 0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED
+        if (ws.readyState === 3) {
+          clearInterval(checkState);
+        }
+      }, 100);
+    }
+
+    function disconnect() {
+      if (ws) {
+        addLog('Disconnecting...', 'info');
+        ws.close(1000, 'User requested');
+      } else {
+        addLog('Not connected', 'warn');
+      }
+    }
+
+    function sendPing() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        addLog('Not connected', 'error');
+        return;
+      }
+      const msg = JSON.stringify({ type: 'ping' });
+      addLog(`Sending: ${msg}`, 'info');
+      ws.send(msg);
+    }
+
+    function send() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        addLog('Not connected', 'error');
+        return;
+      }
+      const msg = document.getElementById('message').value;
+      addLog(`Sending: ${msg}`, 'info');
+      ws.send(msg);
+    }
+
+    addLog('=== WebSocket Debug Page ===', 'info');
+    addLog('Test 1: Minimal endpoint - tests basic WebSocket without any app logic', 'info');
+    addLog('Test 2: Draft room - tests full handler with DB/Redis', 'info');
+    addLog('Note: You must be logged in (have valid auth cookies) for draft room test.', 'warn');
+  </script>
+</body>
+</html>

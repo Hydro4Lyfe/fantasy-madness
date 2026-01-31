@@ -22,6 +22,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./ingest/lock": {
+      "types": "./dist/ingest/lock.d.ts",
+      "default": "./dist/ingest/lock.js"
     }
   }
 }

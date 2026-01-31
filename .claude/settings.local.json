@@ -13,7 +13,9 @@
       "Bash(set \"DATABASE_URL=postgresql://postgres.wyczpsaemguwtcfpchhb:FlzpZEiZk23MSVMC@aws-1-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true\")",
       "Bash(set:*)",
       "Bash(npx prisma migrate dev:*)",
-      "Bash(npx prisma migrate deploy:*)"
+      "Bash(npx prisma migrate deploy:*)",
+      "Bash(ls:*)",
+      "Bash(npx shadcn@latest add:*)"
     ]
   }
 }
