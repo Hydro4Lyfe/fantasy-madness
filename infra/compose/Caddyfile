@@ -1,3 +1,0 @@
-{$DOMAIN} {
-    reverse_proxy fm-web:3000
-}
