@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { DraftRoomStateDTO } from "@fantasy-madness/dal";
+import type { DraftRoomStateDTO } from "@/server/dal";
 import type { ServerEvent, ClientEvent } from "@/lib/websocket/events";
 
 export type ConnectionState = "connecting" | "connected" | "disconnected" | "error";

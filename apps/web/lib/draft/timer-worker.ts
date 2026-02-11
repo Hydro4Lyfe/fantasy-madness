@@ -1,6 +1,5 @@
 import { prisma } from '@fantasy-madness/db';
-import { makePick, selectOptimalSlot, getDraftRoomState } from '@fantasy-madness/dal';
-import { withAdvisoryLock } from '@fantasy-madness/dal/ingest/lock';
+import { makePick, selectOptimalSlot, getDraftRoomState, withAdvisoryLock } from '@/server/dal';
 import { getRedisPubSub } from '../redis/pubsub';
 
 const redis = getRedisPubSub();

@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@fantasy-madness/db";
-import { createDraft } from "@fantasy-madness/dal";
+import { createDraft } from "@/server/dal";
 import { CreateDraftInputSchema } from "@fantasy-madness/domain";
 import { redirect } from "next/navigation";
 import { requireUserId } from "@/server/auth/guards";
@@ -25,6 +25,7 @@ export async function createDraftAction(
     draftType: formData.get("draftType"),
     isPrivate: formData.get("isPrivate") === "on",
     pickTimerSec: formData.get("pickTimerSec") || undefined,
+    startAt: formData.get("startAt") || undefined,
   };
 
   const parsed = CreateDraftInputSchema.safeParse(rawData);

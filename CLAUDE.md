@@ -68,10 +68,64 @@ domain (no deps) → db (Prisma) → dal (queries/mutations) → apps
 
 ### Web App (`apps/web`)
 
+- **UI Library**: shadcn/ui (Radix UI primitives + Tailwind CSS)
+- **Styling**: Tailwind CSS 4 with dark theme, CSS variables for design tokens
+- **Layout**: `AppShell` component provides fixed navigation wrapper
 - **Authentication**: Supabase Auth with `@supabase/ssr`
 - **Auth guards**: `requireUserId()` and `requireAdmin()` in `server/auth/guards.ts`
-- **Server actions**: Located in `server/actions/` (drafts, picks, auth)
-- **Route groups**: `(app)` for authenticated pages, `(admin)` for admin pages, `(marketing)` for public
+- **Server actions**: Located in `server/actions/`:
+  - `drafts.ts` — updateDraft, removeParticipant, startDraft, joinDraftByInvite
+  - `createDraft.ts`, `joinDraft.ts`, `makePick.ts`, `joinDraftByInvite.ts` — individual draft actions
+  - `leagues.ts` — create, join, joinByInvite, leave, update, savePicks, savePicksDirect, kick, ban, unban (10 actions)
+  - `auth.ts` — signInWithGoogle, signInWithEmailPassword, signUpWithEmailPassword, signOut
+- **Server queries**: `server/queries/` — thin wrappers for DAL calls (leagues, drafts, tournaments)
+- **Route groups**: `(app)` for authenticated pages, `(marketing)` for public pages
+
+### Route Structure
+
+**Navigation**: Dashboard → Global Contest → Drafts → Leagues → Leaderboards → History
+
+**Marketing routes** (`(marketing)`):
+| Route | Description |
+|-------|-------------|
+| `/` | Landing page |
+| `/login` | Login page |
+| `/signup` | Signup page |
+
+**Authenticated routes** (`(app)`, wrapped by AppShell):
+| Route | Status |
+|-------|--------|
+| `/dashboard` | UI done (mock data) |
+| `/global-contest` | Overview done (mock data) |
+| `/global-contest/picks` | Stub |
+| `/drafts` | Listing works (DAL-connected) |
+| `/drafts/new` | Create form exists |
+| `/drafts/[draftId]` | Details work (DAL-connected) |
+| `/drafts/[draftId]/room` | Stub |
+| `/drafts/[draftId]/results` | Stub |
+| `/drafts/public` | Mock data |
+| `/leagues` | Stub |
+| `/leagues/new` | Stub |
+| `/leagues/[leagueId]` | Stub |
+| `/leaderboards` | Works (DAL-connected) |
+| `/history` | UI done (mock data) |
+| `/join/[code]` | Stub |
+| `/settings` | Stub |
+
+### UI Components
+
+The web app uses **shadcn/ui** components in `components/ui/`:
+- Built on Radix UI primitives for accessibility
+- Styled with Tailwind CSS using `class-variance-authority` for variants
+- 46+ components: Button, Card, Dialog, Form, Input, Select, Table, etc.
+
+**Key patterns:**
+- `cn()` utility for className merging (clsx + tailwind-merge)
+- `data-slot` attributes for CSS targeting
+- Client/server component split: server pages fetch data, client components handle interactivity
+
+**Layout components** in `components/layout/`:
+- `AppShell`: Main wrapper with fixed navigation, background, and content area
 
 ### Ingest Service (`apps/ingest`)
 
@@ -93,11 +147,28 @@ node dist/index.js status --tournamentId=<id>
 
 Uses pg-boss for job queuing with handlers in `src/queue/` and scheduling logic in `src/scheduler/`.
 
+### Data Access Layer (`packages/dal`)
+
+All database operations are accessed through `packages/dal/src/index.ts`. Every function takes `db: DbClient` as its first argument for transaction support.
+
+**Queries:**
+- Tournaments: `listBySeasonYear`, `getBySeasonYear`, `getOpen`
+- BracketSlots: `listBySeasonYear`
+- Drafts: `getById`, `getByInviteCode`, `listForUser`, `getRoomState`, `getForEdit`, `selectOptimalSlot`, `getResults`
+- Leagues: `getById`, `getByInviteCode`, `listForUser`, `getRoomState`, `getLeaderboard`, `getForEdit`, `listPublic`
+
+**Mutations:**
+- Drafts: `create`, `join`, `makePick`, `update`, `removeParticipant`, `start`
+- Leagues: `create`, `join`, `leave`, `update`, `savePicks`, `kickParticipant`, `banParticipant`, `unbanParticipant`
+
 ### Key Domain Concepts
 
 - **BracketSlot**: The 64 canonical pick positions per tournament (quadrant + seed). Users pick slots, not teams directly, to handle play-in games.
 - **Draft**: Snake/linear/auction drafts where participants pick BracketSlots
+- **DraftStatus**: OPEN → DRAFTING → LOCKED → COMPLETE (Prisma schema; see Known Code Issues below for domain enum mismatch)
 - **GlobalContest**: Site-wide contest where users pick 8 teams individually
+- **League**: User-created contests with configurable participant limits and host controls
+- **LeagueStatus**: OPEN → LOCKED → COMPLETE
 - **TournamentSyncState**: DISCOVERED → MONITORING → BRACKET_LOCKED → LIVE → COMPLETED
 
 ## Product Requirements
@@ -132,6 +203,23 @@ Uses pg-boss for job queuing with handlers in `src/queue/` and scheduling logic 
 - No draft constraints - pick any slots you want
 - Theoretically allows higher scores than Draft mode since no competition for picks
 
+#### Leagues Mode
+- User-created contests with configurable max participants
+- **Creator Controls**:
+  - Set league name and public/private visibility
+  - Configure max participants (minimum 2)
+  - Kick or ban participants (host only, ban supports optional reason)
+  - Unban previously banned participants
+- **Picks**: Each user independently picks 8 BracketSlots (like Global mode)
+  - Picks are saved transactionally (delete-all + recreate pattern via `savePicks`)
+- **Status Flow**: OPEN → LOCKED → COMPLETE
+- **Invite System**: Private leagues use invite codes for joining
+- **Authentication**: Required to create or join
+- **Database Models**: League, LeagueEntry, LeaguePick, LeagueScore, LeagueBan
+  - LeagueEntry tracks `isHost` flag for host privileges
+  - LeagueBan records `reason` and `bannedById` for audit trail
+  - LeagueScore stores `score` and `breakdown` (JSON) for detailed scoring
+
 ### Availability Windows
 
 - Both modes **open** after Selection Sunday (when bracket is announced)
@@ -142,6 +230,7 @@ Uses pg-boss for job queuing with handlers in `src/queue/` and scheduling logic 
 
 1. **Global Leaderboard**: Scores from Global mode participants
 2. **Draft Leaderboard**: Scores from all drafts in that tournament year
+3. **League Leaderboards**: Per-league scores and rankings
 
 ### Historical Page
 
@@ -185,6 +274,8 @@ Ingest-specific:
 - Sportradar API credentials
 
 ## Draft Room Architecture (MVP)
+
+> **Status**: This section describes the **planned architecture** — not yet implemented. The `DraftTurnTimer` model exists in the Prisma schema, but the runtime components (WebSocket server, Redis pub/sub, timer worker) are not yet built.
 
 > Full documentation: `/docs/ADR-001-DRAFT-ROOM-ARCHITECTURE.md`
 
@@ -290,3 +381,37 @@ model DraftPick {
 - Auto-pick triggers within 1 second of deadline
 - Graceful reconnection after disconnect
 - Handles 10+ concurrent drafts (scales horizontally)
+
+## Implementation Status
+
+### Complete
+- Prisma schema (all models for Draft, Global, League modes)
+- DAL queries and mutations (all three modes)
+- League server actions (10 actions)
+- Draft server actions (4 in `drafts.ts` + individual action files: createDraft, joinDraft, makePick, joinDraftByInvite)
+- Auth server actions (Google sign-in, email/password sign-in/up, sign-out)
+- shadcn/ui component library (46+ components)
+- AppShell navigation layout
+- Marketing pages (landing, login, signup)
+- Drafts listing + details pages (DAL-connected)
+- Leaderboards page (DAL-connected)
+
+### Partial (mock data or stubs)
+- Dashboard (mock data, needs DAL integration)
+- Global Contest overview (mock data, needs DAL integration)
+- History page (mock data, needs DAL integration)
+- Public drafts browsing (mock data)
+
+### Not Yet Implemented
+- League UI pages (all stubs — listing, create, detail)
+- Global Contest picks page
+- Draft room (WebSocket real-time — see Draft Room Architecture above)
+- Draft results page
+- Join by invite code page
+- Settings page
+- Score recalculation triggers
+- WebSocket/Redis infrastructure
+
+## Known Code Issues
+
+- **DraftStatus enum mismatch**: Prisma schema defines `OPEN | DRAFTING | LOCKED | COMPLETE` but `packages/domain/src/enums.ts` still has `"LOBBY" | "LIVE" | "COMPLETE"`. These need to be reconciled (separate task).

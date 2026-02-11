@@ -8,9 +8,21 @@ const nextConfig: NextConfig = {
   // Helps Next transpile TS from workspace packages.
   transpilePackages: [
     "@fantasy-madness/db",
-    "@fantasy-madness/dal",
     "@fantasy-madness/domain",
   ],
+  async headers() {
+    return [
+      {
+        source: "/team-logos/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=604800",
+          },
+        ],
+      },
+    ];
+  },
   // Only use standalone when explicitly requested (without WebSocket)
   ...(useStandalone && { output: "standalone" }),
 };

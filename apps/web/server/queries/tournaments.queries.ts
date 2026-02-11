@@ -1,4 +1,4 @@
-import { getTournamentBySeasonYear, listBracketSlotsBySeasonYear } from "@fantasy-madness/dal";
+import { getTournamentBySeasonYear, listBracketSlotsBySeasonYear } from "@/server/dal";
 
 export async function getTournamentHubVM(year: number): Promise<{ year: number; syncState?: string | null; teamCount?: number | null; gameCount?: number | null }> {
   // TODO: flesh out as DAL queries are implemented

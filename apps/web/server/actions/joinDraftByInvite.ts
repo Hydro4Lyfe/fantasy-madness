@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@fantasy-madness/db";
-import { joinDraft } from "@fantasy-madness/dal";
+import { joinDraft } from "@/server/dal";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUserId } from "@/server/auth/guards";

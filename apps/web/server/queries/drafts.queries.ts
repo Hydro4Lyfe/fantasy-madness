@@ -1,4 +1,4 @@
-import { getDraftById, listDraftsForUser, type DraftListRow } from "@fantasy-madness/dal";
+import { getDraftById, listDraftsForUser, type DraftListRow } from "@/server/dal";
 
 export type { DraftListRow };
 

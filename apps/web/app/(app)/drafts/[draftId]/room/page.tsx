@@ -1,7 +1,8 @@
+import { DraftRoom } from "./DraftRoom";
+import { notFound, redirect } from "next/navigation";
 import { requireUserId } from "@/server/auth/guards";
-import { getDraftRoomState, getDraftById } from "@fantasy-madness/dal";
-import { DraftRoom } from "@/components/features/drafts/DraftRoom";
-import { DraftWaitingRoom } from "./DraftWaitingRoom";
+import { getDraftRoomState } from "@/server/dal";
+import { DomainError } from "@fantasy-madness/domain";
 
 export default async function DraftRoomPage({
   params,
@@ -11,24 +12,30 @@ export default async function DraftRoomPage({
   const { draftId } = await params;
   const userId = await requireUserId();
 
-  const state = await getDraftRoomState({ draftId });
-
-  // For OPEN drafts, show the waiting room
-  if (state.status === "OPEN") {
-    const draft = await getDraftById({ draftId });
-    const isHost = state.participants.some(
-      (p) => p.oduserId === userId && p.isHost
-    );
-
-    return (
-      <DraftWaitingRoom
-        state={state}
-        currentUserId={userId}
-        inviteCode={draft.inviteCode}
-        isHost={isHost}
-      />
-    );
+  let initialState;
+  try {
+    initialState = await getDraftRoomState({ draftId });
+  } catch (error) {
+    if (error instanceof DomainError && error.code === "NOT_FOUND") {
+      notFound();
+    }
+    throw error;
   }
 
-  return <DraftRoom initialState={state} currentUserId={userId} />;
+  // Only allow entry to actively drafting rooms
+  if (initialState.status !== "DRAFTING") {
+    redirect(`/drafts/${draftId}`);
+  }
+
+  // Only allow participants into the room
+  const isParticipant = initialState.participants.some(
+    (p) => p.oduserId === userId
+  );
+  if (!isParticipant) {
+    redirect(`/drafts/${draftId}`);
+  }
+
+  return (
+    <DraftRoom draftId={draftId} userId={userId} initialState={initialState} />
+  );
 }

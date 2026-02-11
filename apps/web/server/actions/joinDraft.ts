@@ -1,7 +1,7 @@
 "use server";
 
 import { withTx } from "@fantasy-madness/db";
-import { joinDraft } from "@fantasy-madness/dal";
+import { joinDraft } from "@/server/dal";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { requireUserId } from "@/server/auth/guards";
 

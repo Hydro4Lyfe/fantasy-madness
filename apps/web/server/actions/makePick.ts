@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@fantasy-madness/db";
-import { makePick } from "@fantasy-madness/dal";
+import { makePick } from "@/server/dal";
 import { revalidatePath } from "next/cache";
 import { requireUserId } from "@/server/auth/guards";
 import { getRedisPubSub } from "@/lib/redis/pubsub";

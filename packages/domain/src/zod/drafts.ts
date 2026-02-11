@@ -9,6 +9,7 @@ export const CreateDraftInputSchema = z.object({
   draftType: DraftTypeSchema.default("SNAKE"),
   isPrivate: z.boolean().default(true),
   pickTimerSec: z.coerce.number().int().min(30).max(300).optional(),
+  startAt: z.coerce.date().optional(),
 });
 
 export type CreateDraftInput = z.infer<typeof CreateDraftInputSchema>;

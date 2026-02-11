@@ -1,6 +1,7 @@
 import { prisma } from "@fantasy-madness/db";
-import { getPhaseInputs } from "@fantasy-madness/dal";
+import { getPhaseInputs } from "../dal/index.js";
 import { DateTime } from "luxon";
+import { log } from "../logger.js";
 
 const TZ = "UTC";
 
@@ -28,6 +29,11 @@ export type Phase =
 export async function computePhase(): Promise<Phase> {
   const now = DateTime.now().setZone(TZ);
 
+  const finalize = (phase: Phase, reason: string): Phase => {
+    log.info({ phase, reason, now: now.toISO() }, "ingest phase computed");
+    return phase;
+  };
+
   // "Active-ish" includes anything we might care about syncing.
   const inputs = await getPhaseInputs({
     db: prisma,
@@ -37,10 +43,30 @@ export async function computePhase(): Promise<Phase> {
 
   const t = inputs.tournament;
 
+  log.debug(
+    {
+      tournamentId: t?.id ?? null,
+      syncState: t?.syncState ?? null,
+      startDate: t?.startDate?.toISOString() ?? null,
+      endDate: t?.endDate?.toISOString() ?? null,
+      gameCount: inputs.gameCount,
+      teamCount: inputs.teamCount,
+      nextGameAt: inputs.nextGameAt?.toISOString() ?? null,
+      lastClosedAt: inputs.lastClosedAt?.toISOString() ?? null,
+    },
+    "phase inputs",
+  );
+
   // No tournament in DB: honor your Sep 1 rule.
   if (!t) {
+    if (now.month >= 1 && now.month <= 4) {
+      return finalize("PRE_TOURNAMENT", "no_active_tournament_jan_to_apr");
+    }
+
     const sep1 = DateTime.fromObject({ year: now.year, month: 9, day: 1 }, { zone: TZ });
-    return now < sep1 ? "OFFSEASON" : "DISCOVERY";
+    return now < sep1
+      ? finalize("OFFSEASON", "no_active_tournament_before_sep1")
+      : finalize("DISCOVERY", "no_active_tournament_after_sep1");
   }
 
   const gameCount = inputs.gameCount;
@@ -62,7 +88,7 @@ export async function computePhase(): Promise<Phase> {
 
   // COMPLETED: explicit state wins.
   if (String(t.syncState) === "COMPLETED") {
-    return "COMPLETED";
+    return finalize("COMPLETED", "sync_state_completed");
   }
 
   // COMPLETED: inferred (end passed, no upcoming games, nothing closed recently).
@@ -72,30 +98,30 @@ export async function computePhase(): Promise<Phase> {
     !nextGameAt &&
     (hoursSinceClose == null || hoursSinceClose > 72)
   ) {
-    return "COMPLETED";
+    return finalize("COMPLETED", "inferred_completed_after_end");
   }
 
   // GAMEDAY: if there's a next game within 24 hours, we’re “live cadence”.
   if (hoursToNext != null && hoursToNext <= 24) {
-    return "TOURNAMENT_GAMEDAY";
+    return finalize("TOURNAMENT_GAMEDAY", "next_game_within_24h");
   }
 
   // COOLDOWN: if last close was recent and no game within 24h.
   if (hoursSinceClose != null && hoursSinceClose <= 72) {
-    return "COOLDOWN";
+    return finalize("COOLDOWN", "recent_game_closed_within_72h");
   }
 
   // PRE_TOURNAMENT: tournament exists but we don't have real bracket/schedule populated yet.
   // This is what makes September–early March “feel right”.
   if (!start || gameCount === 0 || teamCount === 0) {
-    return "PRE_TOURNAMENT";
+    return finalize("PRE_TOURNAMENT", "missing_start_or_seed_data");
   }
 
   // SELECTION_WINDOW: ~10 days before start through ~2 days after start
   // (bracket solidifying, seeds/teams fluctuating).
   const hoursToStart = start.diff(now, "hours").hours;
   if (hoursToStart <= 10 * 24 && hoursToStart >= -2 * 24) {
-    return "SELECTION_WINDOW";
+    return finalize("SELECTION_WINDOW", "start_within_selection_window");
   }
 
   // TOURNAMENT_GAPDAY: tournament is "live-ish" but next game is not within 24h.
@@ -108,8 +134,8 @@ export async function computePhase(): Promise<Phase> {
     (start && end && now >= start.minus({ days: 2 }) && now <= end.plus({ days: 2 })) ||
     !!nextGameAt;
 
-  if (liveish) return "TOURNAMENT_GAPDAY";
+  if (liveish) return finalize("TOURNAMENT_GAPDAY", "liveish_without_near_term_game");
 
   // Otherwise: it’s basically pre-tournament maintenance.
-  return "PRE_TOURNAMENT";
+  return finalize("PRE_TOURNAMENT", "fallback_pre_tournament");
 }

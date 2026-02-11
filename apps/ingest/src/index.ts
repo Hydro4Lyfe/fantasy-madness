@@ -1,10 +1,10 @@
 import { prisma } from "@fantasy-madness/db";
-import { getTournamentSnapshot } from "@fantasy-madness/dal";
+import { getTournamentSnapshot, maybeMaterializeBracketSlotsOnce } from "./dal/index.js";
 
-import { discoverTournamentForSeason } from "./discovery.js";
 import { log } from "./logger.js";
-import { initSportradarConfig } from "./sportradar.js";
+import { initBallDontLieConfig } from "./balldontlie.js";
 import { runSyncOnce, type SyncMode } from "./sync.js";
+import { syncSportradarTeamLogos } from "./sportradarLogos.js";
 
 import { createBoss } from "./queue/boss.js";
 import { ensureQueues } from "./queue/ensureQueues.js";
@@ -23,11 +23,18 @@ type Cli =
   | {
       cmd: "backfill";
       years: number[];
-      seasonType?: string;
       mode: SyncMode;
       print?: boolean;
     }
-  | { cmd: "status"; tournamentId: string };
+  | {
+      cmd: "sync-logos";
+      endpoint?: string;
+      provider: "sportradar" | "espn";
+      outputDir?: string;
+      dryRun: boolean;
+    }
+  | { cmd: "status"; tournamentId: string }
+  | { cmd: "materialize-slots"; tournamentId: string; print?: boolean };
 
 function parseBool(v: string | boolean | undefined): boolean {
   if (v === true) return true;
@@ -97,11 +104,10 @@ function parseSyncMode(argv: string[]): SyncMode {
   const modeRaw = getFlag(argv, "mode");
   if (typeof modeRaw === "string") {
     const m = modeRaw.toLowerCase().trim();
-    if (m === "summary") return "summary";
+    if (m === "bracket") return "bracket";
     return "full";
   }
-  // convenience flag
-  if (parseBool(getFlag(argv, "summaryOnly"))) return "summary";
+  if (parseBool(getFlag(argv, "bracketOnly"))) return "bracket";
   return "full";
 }
 
@@ -117,14 +123,66 @@ function parseCli(argv: string[]): Cli {
     return { cmd: "status", tournamentId };
   }
 
+  if (cmd === "materialize-slots") {
+    const tournamentIdRaw = getFlag(argv, "tournamentId");
+    const seasonYearRaw = getFlag(argv, "seasonYear");
+    let tournamentId = "";
+
+    if (typeof tournamentIdRaw === "string" && tournamentIdRaw.trim()) {
+      tournamentId = tournamentIdRaw.trim();
+    } else if (typeof seasonYearRaw === "string" && seasonYearRaw.trim()) {
+      tournamentId = String(parseIntStrict(seasonYearRaw, "seasonYear"));
+    }
+
+    if (!tournamentId) {
+      throw new Error("materialize-slots requires --tournamentId or --seasonYear");
+    }
+
+    return { cmd: "materialize-slots", tournamentId, print };
+  }
+
   if (cmd === "sync") {
     const tournamentId = String(getFlag(argv, "tournamentId") ?? "").trim();
     if (!tournamentId) throw new Error("sync requires --tournamentId");
     const seasonYear = parseIntStrict(
-      typeof getFlag(argv, "seasonYear") === "string" ? (getFlag(argv, "seasonYear") as string) : undefined,
+      typeof getFlag(argv, "seasonYear") === "string"
+        ? (getFlag(argv, "seasonYear") as string)
+        : undefined,
       "seasonYear",
     );
     return { cmd: "sync", tournamentId, seasonYear, mode: parseSyncMode(argv), print };
+  }
+
+  if (cmd === "sync-logos") {
+    const providerRaw = String(getFlag(argv, "provider") ?? "espn").trim().toLowerCase();
+    const provider: "sportradar" | "espn" = providerRaw === "sportradar" ? "sportradar" : "espn";
+
+    const endpointRaw = getFlag(argv, "endpoint");
+    let endpoint: string | undefined =
+      typeof endpointRaw === "string" && endpointRaw.trim() ? endpointRaw.trim() : undefined;
+
+    if (!endpoint && provider === "sportradar") {
+      const fromEnv = String(process.env.SPORTRADAR_LOGOS_ENDPOINT ?? "").trim();
+      endpoint = fromEnv || undefined;
+    }
+
+    if (provider === "sportradar" && !endpoint) {
+      throw new Error("sync-logos with sportradar requires --endpoint or SPORTRADAR_LOGOS_ENDPOINT");
+    }
+
+    const outputDirRaw = getFlag(argv, "outputDir");
+    const outputDir =
+      typeof outputDirRaw === "string" && outputDirRaw.trim()
+        ? outputDirRaw.trim()
+        : undefined;
+
+    return {
+      cmd: "sync-logos",
+      endpoint,
+      provider,
+      outputDir,
+      dryRun: parseBool(getFlag(argv, "dryRun")),
+    };
   }
 
   if (cmd === "backfill") {
@@ -134,9 +192,7 @@ function parseCli(argv: string[]): Cli {
         "backfill requires one of: --years 2018,2019 OR --fromYear 2018 --toYear 2025 OR --seasonYear 2024",
       );
     }
-    const seasonTypeRaw = getFlag(argv, "seasonType");
-    const seasonType = typeof seasonTypeRaw === "string" ? seasonTypeRaw : undefined;
-    return { cmd: "backfill", years, seasonType, mode: parseSyncMode(argv), print };
+    return { cmd: "backfill", years, mode: parseSyncMode(argv), print };
   }
 
   throw new Error(`Unknown command: ${cmd}`);
@@ -148,11 +204,10 @@ async function printTournamentSnapshot(tournamentId: string) {
 }
 
 async function startService() {
-  initSportradarConfig();
+  initBallDontLieConfig();
 
   const boss = await createBoss();
 
-  // IMPORTANT: handle error events so Node doesn't crash
   boss.on("error", (err: any) => {
     log.error({ err }, "pg-boss error");
   });
@@ -165,33 +220,44 @@ async function startService() {
   log.info("ingest service started (workers + orchestrator)");
 }
 
+async function runMaterializeSlots(params: { tournamentId: string; print?: boolean }) {
+  const { tournamentId } = params;
+
+  const result = await maybeMaterializeBracketSlotsOnce({ db: prisma, tournamentId });
+  log.info({ tournamentId, result }, "bracket slots materialization (manual)");
+
+  if (params.print) {
+    await printTournamentSnapshot(tournamentId);
+  }
+}
+
+/**
+ * Backfill multiple seasons using BallDontLie API.
+ * Tournament ID is derived from season year (e.g., "2024" for 2024 season).
+ */
 async function runBackfillYears(params: {
   years: number[];
-  seasonType?: string;
   mode: SyncMode;
   print?: boolean;
 }) {
-  initSportradarConfig();
+  initBallDontLieConfig();
 
   for (const seasonYear of params.years) {
-    const discovered = await discoverTournamentForSeason({
-      seasonYear,
-      seasonType: params.seasonType,
-    });
+    const tournamentId = String(seasonYear);
 
     log.info(
-      { seasonYear, tournamentId: discovered.tournamentId, mode: params.mode },
+      { seasonYear, tournamentId, mode: params.mode },
       "backfill: syncing season",
     );
 
     await runSyncOnce({
-      tournamentId: discovered.tournamentId,
+      tournamentId,
       seasonYear,
       mode: params.mode,
     });
 
     if (params.print) {
-      await printTournamentSnapshot(discovered.tournamentId);
+      await printTournamentSnapshot(tournamentId);
     }
   }
 }
@@ -202,7 +268,7 @@ async function runOneSync(params: {
   mode: SyncMode;
   print?: boolean;
 }) {
-  initSportradarConfig();
+  initBallDontLieConfig();
   await runSyncOnce({
     tournamentId: params.tournamentId,
     seasonYear: params.seasonYear,
@@ -220,7 +286,6 @@ async function main() {
     return;
   }
 
-  // For one-shot commands, we want deterministic exit codes.
   try {
     if (cli.cmd === "status") {
       await printTournamentSnapshot(cli.tournamentId);
@@ -234,8 +299,15 @@ async function main() {
       await runBackfillYears(cli);
       return;
     }
+    if (cli.cmd === "materialize-slots") {
+      await runMaterializeSlots(cli);
+      return;
+    }
+    if (cli.cmd === "sync-logos") {
+      await syncSportradarTeamLogos(cli);
+      return;
+    }
   } finally {
-    // Ensure Node can exit (pg pool will keep event loop alive otherwise)
     await prisma.$disconnect().catch(() => undefined);
   }
 }

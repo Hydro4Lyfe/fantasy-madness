@@ -5,7 +5,9 @@ export type DomainErrorCode =
   | "ALREADY_JOINED"
   | "SEAT_TAKEN"
   | "INVALID_STATE"
-  | "CONFLICT";
+  | "CONFLICT"
+  | "LEAGUE_FULL"
+  | "BANNED_FROM_LEAGUE";
 
 export class DomainError extends Error {
   constructor(

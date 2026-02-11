@@ -4,9 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx --env-file=.env src/index.ts",
+    "dev": "tsx src/bootstrap.ts",
+    "materialize-slots": "tsx src/bootstrap.ts materialize-slots",
+    "sync-logos": "tsx src/bootstrap.ts sync-logos",
     "build": "tsc -p tsconfig.json",
-    "start": "node --env-file=.env dist/index.js",
+    "start": "node dist/bootstrap.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -15,8 +17,7 @@
     "luxon": "^3.7.2",
     "pg": "^8.17.2",
     "pg-boss": "^12.5.4",
-    "pino": "^9.0.0",
-    "@fantasy-madness/dal": "0.0.1"
+    "pino": "^9.0.0"
   },
   "devDependencies": {
     "@types/luxon": "^3.7.1",

@@ -10,7 +10,6 @@ COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/domain/package.json packages/domain/package.json
-COPY packages/dal/package.json packages/dal/package.json
 
 # Install workspace deps
 RUN npm ci
@@ -35,7 +34,6 @@ RUN npm run generate -w @fantasy-madness/db
 # Build shared packages then web
 RUN npm run build:db
 RUN npm run build:domain
-RUN npm run build:dal
 RUN npm run build:web
 
 # ---------- runner ----------
@@ -55,7 +53,7 @@ COPY --from=build /repo/package.json ./package.json
 COPY --from=build /repo/apps/web/package.json ./apps/web/package.json
 COPY --from=build /repo/packages/db/package.json ./packages/db/package.json
 COPY --from=build /repo/packages/domain/package.json ./packages/domain/package.json
-COPY --from=build /repo/packages/dal/package.json ./packages/dal/package.json
+COPY --from=build /repo/tooling/tsconfig/base.json ./tooling/tsconfig/base.json
 
 # Copy built packages
 COPY --from=build /repo/packages ./packages
@@ -65,6 +63,7 @@ COPY --from=build /repo/apps/web/.next ./apps/web/.next
 COPY --from=build /repo/apps/web/public ./apps/web/public
 COPY --from=build /repo/apps/web/lib ./apps/web/lib
 COPY --from=build /repo/apps/web/hooks ./apps/web/hooks
+COPY --from=build /repo/apps/web/server ./apps/web/server
 COPY --from=build /repo/apps/web/server.ts ./apps/web/server.ts
 COPY --from=build /repo/apps/web/tsconfig.json ./apps/web/tsconfig.json
 

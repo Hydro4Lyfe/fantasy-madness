@@ -21,6 +21,12 @@ enum GlobalContestStatus {
   COMPLETE
 }
 
+enum LeagueStatus {
+  OPEN      // Accepting participants and picks
+  LOCKED    // Tournament started, no changes
+  COMPLETE  // Tournament finished
+}
+
 enum DraftStatus {
   OPEN
   DRAFTING
@@ -43,11 +49,9 @@ enum InviteStatus {
 }
 
 enum SyncFeedType {
-  TOURNAMENT_LIST
-  TOURNAMENT_SUMMARY
-  TOURNAMENT_SCHEDULE
-  GAME_SUMMARY
-  DAILY_CHANGE_LOG
+  BRACKET        // BallDontLie /bracket endpoint
+  TEAMS          // BallDontLie /teams endpoint
+  GAMES          // BallDontLie /games endpoint
 }
 
 model Tournament {
@@ -85,6 +89,7 @@ model Tournament {
 
   globalContests   GlobalContest[]
   drafts           Draft[]
+  leagues          League[]
 
   syncLogs         SyncLog[]
 
@@ -97,16 +102,18 @@ model Tournament {
 }
 
 model Team {
-  id          String  @id @db.Text @map("team_id")
+  id            Int     @id @map("team_id")
 
-  name        String  @db.Text @map("name")
-  alias       String? @db.Text @map("alias")
-  market      String? @db.Text @map("market")
+  name          String  @db.Text @map("name")
+  fullName      String  @db.Text @map("full_name")
+  college       String? @db.Text @map("college")
+  abbreviation  String? @db.Text @map("abbreviation")
+  conferenceId  Int?    @map("conference_id")
 
-  baseTeamRaw Json? @db.JsonB @map("base_team_raw")
+  payloadRaw    Json?   @db.JsonB @map("payload_raw")
 
-  createdAt   DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
-  updatedAt   DateTime @updatedAt @db.Timestamptz(6) @map("updated_at")
+  createdAt     DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt     DateTime @updatedAt @db.Timestamptz(6) @map("updated_at")
 
   tournaments TournamentTeam[]
   homeGames   Game[] @relation("HomeTeam")
@@ -115,23 +122,21 @@ model Team {
 
   teamStats   TeamTournamentStats[]
 
-  /// UPDATED: GlobalPick no longer points to Team directly (it points to BracketSlot).
-  /// globalPicks GlobalPick[]   <-- removed
-
-  /// NEW: slot occupant relation (resolved team for a slot)
+  /// Slot occupant relation (resolved team for a slot)
   bracketSlotsAssigned BracketSlot[] @relation("BracketSlotAssignedTeam")
 
-  /// NEW: candidate teams for play-in slots
+  /// Candidate teams for play-in slots
   bracketSlotCandidates BracketSlotCandidate[]
 
   @@map("teams")
-  @@index([alias], map: "ix_teams_alias")
+  @@index([abbreviation], map: "ix_teams_abbreviation")
   @@index([name], map: "ix_teams_name")
+  @@index([conferenceId], map: "ix_teams_conference")
 }
 
 model TournamentTeam {
   tournamentId String @db.Text @map("tournament_id")
-  teamId       String @db.Text @map("team_id")
+  teamId       Int    @map("team_id")
 
   seed         Int?    @db.SmallInt @map("seed")
   region       String? @db.Text @map("region")
@@ -152,7 +157,7 @@ model TournamentTeam {
   @@index([teamId], map: "ix_tournament_teams_team")
 }
 
-/// NEW: Canonical pick slots (64) per tournament.
+/// Canonical pick slots (64) per tournament.
 /// Users pick these slots; the slot resolves to a Team (assignedTeamId) when known.
 model BracketSlot {
   id           String @id @default(uuid()) @db.Uuid @map("bracket_slot_id")
@@ -162,7 +167,7 @@ model BracketSlot {
   seed         Int    @db.SmallInt @map("seed")
 
   /// Resolved occupant team for this slot (null for unresolved play-in slot)
-  assignedTeamId String? @db.Text @map("assigned_team_id")
+  assignedTeamId Int? @map("assigned_team_id")
 
   /// The play-in game that decides this slot (optional)
   playInGameId   String? @unique @db.Text @map("play_in_game_id")
@@ -179,6 +184,7 @@ model BracketSlot {
   candidates   BracketSlotCandidate[]
   globalPicks  GlobalPick[]
   draftPicks   DraftPick[]
+  leaguePicks  LeaguePick[]
 
   @@map("bracket_slots")
   @@unique([tournamentId, quadrant, seed], map: "ux_bracket_slots_tournament_quadrant_seed")
@@ -187,12 +193,12 @@ model BracketSlot {
   @@index([playInGameId], map: "ix_bracket_slots_playin_game")
 }
 
-/// NEW: Candidate teams for play-in slots (usually 2 candidates per play-in slot)
+/// Candidate teams for play-in slots (usually 2 candidates per play-in slot)
 model BracketSlotCandidate {
   id      String @id @default(uuid()) @db.Uuid @map("bracket_slot_candidate_id")
 
   slotId  String @db.Uuid @map("bracket_slot_id")
-  teamId  String @db.Text @map("team_id")
+  teamId  Int    @map("team_id")
 
   createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
 
@@ -209,27 +215,27 @@ model Game {
   id           String   @id @db.Text @map("game_id")
   tournamentId String   @db.Text @map("tournament_id")
 
-  round        String?  @db.Text @map("round")
-  roundSeq     Int?     @db.SmallInt @map("round_seq")
+  /// BallDontLie round: 0=First Four, 1=R64, 2=R32, 3=Sweet16, 4=Elite8, 5=Final4, 6=Championship
+  round           Int?     @db.SmallInt @map("round")
+  /// BallDontLie bracket_location: position in the bracket (1-67)
+  bracketLocation Int?     @db.SmallInt @map("bracket_location")
 
   scheduledAt  DateTime? @db.Timestamptz(6) @map("scheduled_at")
   status       String   @db.Text @map("status")
+  periodDetail String?  @db.Text @map("period_detail")
 
-  /// Critical to exclude "First Four" from wins counting.
+  /// Critical to exclude "First Four" from wins counting (round == 0).
   isPlayIn     Boolean  @default(false) @map("is_play_in")
 
-  homeTeamId   String?  @db.Text @map("home_team_id")
-  awayTeamId   String?  @db.Text @map("away_team_id")
-  winnerTeamId String?  @db.Text @map("winner_team_id")
+  homeTeamId   Int?     @map("home_team_id")
+  awayTeamId   Int?     @map("away_team_id")
+  winnerTeamId Int?     @map("winner_team_id")
 
-  homePoints   Int?     @map("home_points")
-  awayPoints   Int?     @map("away_points")
+  homeScore    Int?     @map("home_score")
+  awayScore    Int?     @map("away_score")
 
-  /// When we first observed a final-like state (complete/closed/forfeited).
+  /// When we first observed a final-like state (status == "post").
   finalizedAt  DateTime? @db.Timestamptz(6) @map("finalized_at")
-
-  /// When we observed status == "closed" (official final in SR often).
-  closedAt     DateTime? @db.Timestamptz(6) @map("closed_at")
 
   payloadRaw   Json?    @db.JsonB @map("payload_raw")
 
@@ -242,21 +248,21 @@ model Game {
   awayTeam     Team? @relation("AwayTeam", fields: [awayTeamId], references: [id])
   winnerTeam   Team? @relation("WinnerTeam", fields: [winnerTeamId], references: [id])
 
-  /// NEW: optional backrelation (one play-in game can decide at most one slot logically)
+  /// Optional backrelation (one play-in game can decide at most one slot logically)
   playInSlot   BracketSlot? @relation("PlayInDecider")
 
   @@map("games")
   @@index([tournamentId, status], map: "ix_games_tournament_status")
   @@index([tournamentId, finalizedAt], map: "ix_games_tournament_finalized")
   @@index([winnerTeamId], map: "ix_games_winner_team")
-  @@index([tournamentId, roundSeq], map: "ix_games_tournament_roundseq")
+  @@index([tournamentId, round], map: "ix_games_tournament_round")
   @@index([tournamentId, scheduledAt], map: "ix_games_tournament_scheduled")
   @@index([tournamentId, isPlayIn], map: "ix_games_tournament_playin")
 }
 
 model TeamTournamentStats {
   tournamentId String @db.Text @map("tournament_id")
-  teamId       String @db.Text @map("team_id")
+  teamId       Int    @map("team_id")
 
   wins         Int @default(0) @map("wins")
   teamScore    Int? @map("team_score")
@@ -277,6 +283,8 @@ model TeamTournamentStats {
 model User {
   id            String   @id @default(cuid()) @db.Text @map("user_id")
   name          String?  @db.Text @map("name")
+  username      String?  @unique(map: "ux_users_username") @db.Text @map("username")
+  usernameChangedAt DateTime? @db.Timestamptz(6) @map("username_changed_at")
   email         String?  @unique @db.Text @map("email")
   emailVerified DateTime? @db.Timestamptz(6) @map("email_verified")
   image         String?  @db.Text @map("image")
@@ -292,6 +300,9 @@ model User {
   draftPicks           DraftPick[]
   draftScores          DraftScore[]
   draftInvitesReceived DraftInvite[] @relation("DraftInviteInvitedUser")
+  leagueEntries        LeagueEntry[]
+  leagueBansReceived   LeagueBan[]   @relation("LeagueBanBannedUser")
+  leagueBansIssued     LeagueBan[]   @relation("LeagueBanBannedBy")
 
   @@map("users")
   @@index([email], map: "ix_users_email")
@@ -428,6 +439,7 @@ model Draft {
   pickTimerSec Int? @map("pick_timer_sec")
 
   lockAt       DateTime? @db.Timestamptz(6) @map("lock_at")
+  startAt      DateTime? @db.Timestamptz(6) @map("start_at")
 
   createdAt    DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
   updatedAt    DateTime @updatedAt @db.Timestamptz(6) @map("updated_at")
@@ -541,6 +553,98 @@ model DraftInvite {
   @@map("draft_invites")
   @@index([draftId, status], map: "ix_draft_invites_status")
   @@index([email], map: "ix_draft_invites_email")
+}
+
+// ---- League Mode Models ----
+
+model League {
+  id              String @id @default(uuid()) @db.Uuid @map("league_id")
+  tournamentId    String @db.Text @map("tournament_id")
+
+  name            String @db.Text @map("name")
+  status          LeagueStatus @default(OPEN) @map("status")
+
+  isPrivate       Boolean @default(true) @map("is_private")
+  inviteCode      String? @db.Text @unique(map: "ux_leagues_invite_code") @map("invite_code")
+  maxParticipants Int? @map("max_participants")
+
+  lockAt          DateTime? @db.Timestamptz(6) @map("lock_at")
+
+  createdAt       DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6) @map("updated_at")
+
+  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  entries         LeagueEntry[]
+  bans            LeagueBan[]
+
+  @@map("leagues")
+  @@index([tournamentId, status], map: "ix_leagues_tournament_status")
+  @@index([isPrivate, status], map: "ix_leagues_public_status")
+}
+
+model LeagueEntry {
+  id        String @id @default(uuid()) @db.Uuid @map("league_entry_id")
+  leagueId  String @db.Uuid @map("league_id")
+  userId    String @db.Text @map("user_id")
+
+  isHost    Boolean @default(false) @map("is_host")
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  league    League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  picks     LeaguePick[]
+  score     LeagueScore?
+
+  @@map("league_entries")
+  @@unique([leagueId, userId], map: "ux_league_entries_league_user")
+  @@index([userId], map: "ix_league_entries_user")
+}
+
+model LeaguePick {
+  entryId   String @db.Uuid @map("league_entry_id")
+  pickNo    Int    @db.SmallInt @map("pick_no")
+  slotId    String @db.Uuid @map("bracket_slot_id")
+
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  entry     LeagueEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  slot      BracketSlot @relation(fields: [slotId], references: [id], onDelete: Restrict)
+
+  @@map("league_picks")
+  @@id([entryId, pickNo])
+  @@unique([entryId, slotId], map: "ux_league_picks_entry_slot")
+  @@index([slotId], map: "ix_league_picks_slot")
+}
+
+model LeagueScore {
+  entryId      String @id @db.Uuid @map("league_entry_id")
+  score        Int    @default(0) @map("score")
+  breakdown    Json?  @db.JsonB @map("breakdown")
+  lastRecalcAt DateTime? @db.Timestamptz(6) @map("last_recalc_at")
+
+  entry        LeagueEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@map("league_scores")
+  @@index([score], map: "ix_league_scores_score")
+}
+
+model LeagueBan {
+  id         String @id @default(uuid()) @db.Uuid @map("league_ban_id")
+  leagueId   String @db.Uuid @map("league_id")
+  userId     String @db.Text @map("user_id")
+
+  reason     String? @db.Text @map("reason")
+  bannedById String @db.Text @map("banned_by_user_id")
+  bannedAt   DateTime @default(now()) @db.Timestamptz(6) @map("banned_at")
+
+  league     League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user       User   @relation("LeagueBanBannedUser", fields: [userId], references: [id], onDelete: Cascade)
+  bannedBy   User   @relation("LeagueBanBannedBy", fields: [bannedById], references: [id], onDelete: Cascade)
+
+  @@map("league_bans")
+  @@unique([leagueId, userId], map: "ux_league_bans_league_user")
+  @@index([userId], map: "ix_league_bans_user")
 }
 
 model SyncLog {

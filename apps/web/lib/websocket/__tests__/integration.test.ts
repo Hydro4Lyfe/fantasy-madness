@@ -16,7 +16,7 @@ import { WebSocket } from 'ws';
 import type { ServerEvent, ClientEvent } from '../events';
 import { getRedisPubSub } from '../../redis/pubsub';
 import { prisma } from '@fantasy-madness/db';
-import { getDraftRoomState, makePick } from '@fantasy-madness/dal';
+import { getDraftRoomState, makePick } from '@/server/dal';
 
 // Test configuration
 const WS_URL = process.env.TEST_WS_URL || 'ws://localhost:3000';

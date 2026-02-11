@@ -1,14 +1,9 @@
 import { CADENCES } from "./cadences.js";
 import { bucketKey } from "./buckets.js";
 import { computePhase, Phase } from "./phase.js";
-import { hasTournamentInStates, withAdvisoryLock } from "@fantasy-madness/dal";
+import { withAdvisoryLock } from "../dal/index.js";
 import type { Boss } from "../queue/types.js";
-import { JOB } from "../queue/names.js";
-import { prisma } from "@fantasy-madness/db";
 import { log } from "../logger.js";
-
-// Cache latch decision briefly to avoid hammering DB every spec every minute
-let latchCache: { value: boolean; expiresAt: number } | null = null;
 
 export async function startOrchestrator(boss: Boss) {
   // eslint-disable-next-line no-constant-condition
@@ -30,19 +25,10 @@ export async function startOrchestrator(boss: Boss) {
 }
 
 async function enqueueCadencedJobs(boss: Boss, phase: Phase) {
-  // Latch: once we have an active-ish tournament, we stop polling Tournament List.
-  const shouldRunTournamentList = await shouldRunTournamentListLatch();
-
-  log.info({ phase, shouldRunTournamentList }, "orchestrator tick (leader)");
+  log.info({ phase }, "orchestrator tick (leader)");
 
   for (const spec of CADENCES) {
     if (!spec.phases.includes(phase)) continue;
-
-    // LATCH RULE
-    if (spec.name === JOB.TOURNAMENT_LIST && !shouldRunTournamentList) {
-      log.info({ phase }, "skipping tournament list (latched)");
-      continue;
-    }
 
     const bKey = bucketKey(spec.every);
     const singletonKey = `${spec.name}:${phase}:${bKey}`;
@@ -87,29 +73,6 @@ async function getPhaseCached(): Promise<Phase> {
   const phase = await computePhase();
   phaseCache = { value: phase, expiresAt: now + 60_000 };
   return phase;
-}
-
-/**
- * Returns true when we should keep polling Tournament List.
- * Once we have an "active-ish" tournament (DISCOVERED/MONITORING/BRACKET_LOCKED/LIVE),
- * we consider ourselves latched and stop calling tournament list.
- *
- * Cache result for 5 minutes to reduce DB chatter.
- */
-async function shouldRunTournamentListLatch(): Promise<boolean> {
-  const now = Date.now();
-  if (latchCache && latchCache.expiresAt > now) return latchCache.value;
-
-  const hasActive = await hasTournamentInStates({
-    db: prisma,
-    states: ["DISCOVERED", "MONITORING", "BRACKET_LOCKED", "LIVE"] as any,
-  });
-
-  // If no active-ish tournament exists, keep polling tournament list.
-  const shouldRun = !hasActive;
-
-  latchCache = { value: shouldRun, expiresAt: now + 5 * 60_000 };
-  return shouldRun;
 }
 
 function singletonSeconds(every: "10m" | "1h" | "3h" | "1d" | "1w") {

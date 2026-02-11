@@ -1,6 +1,6 @@
 import type { WebSocket } from 'ws';
 import { prisma } from '@fantasy-madness/db';
-import { getDraftRoomState, makePick } from '@fantasy-madness/dal';
+import { getDraftRoomState, makePick } from '@/server/dal';
 import { DomainError } from '@fantasy-madness/domain';
 import { getRedisPubSub } from '../redis/pubsub';
 import type { ClientEvent, ServerEvent } from './events';

@@ -1,4 +1,4 @@
-import type { DraftRoomStateDTO } from '@fantasy-madness/dal';
+import type { DraftRoomStateDTO } from '@/server/dal';
 
 /**
  * Events sent from server to client

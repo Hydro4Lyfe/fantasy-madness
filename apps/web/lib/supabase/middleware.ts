@@ -40,7 +40,9 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/account") ||
     request.nextUrl.pathname.startsWith("/admin");
 
-  const isLoginRoute = request.nextUrl.pathname.startsWith("/login") ||
+  const isMarketingRoute =
+    request.nextUrl.pathname === "/" ||
+    request.nextUrl.pathname.startsWith("/login") ||
     request.nextUrl.pathname.startsWith("/signup");
 
   // Don't redirect from /auth/callback - let the callback process
@@ -53,10 +55,10 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirect logged-in users away from login/signup pages (but not auth callback)
-  if (isLoginRoute && user && !isAuthCallback) {
+  // Redirect logged-in users away from marketing pages to dashboard
+  if (isMarketingRoute && user && !isAuthCallback) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 

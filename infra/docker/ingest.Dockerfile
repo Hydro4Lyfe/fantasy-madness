@@ -5,14 +5,13 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates openssl \
   && rm -rf /var/lib/apt/lists/*
 
-# Copy manifests for caching (IMPORTANT: include dal + domain)
+# Copy manifests for caching (IMPORTANT: include domain)
 COPY package.json package-lock.json ./
 COPY apps/ingest/package.json apps/ingest/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/domain/package.json packages/domain/package.json
-COPY packages/dal/package.json packages/dal/package.json
 
-# Install workspace deps (creates node_modules/@fantasy-madness/dal)
+# Install workspace deps
 RUN npm ci
 
 
@@ -32,7 +31,6 @@ RUN npm run generate -w @fantasy-madness/db
 # Build shared packages then ingest
 RUN npm run build:db
 RUN npm run build:domain
-RUN npm run build:dal
 RUN npm run build:ingest
 
 
