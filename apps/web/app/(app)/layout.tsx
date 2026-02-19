@@ -23,7 +23,7 @@ export default async function AppLayout({
       />
 
       {/* Main content */}
-      <div className="relative pt-24 pb-12 px-4 sm:px-6">
+      <div className="relative pt-20 pb-12 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto">{children}</div>
       </div>
     </div>

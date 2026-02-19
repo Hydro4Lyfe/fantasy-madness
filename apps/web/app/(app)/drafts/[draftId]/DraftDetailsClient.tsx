@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
 import { startDraftAction } from "@/server/actions/drafts";
+import { cn } from "@/lib/utils";
+import { formatDateTime, formatDateTimeInput } from "@/lib/date";
+import { parseISO } from "date-fns";
 import {
   ArrowLeft,
   Users,
@@ -20,21 +20,21 @@ import {
   UserX,
   Ban,
   Edit2,
-  Target,
   Trophy,
   Clock,
   Zap,
   Lock,
   Globe,
   AlertCircle,
-  Medal,
-  TrendingUp,
-  TrendingDown,
   Play,
   Loader2,
+  Save,
+  X,
 } from "lucide-react";
 
-type TabType = "participants" | "draft-room" | "results";
+// ---------------------------------------------------------------------------
+// Interfaces — preserved exactly as before
+// ---------------------------------------------------------------------------
 
 interface Participant {
   id: string;
@@ -70,20 +70,157 @@ interface DraftDetailsClientProps {
   isHost: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Helpers — preserved exactly as before
+// ---------------------------------------------------------------------------
+
 function formatStartAt(iso: string | null): string {
   if (!iso) return "Not scheduled";
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  return formatDateTime(iso);
 }
+
+// ---------------------------------------------------------------------------
+// SpotlightCard — mouse-tracking radial gradient (matches DashboardClient)
+// ---------------------------------------------------------------------------
+
+function SpotlightCard({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [opacity, setOpacity] = useState(0);
+
+  function handleMouseMove(e: MouseEvent<HTMLDivElement>) {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  }
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "relative overflow-hidden rounded-2xl border border-white/[0.06]",
+        "bg-gradient-to-b from-white/[0.08] to-white/[0.02]",
+        "shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_2px_20px_rgba(0,0,0,0.4),0_0_40px_rgba(0,0,0,0.2)]",
+        "transition-shadow duration-300",
+        "hover:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_8px_40px_rgba(0,0,0,0.5),0_0_80px_rgba(94,106,210,0.08)]",
+        className,
+      )}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setOpacity(1)}
+      onMouseLeave={() => setOpacity(0)}
+    >
+      <div
+        className="pointer-events-none absolute -inset-px transition-opacity duration-300"
+        style={{
+          opacity,
+          background: `radial-gradient(300px circle at ${position.x}px ${position.y}px, rgba(94,106,210,0.12), transparent 80%)`,
+        }}
+      />
+      {children}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Rank badge — gold/silver/bronze for top 3, muted for the rest
+// ---------------------------------------------------------------------------
+
+function RankBadge({ rank }: { rank: number }) {
+  const base =
+    "w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0";
+  if (rank === 1)
+    return (
+      <div className={cn(base, "bg-gradient-to-br from-yellow-400 to-yellow-600 text-[#050506]")}>
+        1
+      </div>
+    );
+  if (rank === 2)
+    return (
+      <div className={cn(base, "bg-gradient-to-br from-slate-300 to-slate-400 text-[#050506]")}>
+        2
+      </div>
+    );
+  if (rank === 3)
+    return (
+      <div className={cn(base, "bg-gradient-to-br from-amber-600 to-amber-700 text-white")}>3</div>
+    );
+  return <div className={cn(base, "bg-white/[0.06] text-[#8A8F98]")}>{rank}</div>;
+}
+
+// ---------------------------------------------------------------------------
+// Status pill
+// ---------------------------------------------------------------------------
+
+function StatusPill({ status }: { status: DraftSettings["status"] }) {
+  if (status === "upcoming") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1 text-xs font-mono tracking-widest uppercase text-yellow-400">
+        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
+        Upcoming
+      </span>
+    );
+  }
+  if (status === "drafting") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#5E6AD2]/40 bg-[#5E6AD2]/10 px-3 py-1 text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#5E6AD2] opacity-75" />
+          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#5E6AD2]" />
+        </span>
+        Drafting
+      </span>
+    );
+  }
+  if (status === "active") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-mono tracking-widest uppercase text-emerald-400">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+        Active
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.03] px-3 py-1 text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+      <span className="w-1.5 h-1.5 rounded-full bg-[#8A8F98]" />
+      Completed
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Settings row — label / value pair
+// ---------------------------------------------------------------------------
+
+function SettingsRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-white/[0.04] last:border-0">
+      <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">{label}</span>
+      <span className="text-sm text-[#EDEDEF]">{children}</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 
 export function DraftDetailsClient({
   draft: initialDraft,
   participants: initialParticipants,
   isHost,
 }: DraftDetailsClientProps) {
-  const [activeTab, setActiveTab] = useState<TabType>("participants");
   const [isEditingSettings, setIsEditingSettings] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState<string | null>(null);
@@ -92,6 +229,8 @@ export function DraftDetailsClient({
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const router = useRouter();
+
+  // -- handlers (unchanged logic) --
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(settings.inviteCode);
@@ -102,6 +241,22 @@ export function DraftDetailsClient({
   const handleKickParticipant = (participantId: string) => {
     if (window.confirm("Are you sure you want to kick this participant?")) {
       setParticipants(participants.filter((p) => p.id !== participantId));
+      setSelectedParticipant(null);
+    }
+  };
+
+  const handleBanParticipant = (participantId: string) => {
+    if (
+      window.confirm(
+        "Are you sure you want to ban this participant? They will not be able to rejoin."
+      )
+    ) {
+      setParticipants(
+        participants.map((p) =>
+          p.id === participantId ? { ...p, status: "banned" as const } : p
+        )
+      );
+      setSelectedParticipant(null);
     }
   };
 
@@ -118,540 +273,670 @@ export function DraftDetailsClient({
     }
   };
 
-  const handleBanParticipant = (participantId: string) => {
-    if (
-      window.confirm(
-        "Are you sure you want to ban this participant? They will not be able to rejoin."
-      )
-    ) {
-      setParticipants(
-        participants.map((p) => (p.id === participantId ? { ...p, status: "banned" as const } : p))
-      );
-    }
-  };
+  // -- derived values --
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "upcoming":
-        return (
-          <Badge className="bg-yellow-500/10 text-yellow-400 border-yellow-500/30">Upcoming</Badge>
-        );
-      case "drafting":
-        return (
-          <Badge className="bg-orange-500/10 text-orange-400 border-orange-500/30 animate-pulse">
-            Drafting Now
-          </Badge>
-        );
-      case "active":
-        return <Badge className="bg-green-500/10 text-green-400 border-green-500/30">Active</Badge>;
-      case "completed":
-        return (
-          <Badge className="bg-gray-500/10 text-gray-400 border-gray-500/30">Completed</Badge>
-        );
-      default:
-        return null;
-    }
-  };
+  const activeParticipants = participants.filter((p) => p.status === "active");
+  const spotsRemaining = settings.maxParticipants - activeParticipants.length;
+  const showResults = settings.status === "active" || settings.status === "completed";
+
+  const sortedForLeaderboard = [...activeParticipants].sort((a, b) => {
+    // Rank 0 means no result yet — push to bottom
+    if (a.rank === 0 && b.rank === 0) return 0;
+    if (a.rank === 0) return 1;
+    if (b.rank === 0) return -1;
+    return a.rank - b.rank;
+  });
+
+  const leaderPoints =
+    sortedForLeaderboard.length > 0 ? sortedForLeaderboard[0].totalPoints : 0;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/drafts">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </Link>
-          </Button>
-          <div className="h-6 w-px bg-border" />
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-foreground">{settings.name}</h1>
-              {isHost && <Crown className="w-5 h-5 text-orange-400" />}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {participants.filter((p) => p.status === "active").length}/{settings.maxParticipants}{" "}
-              participants
-            </p>
+      {/* ------------------------------------------------------------------ */}
+      {/* Header                                                               */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        {/* Left: back + title */}
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            href="/drafts"
+            className={cn(
+              "inline-flex items-center gap-1.5 text-sm text-[#8A8F98] hover:text-[#EDEDEF]",
+              "transition-colors duration-200",
+            )}
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </Link>
+
+          <div className="w-px h-5 bg-white/[0.06]" />
+
+          <div className="flex items-center gap-2 min-w-0">
+            <h2
+              className={cn(
+                "text-2xl sm:text-3xl font-semibold tracking-tight truncate",
+                "bg-gradient-to-b from-[#EDEDEF] to-[#EDEDEF]/70 bg-clip-text text-transparent",
+              )}
+            >
+              {settings.name}
+            </h2>
+            {isHost && (
+              <Crown className="w-5 h-5 flex-shrink-0 text-yellow-400 drop-shadow-[0_0_6px_rgba(250,204,21,0.5)]" />
+            )}
+          </div>
+
+          <div className="hidden sm:block">
+            <StatusPill status={settings.status} />
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {getStatusBadge(settings.status)}
+        {/* Right: CTA buttons */}
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {/* Show StatusPill on small screens here */}
+          <div className="sm:hidden">
+            <StatusPill status={settings.status} />
+          </div>
+
           {isHost && settings.status === "upcoming" && (
-            <Button
+            <button
               onClick={handleStartDraft}
               disabled={isStarting}
-              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+              className={cn(
+                "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white",
+                "bg-[#5E6AD2] hover:bg-[#6872D9]",
+                "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
+                "active:scale-[0.98] transition-all duration-200",
+                "disabled:opacity-50 disabled:cursor-not-allowed",
+              )}
             >
               {isStarting ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   Starting...
                 </>
               ) : (
                 <>
-                  <Play className="w-4 h-4 mr-2" />
+                  <Play className="w-4 h-4" />
                   Start Draft
                 </>
               )}
-            </Button>
+            </button>
           )}
+
           {settings.status === "drafting" && (
-            <Button
-              className="bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600"
-              asChild
+            <Link
+              href={`/drafts/${settings.id}/room`}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white",
+                "bg-[#5E6AD2] hover:bg-[#6872D9]",
+                "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
+                "active:scale-[0.98] transition-all duration-200",
+              )}
             >
-              <Link href={`/drafts/${settings.id}/room`}>
-                <Zap className="w-4 h-4 mr-2" />
-                Join Draft
-              </Link>
-            </Button>
+              <Zap className="w-4 h-4" />
+              Join Draft
+            </Link>
           )}
         </div>
       </div>
 
-      {/* Start Draft Error */}
+      {/* Error alert */}
       {startError && (
-        <Card className="p-4 bg-red-500/10 border-red-500/30">
-          <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-400" />
-            <p className="text-sm text-red-400">{startError}</p>
-          </div>
-        </Card>
+        <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.08] p-4">
+          <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-400" />
+          <p className="text-sm text-red-400">{startError}</p>
+        </div>
       )}
 
-      {/* Tab Navigation */}
-      <div className="border-b border-border">
-        <div className="flex gap-1">
-          <button
-            onClick={() => setActiveTab("participants")}
-            className={`px-4 py-3 text-sm font-medium transition-colors relative ${
-              activeTab === "participants" ? "text-orange-400" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Users className="w-4 h-4 inline mr-2" />
-            Participants
-            {activeTab === "participants" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-400" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab("draft-room")}
-            className={`px-4 py-3 text-sm font-medium transition-colors relative ${
-              activeTab === "draft-room" ? "text-orange-400" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Target className="w-4 h-4 inline mr-2" />
-            Draft Room
-            {activeTab === "draft-room" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-400" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab("results")}
-            className={`px-4 py-3 text-sm font-medium transition-colors relative ${
-              activeTab === "results" ? "text-orange-400" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Trophy className="w-4 h-4 inline mr-2" />
-            Results
-            {activeTab === "results" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-400" />
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Participants Tab */}
-      {activeTab === "participants" && (
-        <div className="space-y-6">
-          {/* Draft Settings */}
-          <Card className="p-6 bg-card border-border">
+      {/* ------------------------------------------------------------------ */}
+      {/* Main grid                                                            */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* ---- Left column ---- */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* Participants card */}
+          <SpotlightCard className="p-6">
+            {/* Section header */}
             <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2">
-                <Settings className="w-5 h-5 text-orange-400" />
-                <h2 className="text-xl font-bold text-foreground">Draft Settings</h2>
-              </div>
-              {isHost && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsEditingSettings(!isEditingSettings)}
-                >
-                  <Edit2 className="w-4 h-4 mr-2" />
-                  {isEditingSettings ? "Cancel" : "Edit Settings"}
-                </Button>
-              )}
-            </div>
-
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">Draft Name</label>
-                {isEditingSettings ? (
-                  <Input
-                    value={settings.name}
-                    onChange={(e) => setSettings({ ...settings, name: e.target.value })}
-                    className="bg-background border-border"
-                  />
-                ) : (
-                  <p className="text-foreground font-medium">{settings.name}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">Max Participants</label>
-                {isEditingSettings ? (
-                  <Input
-                    type="number"
-                    min="2"
-                    max="12"
-                    value={settings.maxParticipants}
-                    onChange={(e) =>
-                      setSettings({ ...settings, maxParticipants: parseInt(e.target.value) })
-                    }
-                    className="bg-background border-border"
-                  />
-                ) : (
-                  <p className="text-foreground font-medium">{settings.maxParticipants} players</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">Draft Date & Time</label>
-                {isEditingSettings ? (
-                  <Input
-                    type="datetime-local"
-                    value={settings.startAt ? new Date(settings.startAt).toISOString().slice(0, 16) : ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        startAt: e.target.value ? new Date(e.target.value).toISOString() : null,
-                      })
-                    }
-                    className="bg-background border-border"
-                  />
-                ) : (
-                  <p className="text-foreground font-medium">{formatStartAt(settings.startAt)}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">Pick Time Limit</label>
-                <p className="text-foreground font-medium">{settings.pickTimeLimit} seconds</p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">Draft Type</label>
-                <p className="text-foreground font-medium capitalize">{settings.draftType} Draft</p>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">Visibility</label>
-                <div className="flex items-center gap-2">
-                  {settings.visibility === "private" ? (
-                    <Lock className="w-4 h-4 text-muted-foreground" />
-                  ) : (
-                    <Globe className="w-4 h-4 text-blue-400" />
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 flex items-center justify-center flex-shrink-0">
+                  <Users className="w-4 h-4 text-[#5E6AD2]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-semibold text-[#EDEDEF]">Participants</h3>
+                    <span className="text-xs rounded-full border border-white/[0.06] bg-white/[0.04] px-2 py-0.5 text-[#8A8F98] font-mono">
+                      {activeParticipants.length}/{settings.maxParticipants}
+                    </span>
+                  </div>
+                  {spotsRemaining > 0 && (
+                    <p className="text-xs text-[#8A8F98] mt-0.5">
+                      {spotsRemaining} {spotsRemaining === 1 ? "spot" : "spots"} remaining
+                    </p>
                   )}
-                  <p className="text-foreground font-medium capitalize">{settings.visibility}</p>
                 </div>
               </div>
             </div>
 
-            {isEditingSettings && (
-              <div className="mt-6 flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setIsEditingSettings(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  className="bg-orange-500 hover:bg-orange-600"
-                  onClick={() => setIsEditingSettings(false)}
+            {/* Participant rows */}
+            <div className="space-y-1">
+              {participants.map((participant) => (
+                <div
+                  key={participant.id}
+                  className={cn(
+                    "relative flex items-center gap-4 rounded-xl px-4 py-3",
+                    "transition-colors duration-200",
+                    participant.isYou
+                      ? "bg-[#5E6AD2]/[0.06] border border-[#5E6AD2]/10"
+                      : "hover:bg-white/[0.04] border border-transparent",
+                  )}
                 >
-                  Save Changes
-                </Button>
-              </div>
-            )}
-          </Card>
+                  {/* "You" accent bar */}
+                  {participant.isYou && (
+                    <div className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-[#5E6AD2]/60" />
+                  )}
 
-          {/* Invite Code */}
-          <Card className="p-6 bg-card border-border border-orange-500/30">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-                <h3 className="font-semibold text-foreground mb-1">Invite Code</h3>
-                <p className="text-sm text-muted-foreground">
-                  Share this code with friends to join the draft
+                  {/* Avatar */}
+                  <div className="relative flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full overflow-hidden border border-white/[0.10]">
+                      <ImageWithFallback
+                        src={participant.avatar}
+                        alt={participant.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    {participant.isHost && (
+                      <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-yellow-500/20 border border-yellow-500/40 flex items-center justify-center">
+                        <Crown className="w-2.5 h-2.5 text-yellow-400" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Name + badges */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-[#EDEDEF] truncate">
+                        {participant.name}
+                      </span>
+                      {participant.isYou && (
+                        <span className="text-xs rounded-full border border-[#5E6AD2]/30 bg-[#5E6AD2]/10 text-[#5E6AD2] px-2 py-0.5">
+                          You
+                        </span>
+                      )}
+                      {participant.status === "banned" && (
+                        <span className="text-xs rounded-full border border-red-500/30 bg-red-500/10 text-red-400 px-2 py-0.5">
+                          Banned
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-[#8A8F98] mt-0.5">
+                      {participant.teamsCount} / 8 teams picked
+                    </p>
+                  </div>
+
+                  {/* Pick count badge */}
+                  <div className="hidden sm:flex items-center gap-1 flex-shrink-0">
+                    <span className="text-xs font-mono text-[#8A8F98]">
+                      {participant.teamsCount}/8
+                    </span>
+                  </div>
+
+                  {/* Host kebab menu */}
+                  {isHost && !participant.isHost && participant.status === "active" && (
+                    <div className="relative flex-shrink-0">
+                      <button
+                        onClick={() =>
+                          setSelectedParticipant(
+                            selectedParticipant === participant.id ? null : participant.id
+                          )
+                        }
+                        className={cn(
+                          "w-8 h-8 rounded-lg flex items-center justify-center",
+                          "text-[#8A8F98] hover:text-[#EDEDEF]",
+                          "hover:bg-white/[0.06] transition-all duration-200",
+                        )}
+                        aria-label="Participant actions"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+
+                      {selectedParticipant === participant.id && (
+                        <>
+                          {/* Overlay to close */}
+                          <div
+                            className="fixed inset-0 z-40"
+                            onClick={() => setSelectedParticipant(null)}
+                          />
+                          <div
+                            className={cn(
+                              "absolute right-0 top-10 w-44 z-50",
+                              "rounded-xl border border-white/[0.08] bg-[#0a0a0c]",
+                              "shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_8px_32px_rgba(0,0,0,0.6)]",
+                              "p-1.5 overflow-hidden",
+                            )}
+                          >
+                            <button
+                              onClick={() => handleKickParticipant(participant.id)}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[#EDEDEF] hover:bg-white/[0.06] rounded-lg transition-colors"
+                            >
+                              <UserX className="w-4 h-4 text-[#8A8F98]" />
+                              Kick Player
+                            </button>
+                            <button
+                              onClick={() => handleBanParticipant(participant.id)}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-red-500/[0.08] rounded-lg transition-colors"
+                            >
+                              <Ban className="w-4 h-4" />
+                              Ban Player
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Waiting for players empty state */}
+            {spotsRemaining > 0 && (
+              <div
+                className={cn(
+                  "mt-4 rounded-2xl border border-dashed border-white/[0.06]",
+                  "p-8 text-center",
+                )}
+              >
+                <div className="w-10 h-10 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center justify-center mx-auto mb-3">
+                  <Users className="w-5 h-5 text-[#8A8F98]" />
+                </div>
+                <p className="text-sm font-medium text-[#EDEDEF] mb-1">
+                  Waiting for more players
                 </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <code className="px-4 py-2 rounded bg-background border border-border text-orange-400 font-bold text-lg tracking-wider">
-                  {settings.inviteCode}
-                </code>
-                <Button variant="outline" size="sm" onClick={handleCopyCode} className="relative">
+                <p className="text-xs text-[#8A8F98] mb-4">
+                  {spotsRemaining} {spotsRemaining === 1 ? "spot" : "spots"} open — share the invite
+                  code to fill them
+                </p>
+                <button
+                  onClick={handleCopyCode}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm",
+                    "bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.06]",
+                    "text-[#8A8F98] hover:text-[#EDEDEF] transition-all duration-200",
+                  )}
+                >
                   {copiedCode ? (
                     <>
-                      <Check className="w-4 h-4 mr-2 text-green-400" />
+                      <Check className="w-4 h-4 text-emerald-400" />
                       Copied!
                     </>
                   ) : (
                     <>
-                      <Copy className="w-4 h-4 mr-2" />
-                      Copy
+                      <Copy className="w-4 h-4" />
+                      Copy Invite Code
                     </>
                   )}
-                </Button>
+                </button>
               </div>
-            </div>
-          </Card>
+            )}
+          </SpotlightCard>
+        </div>
 
-          {/* Participants List */}
-          <Card className="p-6 bg-card border-border">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-foreground">
-                  Participants ({participants.filter((p) => p.status === "active").length}/
-                  {settings.maxParticipants})
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {settings.maxParticipants - participants.filter((p) => p.status === "active").length}{" "}
-                  spots remaining
-                </p>
+        {/* ---- Right column ---- */}
+        <div className="space-y-4">
+          {/* Draft Settings card */}
+          <SpotlightCard className="p-6">
+            {/* Ambient blob */}
+            <div className="pointer-events-none absolute -top-12 -right-12 w-48 h-48 rounded-full bg-[#5E6AD2]/10 blur-[60px]" />
+
+            <div className="relative">
+              {/* Section header */}
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-[#5E6AD2]" />
+                  <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+                    Draft Settings
+                  </span>
+                </div>
+                {isHost && !isEditingSettings && (
+                  <button
+                    onClick={() => setIsEditingSettings(true)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5",
+                      "bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.06]",
+                      "text-[#8A8F98] hover:text-[#EDEDEF] transition-all duration-200",
+                    )}
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    Edit
+                  </button>
+                )}
               </div>
-            </div>
 
-            <div className="space-y-3">
-              {participants.map((participant) => (
-                <Card
-                  key={participant.id}
-                  className={`p-4 ${
-                    participant.isYou
-                      ? "bg-orange-500/5 border-orange-500/30"
-                      : "bg-background border-border"
-                  }`}
+              {/* Settings list */}
+              <div className="divide-y divide-white/[0.04]">
+                <SettingsRow label="Draft Type">
+                  <span className="capitalize">{settings.draftType} Draft</span>
+                </SettingsRow>
+
+                <SettingsRow label="Pick Timer">
+                  {settings.pickTimeLimit > 0 ? `${settings.pickTimeLimit}s` : "No limit"}
+                </SettingsRow>
+
+                <SettingsRow label="Max Players">
+                  <span>{settings.maxParticipants} players</span>
+                </SettingsRow>
+
+                <SettingsRow label="Start Time">
+                  {isEditingSettings ? (
+                    <Input
+                      type="datetime-local"
+                      value={formatDateTimeInput(settings.startAt)}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          startAt: e.target.value
+                            ? parseISO(e.target.value).toISOString()
+                            : null,
+                        })
+                      }
+                      className={cn(
+                        "h-7 text-sm",
+                        "bg-[#0F0F12] border-white/10 focus-visible:border-[#5E6AD2] focus-visible:ring-0",
+                        "text-[#EDEDEF]",
+                      )}
+                    />
+                  ) : (
+                    <span>{formatStartAt(settings.startAt)}</span>
+                  )}
+                </SettingsRow>
+
+                <SettingsRow label="Visibility">
+                  <span className="flex items-center gap-1.5">
+                    {settings.visibility === "private" ? (
+                      <>
+                        <Lock className="w-3.5 h-3.5 text-[#8A8F98]" />
+                        Private
+                      </>
+                    ) : (
+                      <>
+                        <Globe className="w-3.5 h-3.5 text-[#5E6AD2]" />
+                        Public
+                      </>
+                    )}
+                  </span>
+                </SettingsRow>
+              </div>
+
+              {/* Edit actions */}
+              {isEditingSettings && (
+                <div className="mt-5 flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => {
+                      setSettings(initialDraft);
+                      setIsEditingSettings(false);
+                    }}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 text-xs rounded-lg px-3 py-1.5",
+                      "bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.06]",
+                      "text-[#8A8F98] hover:text-[#EDEDEF] transition-all duration-200",
+                    )}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => setIsEditingSettings(false)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 text-xs rounded-lg px-3 py-1.5",
+                      "bg-[#5E6AD2] hover:bg-[#6872D9] text-white",
+                      "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
+                      "active:scale-[0.98] transition-all duration-200",
+                    )}
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    Save
+                  </button>
+                </div>
+              )}
+            </div>
+          </SpotlightCard>
+
+          {/* Invite Code card — private drafts only */}
+          {settings.visibility === "private" && <SpotlightCard className="p-6">
+            {/* Ambient blob */}
+            <div className="pointer-events-none absolute -top-8 -right-8 w-36 h-36 rounded-full bg-[#5E6AD2]/10 blur-[40px]" />
+
+            <div className="relative">
+              <p
+                className={cn(
+                  "text-sm font-semibold tracking-tight mb-4",
+                  "bg-gradient-to-b from-[#EDEDEF] to-[#EDEDEF]/70 bg-clip-text text-transparent",
+                )}
+              >
+                Invite Code
+              </p>
+
+              {/* Code display */}
+              <div className="flex items-center gap-3 mb-4">
+                <div
+                  className={cn(
+                    "flex-1 font-mono text-xl tracking-widest text-[#5E6AD2]",
+                    "bg-[#5E6AD2]/10 rounded-xl px-4 py-2.5 border border-[#5E6AD2]/20",
+                    "text-center select-all",
+                  )}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <div className="w-12 h-12 rounded-full overflow-hidden">
+                  {settings.inviteCode}
+                </div>
+                <button
+                  onClick={handleCopyCode}
+                  aria-label="Copy invite code"
+                  className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
+                    "bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.06]",
+                    "text-[#8A8F98] hover:text-[#EDEDEF] transition-all duration-200",
+                    "active:scale-[0.95]",
+                  )}
+                >
+                  {copiedCode ? (
+                    <Check className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+
+              <p className="text-xs text-[#8A8F98]">Share with friends to join this draft</p>
+            </div>
+          </SpotlightCard>}
+
+          {/* Draft Room card */}
+          <SpotlightCard
+            className={cn(
+              "p-6",
+              settings.status === "drafting" && "border-[#5E6AD2]/20",
+            )}
+          >
+            {/* Ambient blob */}
+            <div className="pointer-events-none absolute -bottom-8 -right-8 w-36 h-36 rounded-full bg-[#5E6AD2]/10 blur-[40px]" />
+
+            <div className="relative">
+              {settings.status === "upcoming" && (
+                <>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Clock className="w-4 h-4 text-[#8A8F98]" />
+                    <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+                      Draft Room
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-[#EDEDEF] mb-2">Draft Starts Soon</p>
+                  <p className="text-xs text-[#8A8F98]">
+                    {settings.startAt
+                      ? `Scheduled for ${formatStartAt(settings.startAt)}`
+                      : "Not scheduled yet — start manually when ready"}
+                  </p>
+                </>
+              )}
+
+              {settings.status === "drafting" && (
+                <>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Zap className="w-4 h-4 text-[#5E6AD2] drop-shadow-[0_0_6px_rgba(94,106,210,0.6)]" />
+                    <span className="text-xs font-mono tracking-widest uppercase text-[#5E6AD2]">
+                      Draft Room
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-[#EDEDEF] mb-4">Draft In Progress</p>
+                  <Link
+                    href={`/drafts/${settings.id}/room`}
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white",
+                      "bg-[#5E6AD2] hover:bg-[#6872D9]",
+                      "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
+                      "active:scale-[0.98] transition-all duration-200",
+                    )}
+                  >
+                    <Zap className="w-4 h-4" />
+                    Enter Draft Room
+                  </Link>
+                </>
+              )}
+
+              {(settings.status === "active" || settings.status === "completed") && (
+                <>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Trophy className="w-4 h-4 text-[#5E6AD2]" />
+                    <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+                      Draft Room
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-[#EDEDEF] mb-2">
+                    {settings.status === "completed" ? "Draft Complete" : "Draft Active"}
+                  </p>
+                  <Link
+                    href={`/drafts/${settings.id}/results`}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 text-xs",
+                      "text-[#8A8F98] hover:text-[#EDEDEF] transition-colors duration-200",
+                    )}
+                  >
+                    View results &rarr;
+                  </Link>
+                </>
+              )}
+            </div>
+          </SpotlightCard>
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Leaderboard (active / completed only)                               */}
+      {/* ------------------------------------------------------------------ */}
+      {showResults && (
+        <SpotlightCard className="p-6">
+          {/* Ambient blobs */}
+          <div className="pointer-events-none absolute -top-16 -left-16 w-64 h-64 rounded-full bg-[#5E6AD2]/10 blur-[80px]" />
+          <div className="pointer-events-none absolute -top-16 -right-16 w-64 h-64 rounded-full bg-indigo-500/[0.06] blur-[80px]" />
+
+          <div className="relative">
+            {/* Section header */}
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-8 h-8 rounded-xl bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 flex items-center justify-center flex-shrink-0">
+                <Trophy className="w-4 h-4 text-[#5E6AD2]" />
+              </div>
+              <h3
+                className={cn(
+                  "text-lg font-semibold tracking-tight",
+                  "bg-gradient-to-b from-[#EDEDEF] to-[#EDEDEF]/70 bg-clip-text text-transparent",
+                )}
+              >
+                Leaderboard
+              </h3>
+            </div>
+
+            {sortedForLeaderboard.length === 0 ? (
+              <div className="text-center py-10">
+                <Trophy className="w-12 h-12 text-[#8A8F98]/30 mx-auto mb-3" />
+                <p className="text-sm text-[#8A8F98]">No results yet</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {sortedForLeaderboard.map((participant) => {
+                  const effectiveRank =
+                    participant.rank > 0 ? participant.rank : sortedForLeaderboard.indexOf(participant) + 1;
+                  const isLeader = effectiveRank === 1;
+                  const delta = leaderPoints - participant.totalPoints;
+
+                  return (
+                    <div
+                      key={participant.id}
+                      className={cn(
+                        "flex items-center gap-4 rounded-xl px-4 py-3",
+                        "transition-colors duration-200",
+                        isLeader
+                          ? "bg-[#5E6AD2]/[0.06] border border-[#5E6AD2]/10"
+                          : participant.isYou
+                            ? "bg-[#5E6AD2]/[0.04] border border-[#5E6AD2]/[0.08]"
+                            : "hover:bg-white/[0.04] border border-transparent",
+                      )}
+                    >
+                      <RankBadge rank={effectiveRank} />
+
+                      <div className="w-9 h-9 rounded-full overflow-hidden border border-white/[0.10] flex-shrink-0">
                         <ImageWithFallback
                           src={participant.avatar}
                           alt={participant.name}
                           className="w-full h-full object-cover"
                         />
                       </div>
-                      {participant.isHost && (
-                        <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center">
-                          <Crown className="w-3 h-3 text-white" />
-                        </div>
-                      )}
-                    </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-foreground">{participant.name}</h3>
-                        {participant.status === "banned" && (
-                          <Badge className="bg-red-500/10 text-red-400 border-red-500/30">
-                            Banned
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">{participant.email}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Joined {participant.joinedAt}
-                      </p>
-                    </div>
-
-                    <div className="hidden sm:flex items-center gap-6 text-sm">
-                      <div className="text-center">
-                        <p className="text-muted-foreground text-xs">Teams</p>
-                        <p className="font-bold text-foreground">
-                          {participant.teamsCount}/8
-                        </p>
-                      </div>
-                    </div>
-
-                    {isHost && !participant.isHost && participant.status === "active" && (
-                      <div className="relative">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            setSelectedParticipant(
-                              selectedParticipant === participant.id ? null : participant.id
-                            )
-                          }
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-
-                        {selectedParticipant === participant.id && (
-                          <Card className="absolute right-0 top-10 w-48 p-2 bg-card border-border z-50 shadow-lg">
-                            <button
-                              onClick={() => handleKickParticipant(participant.id)}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted rounded transition-colors"
-                            >
-                              <UserX className="w-4 h-4" />
-                              Kick Player
-                            </button>
-                            <button
-                              onClick={() => handleBanParticipant(participant.id)}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                            >
-                              <Ban className="w-4 h-4" />
-                              Ban Player
-                            </button>
-                          </Card>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </Card>
-              ))}
-            </div>
-
-            {participants.filter((p) => p.status === "active").length <
-              settings.maxParticipants && (
-              <Card className="mt-4 p-8 bg-background border-dashed border-border text-center">
-                <AlertCircle className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-                <h3 className="font-semibold text-foreground mb-2">Waiting for more players</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Share the invite code to fill the remaining spots
-                </p>
-                <Button variant="outline" size="sm" onClick={handleCopyCode}>
-                  <Copy className="w-4 h-4 mr-2" />
-                  Copy Invite Code
-                </Button>
-              </Card>
-            )}
-          </Card>
-        </div>
-      )}
-
-      {/* Draft Room Tab */}
-      {activeTab === "draft-room" && (
-        <div className="space-y-6">
-          <Card className="p-12 bg-card border-border text-center">
-            <Target className="w-16 h-16 text-orange-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-foreground mb-2">Draft Room</h2>
-            <p className="text-muted-foreground mb-6">
-              {settings.status === "upcoming" &&
-                (settings.startAt
-                  ? `The draft room will open on ${formatStartAt(settings.startAt)}`
-                  : "The draft has not been scheduled yet")}
-              {settings.status === "drafting" && "The draft is currently in progress!"}
-              {settings.status === "active" && "View the draft results and picks"}
-              {settings.status === "completed" && "The draft has been completed"}
-            </p>
-            {settings.status === "drafting" && (
-              <Button
-                size="lg"
-                className="bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600"
-                asChild
-              >
-                <Link href={`/drafts/${settings.id}/room`}>
-                  <Zap className="w-5 h-5 mr-2" />
-                  Enter Draft Room
-                </Link>
-              </Button>
-            )}
-            {settings.status === "upcoming" && (
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                <Clock className="w-4 h-4" />
-                <span>
-                  {settings.startAt
-                    ? `Scheduled for ${formatStartAt(settings.startAt)}`
-                    : "Start manually when ready"}
-                </span>
-              </div>
-            )}
-          </Card>
-        </div>
-      )}
-
-      {/* Results Tab */}
-      {activeTab === "results" && (
-        <div className="space-y-6">
-          <Card className="p-6 bg-card border-border">
-            <h2 className="text-xl font-bold text-foreground mb-6">Leaderboard</h2>
-
-            {settings.status === "upcoming" || settings.status === "drafting" ? (
-              <div className="text-center py-12">
-                <Trophy className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-30" />
-                <h3 className="font-semibold text-foreground mb-2">Results Coming Soon</h3>
-                <p className="text-muted-foreground">
-                  The leaderboard will be available once the tournament begins
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {participants
-                  .filter((p) => p.status === "active")
-                  .sort((a, b) => a.rank - b.rank)
-                  .map((participant, index) => (
-                    <Card
-                      key={participant.id}
-                      className={`p-4 ${
-                        participant.isYou
-                          ? "bg-orange-500/5 border-orange-500/30"
-                          : "bg-background border-border"
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center justify-center w-10 h-10">
-                          {index === 0 && <Medal className="w-8 h-8 text-yellow-400" />}
-                          {index === 1 && <Medal className="w-8 h-8 text-gray-400" />}
-                          {index === 2 && <Medal className="w-7 h-7 text-orange-600" />}
-                          {index > 2 && (
-                            <span className="text-lg font-bold text-muted-foreground">
-                              {participant.rank}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-[#EDEDEF] truncate">
+                            {participant.name}
+                          </span>
+                          {participant.isYou && (
+                            <span className="text-xs rounded-full border border-[#5E6AD2]/30 bg-[#5E6AD2]/10 text-[#5E6AD2] px-2 py-0.5">
+                              You
                             </span>
                           )}
                         </div>
-
-                        <div className="w-10 h-10 rounded-full overflow-hidden">
-                          <ImageWithFallback
-                            src={participant.avatar}
-                            alt={participant.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-foreground">{participant.name}</h3>
-                          <p className="text-xs text-muted-foreground">
-                            {participant.teamsCount} teams drafted
-                          </p>
-                        </div>
-
-                        <div className="text-right">
-                          <p className="text-2xl font-bold text-orange-400">
-                            {participant.totalPoints}
-                          </p>
-                          <p className="text-xs text-muted-foreground">points</p>
-                        </div>
-
-                        <div className="hidden sm:block">
-                          {index === 0 ? (
-                            <div className="flex items-center gap-1 text-green-400">
-                              <TrendingUp className="w-4 h-4" />
-                              <span className="text-sm font-medium">Leading</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              <TrendingDown className="w-4 h-4" />
-                              <span className="text-sm">
-                                -{participants[0].totalPoints - participant.totalPoints}
-                              </span>
-                            </div>
-                          )}
-                        </div>
+                        <p className="text-xs text-[#8A8F98]">
+                          {participant.teamsCount} teams drafted
+                        </p>
                       </div>
-                    </Card>
-                  ))}
+
+                      <div className="text-right flex-shrink-0">
+                        {isLeader ? (
+                          <span
+                            className={cn(
+                              "text-xl font-semibold font-mono",
+                              "bg-gradient-to-r from-[#5E6AD2] to-indigo-400 bg-clip-text text-transparent",
+                            )}
+                          >
+                            {participant.totalPoints.toLocaleString()}
+                          </span>
+                        ) : (
+                          <span className="text-xl font-semibold font-mono text-[#EDEDEF]">
+                            {participant.totalPoints.toLocaleString()}
+                          </span>
+                        )}
+
+                        {!isLeader && (
+                          <p className="text-xs text-[#8A8F98] mt-0.5">
+                            &minus;{delta.toLocaleString()} pts
+                          </p>
+                        )}
+                        {isLeader && (
+                          <p className="text-xs text-[#5E6AD2] mt-0.5">Leading</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
-          </Card>
-        </div>
+          </div>
+        </SpotlightCard>
       )}
     </div>
   );

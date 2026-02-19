@@ -10,6 +10,7 @@ export default async function NewDraftPage() {
         id: t.id,
         seasonYear: t.seasonYear,
         name: t.name,
+        startDate: t.startDate ? t.startDate.toISOString() : null,
       }))}
     />
   );

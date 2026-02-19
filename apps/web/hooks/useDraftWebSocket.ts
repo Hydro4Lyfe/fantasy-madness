@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { parseDeadlineMs } from "@/lib/date";
 import type { DraftRoomStateDTO } from "@/server/dal";
 import type { ServerEvent, ClientEvent } from "@/lib/websocket/events";
 
@@ -143,7 +144,7 @@ export function useDraftWebSocket({
                   currentPickerUserId: serverEvent.payload.currentPickerUserId,
                   timerDeadlineAt: serverEvent.payload.deadlineAt,
                   timerSecondsRemaining: serverEvent.payload.deadlineAt
-                    ? Math.max(0, Math.floor((new Date(serverEvent.payload.deadlineAt).getTime() - Date.now()) / 1000))
+                    ? Math.max(0, Math.floor((parseDeadlineMs(serverEvent.payload.deadlineAt) - Date.now()) / 1000))
                     : null,
                 };
               });

@@ -1,6 +1,7 @@
 import { MyDraftsClient } from "./MyDraftsClient";
 import { requireUserId } from "@/server/auth/guards";
 import { listDraftsForUser, type DraftListRow } from "@/server/dal";
+import { formatTime } from "@/lib/date";
 
 // Map DAL status to UI status
 function mapStatus(dalStatus: string): "active" | "draft" | "completed" {
@@ -25,14 +26,10 @@ function formatDraftDate(
   return `${tournamentName} ${tournamentYear}`;
 }
 
-// Format lock time for display
+// Format lock time for display — pinned to ET since March Madness games are US-centric
 function formatStartTime(lockAt: Date | null): string {
   if (!lockAt) return "TBD";
-  return lockAt.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-  });
+  return formatTime(lockAt, "America/New_York");
 }
 
 // Generate placeholder thumbnail based on draft id

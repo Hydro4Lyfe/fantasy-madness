@@ -1,6 +1,6 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { Loader2, WifiOff, AlertCircle } from "lucide-react"
 
 interface ConnectionBannerProps {
@@ -16,8 +16,8 @@ export function ConnectionBanner({
 }: ConnectionBannerProps) {
   if (connectionState === "connecting") {
     return (
-      <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-yellow-500/5 border border-yellow-500/20 text-yellow-400/90 text-sm">
-        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      <div className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-yellow-500/[0.06] border border-yellow-500/20 text-yellow-400/90 text-sm">
+        <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
         <span>Connecting to draft room...</span>
       </div>
     )
@@ -25,38 +25,40 @@ export function ConnectionBanner({
 
   if (connectionState === "disconnected") {
     return (
-      <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400/90 text-sm">
+      <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-red-500/[0.06] border border-red-500/20 text-red-400/90 text-sm">
         <div className="flex items-center gap-2">
-          <WifiOff className="w-3.5 h-3.5" />
+          <WifiOff className="w-3.5 h-3.5 flex-shrink-0" />
           <span>Disconnected from draft room</span>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
+        <button
           onClick={onReconnect}
-          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 text-xs"
+          className={cn(
+            "text-xs text-red-400 hover:text-red-300 h-7 px-3 rounded-lg",
+            "hover:bg-red-500/10 transition-all duration-200",
+          )}
         >
           Reconnect
-        </Button>
+        </button>
       </div>
     )
   }
 
   if (connectionState === "error" && error) {
     return (
-      <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-red-500/5 border border-red-500/20 text-red-400/90 text-sm">
+      <div className="flex items-center justify-between px-4 py-2.5 rounded-2xl bg-red-500/[0.06] border border-red-500/20 text-red-400/90 text-sm">
         <div className="flex items-center gap-2">
-          <AlertCircle className="w-3.5 h-3.5" />
+          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
           <span>{error}</span>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
+        <button
           onClick={onReconnect}
-          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 h-7 text-xs"
+          className={cn(
+            "text-xs text-red-400 hover:text-red-300 h-7 px-3 rounded-lg",
+            "hover:bg-red-500/10 transition-all duration-200",
+          )}
         >
           Retry
-        </Button>
+        </button>
       </div>
     )
   }

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition, type MouseEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { joinDraftByInviteAction } from "@/server/actions/drafts";
 import {
   Plus,
   KeyRound,
@@ -15,9 +15,9 @@ import {
   Globe,
   Archive,
   Loader2,
+  ChevronRight,
+  Users,
 } from "lucide-react";
-import { toast } from "sonner";
-import { joinDraftByInviteAction } from "@/server/actions/drafts";
 
 interface Draft {
   id: string;
@@ -35,6 +35,166 @@ interface Draft {
 
 interface MyDraftsClientProps {
   drafts: Draft[];
+}
+
+function SpotlightCard({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [opacity, setOpacity] = useState(0);
+
+  function handleMouseMove(e: MouseEvent<HTMLDivElement>) {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  }
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "relative overflow-hidden rounded-2xl border border-white/[0.06]",
+        "bg-gradient-to-b from-white/[0.08] to-white/[0.02]",
+        "shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_2px_20px_rgba(0,0,0,0.4),0_0_40px_rgba(0,0,0,0.2)]",
+        "transition-shadow duration-300",
+        "hover:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_8px_40px_rgba(0,0,0,0.5),0_0_80px_rgba(94,106,210,0.08)]",
+        className,
+      )}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setOpacity(1)}
+      onMouseLeave={() => setOpacity(0)}
+    >
+      <div
+        className="pointer-events-none absolute -inset-px transition-opacity duration-300"
+        style={{
+          opacity,
+          background: `radial-gradient(300px circle at ${position.x}px ${position.y}px, rgba(94,106,210,0.12), transparent 80%)`,
+        }}
+      />
+      {children}
+    </div>
+  );
+}
+
+function TypeBadge({ type }: { type: "private" | "public" }) {
+  if (type === "private") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full border border-white/[0.10] px-2 py-0.5 text-xs text-[#8A8F98]">
+        <Lock className="w-3 h-3" />
+        Private
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-[#5E6AD2]/30 px-2 py-0.5 text-xs text-[#5E6AD2]">
+      <Globe className="w-3 h-3" />
+      Public
+    </span>
+  );
+}
+
+function DraftCard({ draft }: { draft: Draft }) {
+  const isActive = draft.status === "active";
+  const fillPercent = Math.round((draft.participants / draft.maxParticipants) * 100);
+
+  return (
+    <Link href={`/drafts/${draft.id}`} className="block group">
+      <SpotlightCard>
+        <div className="p-5 flex flex-col gap-4">
+          {/* Top row: name + badges (stacked) */}
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="font-semibold text-[#EDEDEF] leading-tight line-clamp-2 flex-1">
+              {draft.name}
+            </h3>
+            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+              {isActive && (
+                <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+                  </span>
+                  <span className="text-xs font-mono text-emerald-400">Live</span>
+                </div>
+              )}
+              <TypeBadge type={draft.type} />
+            </div>
+          </div>
+
+          {/* Tournament label / draft date */}
+          <p className="text-xs text-[#8A8F98]">{draft.draftDate}</p>
+
+          {/* Stats row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs font-mono tracking-widest uppercase text-[#8A8F98] mb-1">
+                Players
+              </p>
+              <p className="text-base font-semibold text-[#EDEDEF]">
+                {draft.participants}
+                <span className="text-[#8A8F98] text-xs">/{draft.maxParticipants}</span>
+              </p>
+              <div className="mt-1.5 h-1 rounded-full bg-white/[0.06]">
+                <div
+                  className="h-1 rounded-full bg-[#5E6AD2]"
+                  style={{ width: `${fillPercent}%` }}
+                />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-mono tracking-widest uppercase text-[#8A8F98] mb-1">
+                Start Time
+              </p>
+              <p className="text-base font-semibold text-[#EDEDEF]">{draft.startTime}</p>
+            </div>
+          </div>
+
+          {/* Footer CTA hint */}
+          <div className="border-t border-white/[0.06] pt-3 flex items-center justify-between">
+            <span className="text-xs text-[#5E6AD2]">
+              {isActive ? "Join Live Draft" : "View Details"}
+            </span>
+            <ChevronRight className="w-3.5 h-3.5 text-[#5E6AD2]" />
+          </div>
+        </div>
+      </SpotlightCard>
+    </Link>
+  );
+}
+
+function SectionHeader({
+  label,
+  count,
+  variant,
+}: {
+  label: string;
+  count: number;
+  variant: "live" | "scheduled" | "finished";
+}) {
+  return (
+    <div className="flex items-center gap-2.5 mb-4">
+      {variant === "live" && (
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+        </span>
+      )}
+      {variant === "scheduled" && (
+        <Calendar className="w-4 h-4 text-[#5E6AD2]" />
+      )}
+      {variant === "finished" && (
+        <Archive className="w-4 h-4 text-[#8A8F98]" />
+      )}
+      <h2 className="text-sm font-semibold text-[#EDEDEF] tracking-tight">{label}</h2>
+      <span className="bg-white/[0.06] text-[#8A8F98] rounded-full px-2 py-0.5 text-xs font-mono">
+        {count}
+      </span>
+    </div>
+  );
 }
 
 export function MyDraftsClient({ drafts }: MyDraftsClientProps) {
@@ -65,271 +225,185 @@ export function MyDraftsClient({ drafts }: MyDraftsClientProps) {
     });
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-green-500/10 text-green-400 border-green-500/30";
-      case "draft":
-        return "bg-yellow-500/10 text-yellow-400 border-yellow-500/30";
-      case "completed":
-        return "bg-gray-500/10 text-gray-400 border-gray-500/30";
-      default:
-        return "bg-gray-500/10 text-gray-400 border-gray-500/30";
-    }
-  };
-
   const activeDrafts = drafts.filter((d) => d.status === "active");
   const upcomingDrafts = drafts.filter((d) => d.status === "draft");
   const completedDrafts = drafts.filter((d) => d.status === "completed");
 
-  const stats = {
-    total: drafts.length,
-    active: activeDrafts.length,
-    draft: upcomingDrafts.length,
-    completed: completedDrafts.length,
-  };
-
-  const renderDraftCard = (draft: Draft) => (
-    <Card
-      key={draft.id}
-      className="relative p-6 bg-gradient-to-br from-card via-card to-card border-border hover:border-purple-500/50 transition-all duration-300 group cursor-pointer overflow-hidden"
-    >
-      <Link href={`/drafts/${draft.id}`}>
-        <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/10 rounded-full blur-3xl group-hover:bg-purple-500/20 transition-all" />
-        <div className="absolute bottom-0 left-0 w-20 h-20 bg-orange-500/10 rounded-full blur-2xl group-hover:bg-orange-500/15 transition-all" />
-
-        <div className="relative space-y-5">
-          <div className="space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <h3 className="font-semibold text-lg text-foreground line-clamp-2 flex-1 group-hover:text-orange-400 transition-colors">
-                {draft.name}
-              </h3>
-              <Badge className={`${getStatusColor(draft.status)} flex-shrink-0`}>
-                {draft.status === "active"
-                  ? "Live"
-                  : draft.status === "draft"
-                    ? "Upcoming"
-                    : "Ended"}
-              </Badge>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calendar className="w-4 h-4" />
-                <span>{draft.draftDate}</span>
-              </div>
-              <Badge
-                variant="outline"
-                className={
-                  draft.type === "private"
-                    ? "bg-orange-500/10 text-orange-400 border-orange-500/30"
-                    : "bg-blue-500/10 text-blue-400 border-blue-500/30"
-                }
-              >
-                {draft.type === "private" ? (
-                  <>
-                    <Lock className="w-3 h-3 mr-1" />
-                    Private
-                  </>
-                ) : (
-                  <>
-                    <Globe className="w-3 h-3 mr-1" />
-                    Public
-                  </>
-                )}
-              </Badge>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 p-4 bg-background/50 backdrop-blur-sm border border-border group-hover:border-purple-500/20 transition-all rounded-lg">
-            <div className="space-y-1.5">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Players</p>
-              <p className="text-xl font-bold text-foreground">
-                {draft.participants}
-                <span className="text-sm text-muted-foreground font-normal">
-                  /{draft.maxParticipants}
-                </span>
-              </p>
-            </div>
-            <div className="space-y-1.5 text-right">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Start Time</p>
-              <p className="text-xl font-bold text-orange-400">{draft.startTime}</p>
-            </div>
-          </div>
-
-          {draft.status !== "draft" && (
-            <>
-              <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground uppercase tracking-wide">
-                    Your Rank
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    {draft.myRank && draft.myRank <= 3 && (
-                      <div className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)]" />
-                    )}
-                    <span className="text-lg font-bold text-foreground">
-                      {draft.myRank ? `#${draft.myRank}` : "N/A"}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground uppercase tracking-wide">
-                    Total Points
-                  </span>
-                  <span className="text-lg font-bold text-orange-400">
-                    {draft.totalPoints.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </>
-          )}
-
-          <div className="pt-2">
-            <Button
-              className={`w-full ${
-                draft.status === "active"
-                  ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white border-0 shadow-[0_0_20px_rgba(34,197,94,0.3)]"
-                  : draft.status === "draft"
-                    ? "bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white border-0 shadow-[0_0_20px_rgba(249,115,22,0.3)]"
-                    : "bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 border-orange-500/30"
-              }`}
-              variant={draft.status === "completed" ? "outline" : "default"}
-            >
-              {draft.status === "active"
-                ? "Join Live Draft"
-                : draft.status === "draft"
-                  ? "Prepare Draft"
-                  : "View Results"}
-            </Button>
-          </div>
-        </div>
-      </Link>
-    </Card>
-  );
+  const subtitleParts: string[] = [];
+  if (activeDrafts.length > 0)
+    subtitleParts.push(`${activeDrafts.length} active`);
+  if (upcomingDrafts.length > 0)
+    subtitleParts.push(`${upcomingDrafts.length} scheduled`);
+  if (completedDrafts.length > 0)
+    subtitleParts.push(`${completedDrafts.length} completed`);
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-3xl font-bold text-foreground">Drafts</h1>
-        <Button
-          className="bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white border-0"
-          asChild
+      {/* Page header */}
+      <div>
+        <h1
+          className={cn(
+            "text-3xl font-bold tracking-tight",
+            "bg-gradient-to-b from-[#EDEDEF] to-[#EDEDEF]/70 bg-clip-text text-transparent",
+          )}
         >
-          <Link href="/drafts/new">
-            <Plus className="w-4 h-4 mr-2" />
+          Drafts
+        </h1>
+        {subtitleParts.length > 0 ? (
+          <p className="mt-1 text-sm text-[#8A8F98]">{subtitleParts.join(" · ")}</p>
+        ) : (
+          <p className="mt-1 text-sm text-[#8A8F98]">No drafts yet</p>
+        )}
+      </div>
+
+      {/* Action bar */}
+      <SpotlightCard>
+        <div className="p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          {/* Create Draft */}
+          <Link
+            href="/drafts/new"
+            className={cn(
+              "inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg text-sm font-medium text-white",
+              "bg-[#5E6AD2] hover:bg-[#6872D9]",
+              "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
+              "transition-colors duration-150 flex-shrink-0",
+            )}
+          >
+            <Plus className="w-4 h-4" />
             Create New Draft
           </Link>
-        </Button>
-      </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="p-4 bg-[#0A0A0F]/60 backdrop-blur-sm border-white/5 hover:border-white/10 transition-all">
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Leagues</p>
-            <p className="text-2xl font-bold text-foreground">{stats.total}</p>
-          </div>
-        </Card>
-        <Card className="p-4 bg-[#0A0A0F]/60 backdrop-blur-sm border-green-500/20 hover:border-green-500/40 transition-all shadow-[0_0_15px_rgba(34,197,94,0.1)]">
-          <div className="space-y-1">
-            <p className="text-xs text-green-400/70 uppercase tracking-wide">Active</p>
-            <p className="text-2xl font-bold text-green-400">{stats.active}</p>
-          </div>
-        </Card>
-        <Card className="p-4 bg-[#0A0A0F]/60 backdrop-blur-sm border-yellow-500/20 hover:border-yellow-500/40 transition-all shadow-[0_0_15px_rgba(234,179,8,0.1)]">
-          <div className="space-y-1">
-            <p className="text-xs text-yellow-400/70 uppercase tracking-wide">Upcoming</p>
-            <p className="text-2xl font-bold text-yellow-400">{stats.draft}</p>
-          </div>
-        </Card>
-        <Card className="p-4 bg-[#0A0A0F]/60 backdrop-blur-sm border-white/5 hover:border-white/10 transition-all">
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">Completed</p>
-            <p className="text-2xl font-bold text-muted-foreground">{stats.completed}</p>
-          </div>
-        </Card>
-      </div>
+          {/* Divider */}
+          <div className="hidden sm:block w-px bg-white/[0.06] self-stretch" />
 
-      {/* Join with Code Card */}
-      <Card className="p-4 bg-[#0A0A0F]/60 backdrop-blur-sm border-orange-500/20 hover:border-orange-500/40 transition-all shadow-[0_0_20px_rgba(249,115,22,0.1)]">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-sm text-orange-400/80">
-            <KeyRound className="w-4 h-4" />
-            <span className="font-medium uppercase tracking-wide">Join with Code</span>
-          </div>
-          <div className="flex gap-2">
+          {/* Join with code */}
+          <div className="flex-1 flex items-center gap-2">
+            <KeyRound className="w-4 h-4 text-[#5E6AD2] flex-shrink-0" />
             <Input
-              placeholder="Enter draft code..."
+              placeholder="Invite code..."
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value)}
-              className="bg-[#0A0A0F]/80 border-white/10 focus:border-orange-500/50 text-foreground placeholder:text-muted-foreground"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleJoinWithCode();
+              }}
+              className="flex-1 h-9 bg-white/[0.04] border-white/[0.10] focus-visible:border-[#5E6AD2] focus-visible:ring-0 text-[#EDEDEF] placeholder:text-[#8A8F98] font-mono text-sm"
             />
-            <Button
+            <button
               onClick={handleJoinWithCode}
               disabled={isPending}
-              className="bg-orange-500 hover:bg-orange-600 text-white px-6 shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:shadow-[0_0_25px_rgba(249,115,22,0.4)] transition-all"
+              className={cn(
+                "h-9 px-4 rounded-lg bg-[#5E6AD2] hover:bg-[#6872D9] text-white text-sm font-medium flex-shrink-0",
+                "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
+                "transition-colors duration-150",
+                "disabled:opacity-50 disabled:cursor-not-allowed",
+                "inline-flex items-center gap-1.5",
+              )}
             >
               {isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Joining...
-                </>
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 "Join"
               )}
-            </Button>
+            </button>
           </div>
         </div>
-      </Card>
+      </SpotlightCard>
 
-      {/* Live Drafts Section */}
+      {/* Empty state */}
+      {drafts.length === 0 && (
+        <SpotlightCard>
+          <div className="py-16 px-8 flex flex-col items-center text-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 flex items-center justify-center">
+              <Users className="w-6 h-6 text-[#5E6AD2]" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-[#EDEDEF] mb-1">No Drafts Yet</h3>
+              <p className="text-sm text-[#8A8F98] max-w-xs">
+                Create a new draft or join one with an invite code to get started.
+              </p>
+            </div>
+            <Link
+              href="/drafts/new"
+              className={cn(
+                "inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium text-white mt-2",
+                "bg-[#5E6AD2] hover:bg-[#6872D9]",
+                "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
+                "transition-colors duration-150",
+              )}
+            >
+              <Plus className="w-4 h-4" />
+              Create New Draft
+            </Link>
+          </div>
+        </SpotlightCard>
+      )}
+
+      {/* Live Now section */}
       {activeDrafts.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <h2 className="text-lg font-semibold text-foreground">Live Now</h2>
-            <Badge className="bg-green-500/10 text-green-400 border-green-500/30">
-              {activeDrafts.length}
-            </Badge>
+        <section>
+          <SectionHeader label="Live Now" count={activeDrafts.length} variant="live" />
+          <div className="grid sm:grid-cols-2 gap-4">
+            {activeDrafts.map((draft) => (
+              <DraftCard key={draft.id} draft={draft} />
+            ))}
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {activeDrafts.map(renderDraftCard)}
-          </div>
-        </div>
+        </section>
       )}
 
-      {/* Upcoming Drafts Section */}
+      {/* Scheduled section */}
       {upcomingDrafts.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Calendar className="w-5 h-5 text-yellow-400" />
-            <h2 className="text-lg font-semibold text-foreground">Scheduled</h2>
-            <Badge className="bg-yellow-500/10 text-yellow-400 border-yellow-500/30">
-              {upcomingDrafts.length}
-            </Badge>
+        <section>
+          <SectionHeader label="Scheduled" count={upcomingDrafts.length} variant="scheduled" />
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {upcomingDrafts.map((draft) => (
+              <DraftCard key={draft.id} draft={draft} />
+            ))}
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {upcomingDrafts.map(renderDraftCard)}
-          </div>
-        </div>
+        </section>
       )}
 
-      {/* Completed Drafts Section */}
+      {/* Finished section — compact row list */}
       {completedDrafts.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Archive className="w-5 h-5 text-muted-foreground" />
-            <h2 className="text-lg font-semibold text-foreground">Finished</h2>
-            <Badge className="bg-gray-500/10 text-gray-400 border-gray-500/30">
-              {completedDrafts.length}
-            </Badge>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {completedDrafts.map(renderDraftCard)}
-          </div>
-        </div>
+        <section>
+          <SectionHeader label="Finished" count={completedDrafts.length} variant="finished" />
+          <SpotlightCard>
+            <div className="divide-y divide-white/[0.04]">
+              {completedDrafts.map((draft) => (
+                <Link
+                  key={draft.id}
+                  href={`/drafts/${draft.id}`}
+                  className="flex items-center gap-3 px-5 py-3.5 hover:bg-white/[0.04] transition-colors"
+                >
+                  {/* Archive icon */}
+                  <div className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/[0.06] flex items-center justify-center flex-shrink-0">
+                    <Archive className="w-3.5 h-3.5 text-[#8A8F98]" />
+                  </div>
+
+                  {/* Name + date */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-[#EDEDEF] truncate">{draft.name}</p>
+                    <p className="text-xs text-[#8A8F98]">{draft.draftDate}</p>
+                  </div>
+
+                  {/* Type badge */}
+                  <div className="hidden sm:block flex-shrink-0">
+                    <TypeBadge type={draft.type} />
+                  </div>
+
+                  {/* Players */}
+                  <div className="text-right hidden sm:block flex-shrink-0">
+                    <p className="text-xs text-[#8A8F98] font-mono">
+                      {draft.participants}/{draft.maxParticipants}
+                    </p>
+                  </div>
+
+                  {/* Chevron */}
+                  <ChevronRight className="w-4 h-4 text-[#8A8F98] flex-shrink-0" />
+                </Link>
+              ))}
+            </div>
+          </SpotlightCard>
+        </section>
       )}
     </div>
   );

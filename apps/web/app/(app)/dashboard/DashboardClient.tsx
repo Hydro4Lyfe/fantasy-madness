@@ -1,35 +1,28 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useRef, useTransition, type MouseEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
 import {
   Trophy,
   TrendingUp,
-  Zap,
+  TrendingDown,
+  Minus,
   Globe,
   Crown,
-  Target,
-  Award,
   Star,
   ChevronRight,
-  BarChart3,
-  Plus,
   ArrowRight,
-  Flame,
   Clock,
   Users,
   Lock,
-  Shield,
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { joinDraftByInviteAction } from "@/server/actions/drafts";
+import { cn } from "@/lib/utils";
 
 interface LeaderboardEntry {
   rank: number;
@@ -78,15 +71,109 @@ interface DashboardClientProps {
   contests: Contest[];
 }
 
+// ---------------------------------------------------------------------------
+// SpotlightCard — mouse-tracking radial gradient on card surface
+// ---------------------------------------------------------------------------
+function SpotlightCard({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [opacity, setOpacity] = useState(0);
+
+  function handleMouseMove(e: MouseEvent<HTMLDivElement>) {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  }
+
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "relative overflow-hidden rounded-2xl border border-white/[0.06]",
+        "bg-gradient-to-b from-white/[0.08] to-white/[0.02]",
+        "shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_2px_20px_rgba(0,0,0,0.4),0_0_40px_rgba(0,0,0,0.2)]",
+        "transition-shadow duration-300",
+        "hover:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_8px_40px_rgba(0,0,0,0.5),0_0_80px_rgba(94,106,210,0.08)]",
+        className,
+      )}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setOpacity(1)}
+      onMouseLeave={() => setOpacity(0)}
+    >
+      <div
+        className="pointer-events-none absolute -inset-px transition-opacity duration-300"
+        style={{
+          opacity,
+          background: `radial-gradient(300px circle at ${position.x}px ${position.y}px, rgba(94,106,210,0.12), transparent 80%)`,
+        }}
+      />
+      {children}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Rank badge helper used in the leaderboard section
+// ---------------------------------------------------------------------------
+function RankBadge({ rank }: { rank: number }) {
+  const base = "w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0";
+  if (rank === 1)
+    return (
+      <div className={cn(base, "bg-gradient-to-br from-yellow-400 to-yellow-600 text-[#050506]")}>
+        1
+      </div>
+    );
+  if (rank === 2)
+    return (
+      <div className={cn(base, "bg-gradient-to-br from-slate-300 to-slate-400 text-[#050506]")}>
+        2
+      </div>
+    );
+  if (rank === 3)
+    return (
+      <div className={cn(base, "bg-gradient-to-br from-amber-600 to-amber-700 text-white")}>
+        3
+      </div>
+    );
+  return (
+    <div className={cn(base, "bg-white/[0.06] text-[#8A8F98]")}>{rank}</div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Mini rank indicator (circled number) for the top-players mini card
+// ---------------------------------------------------------------------------
+function MiniRankCircle({ rank }: { rank: number }) {
+  const base =
+    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0";
+  if (rank === 1)
+    return <div className={cn(base, "bg-yellow-400/20 text-yellow-400 border border-yellow-400/30")}>{rank}</div>;
+  if (rank === 2)
+    return <div className={cn(base, "bg-slate-400/20 text-slate-300 border border-slate-400/30")}>{rank}</div>;
+  return (
+    <div className={cn(base, "bg-amber-600/20 text-amber-500 border border-amber-600/30")}>{rank}</div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 export function DashboardClient({
   user,
   leaderboard,
-  drafts,
-  contests,
 }: DashboardClientProps) {
   const [inviteCode, setInviteCode] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+
+  const percentile = Math.round((user.rank / user.totalPlayers) * 100);
+  const top3 = leaderboard.slice(0, 3);
 
   const handleJoinWithCode = () => {
     if (!inviteCode.trim()) {
@@ -112,376 +199,247 @@ export function DashboardClient({
   };
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Header */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <h1 className="text-3xl sm:text-4xl font-bold text-foreground">
-            Welcome back, {user.name}!
-          </h1>
-          <Flame className="w-6 h-6 text-orange-400" />
-        </div>
-        <p className="text-muted-foreground">Ready to dominate March Madness 2026?</p>
+    <div className="space-y-6">
+      {/* ------------------------------------------------------------------ */}
+      {/* Page header                                                          */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="space-y-1">
+        <h1
+          className={cn(
+            "text-3xl font-semibold tracking-tight",
+            "bg-gradient-to-b from-[#EDEDEF] to-[#EDEDEF]/70 bg-clip-text text-transparent",
+          )}
+        >
+          Welcome back, {user.name}
+        </h1>
+        <p className="text-sm text-[#8A8F98]">
+          March Madness 2026 &middot; {user.activeDrafts} active{" "}
+          {user.activeDrafts === 1 ? "draft" : "drafts"}
+        </p>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="relative p-4 sm:p-6 bg-gradient-to-br from-orange-500/20 via-orange-500/10 to-card border-orange-500/40 hover:border-orange-500/60 transition-all group overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/30 rounded-full blur-3xl group-hover:bg-orange-500/40 transition-all" />
-          <div className="absolute bottom-0 left-0 w-20 h-20 bg-orange-400/20 rounded-full blur-2xl" />
-          <div className="relative flex items-start justify-between">
-            <div className="space-y-1">
-              <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Total Points
-              </p>
-              <p className="text-2xl sm:text-3xl font-bold text-foreground">
-                {user.totalPoints.toLocaleString()}
-              </p>
-              <div className="flex items-center gap-1">
-                <TrendingUp className="w-3 h-3 text-green-400" />
-                <span className="text-xs text-green-400 font-medium">+12.5%</span>
-              </div>
-            </div>
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/50 group-hover:scale-110 group-hover:shadow-orange-500/70 transition-all">
-              <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-            </div>
-          </div>
-        </Card>
+      {/* ------------------------------------------------------------------ */}
+      {/* Bento grid — Row 1–2                                                */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
 
-        <Card className="relative p-4 sm:p-6 bg-gradient-to-br from-green-500/20 via-green-500/10 to-card border-green-500/40 hover:border-green-500/60 transition-all group overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/30 rounded-full blur-3xl group-hover:bg-green-500/40 transition-all" />
-          <div className="absolute bottom-0 left-0 w-20 h-20 bg-green-400/20 rounded-full blur-2xl" />
-          <div className="relative flex items-start justify-between">
-            <div className="space-y-1">
-              <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Global Rank
-              </p>
-              <p className="text-2xl sm:text-3xl font-bold text-green-400">
-                #{user.rank}
-              </p>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-green-300">Top 2%</span>
-              </div>
-            </div>
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-lg shadow-green-500/50 group-hover:scale-110 group-hover:shadow-green-500/70 transition-all">
-              <Trophy className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-            </div>
-          </div>
-        </Card>
+        {/* Global Championship — hero card (col-span-4, row-span-2) */}
+        <SpotlightCard className="md:col-span-4 md:row-span-2 min-h-[420px]">
+          {/* Ambient blobs */}
+          <div
+            className="pointer-events-none absolute -top-24 -left-24 w-[480px] h-[480px] rounded-full"
+            style={{
+              background: "radial-gradient(circle, rgba(94,106,210,0.22) 0%, transparent 70%)",
+              filter: "blur(120px)",
+            }}
+          />
+          <div
+            className="pointer-events-none absolute -bottom-16 -right-16 w-[320px] h-[320px] rounded-full"
+            style={{
+              background: "radial-gradient(circle, rgba(139,92,246,0.15) 0%, transparent 70%)",
+              filter: "blur(100px)",
+            }}
+          />
 
-        <Card className="relative p-4 sm:p-6 bg-gradient-to-br from-purple-500/20 via-purple-500/10 to-card border-purple-500/40 hover:border-purple-500/60 transition-all group overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/30 rounded-full blur-3xl group-hover:bg-purple-500/40 transition-all" />
-          <div className="absolute bottom-0 left-0 w-20 h-20 bg-purple-400/20 rounded-full blur-2xl" />
-          <div className="relative flex items-start justify-between">
-            <div className="space-y-1">
-              <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Active Entries
-              </p>
-              <p className="text-2xl sm:text-3xl font-bold text-foreground">
-                {user.activeDrafts + user.activeContests}
-              </p>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-purple-300 hidden sm:inline">
-                  {user.activeDrafts} drafts, {user.activeContests} contests
+          <div className="relative h-full flex flex-col p-6 sm:p-8">
+            {/* Live pill */}
+            <div className="mb-6">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#5E6AD2]/40 bg-[#5E6AD2]/10 px-3 py-1">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#5E6AD2] opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#5E6AD2]" />
                 </span>
-                <span className="text-xs text-purple-300 sm:hidden">
-                  {user.activeDrafts}D / {user.activeContests}C
+                <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+                  Live Now
                 </span>
               </div>
             </div>
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/50 group-hover:scale-110 group-hover:shadow-purple-500/70 transition-all">
-              <Target className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-            </div>
-          </div>
-        </Card>
 
-        <Card className="relative p-4 sm:p-6 bg-gradient-to-br from-blue-500/20 via-blue-500/10 to-card border-blue-500/40 hover:border-blue-500/60 transition-all group overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/30 rounded-full blur-3xl group-hover:bg-blue-500/40 transition-all" />
-          <div className="absolute bottom-0 left-0 w-20 h-20 bg-blue-400/20 rounded-full blur-2xl" />
-          <div className="relative flex items-start justify-between">
-            <div className="space-y-1">
-              <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Win Rate
-              </p>
-              <p className="text-2xl sm:text-3xl font-bold text-foreground">
-                {user.winRate}%
-              </p>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-blue-300 hidden sm:inline">
-                  {user.wins} of {user.total} wins
-                </span>
-                <span className="text-xs text-blue-300 sm:hidden">
-                  {user.wins}/{user.total}
-                </span>
+            {/* Headline */}
+            <h2
+              className={cn(
+                "text-3xl sm:text-4xl font-semibold tracking-tight mb-4",
+                "bg-gradient-to-b from-[#EDEDEF] to-[#EDEDEF]/70 bg-clip-text text-transparent",
+              )}
+            >
+              Global Championship
+            </h2>
+
+            {/* Body */}
+            <p className="text-[#8A8F98] text-base leading-relaxed max-w-md mb-8">
+              Submit your official picks and compete against the best. One bracket. Everyone plays
+              the same rules.
+            </p>
+
+            {/* Stats row */}
+            <div className="flex flex-wrap gap-6 mb-10">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#5E6AD2]" />
+                <span className="text-sm text-[#8A8F98]">50,234 Entries</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[#5E6AD2]" />
+                <span className="text-sm text-[#8A8F98]">Closes Mar 17</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Star className="w-4 h-4 text-[#5E6AD2]" />
+                <span className="text-sm text-[#8A8F98]">Free to Enter</span>
               </div>
             </div>
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/50 group-hover:scale-110 group-hover:shadow-blue-500/70 transition-all">
-              <Award className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+
+            <div className="mt-auto">
+              <Link
+                href="/global-contest/picks"
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-lg px-5 py-2.5",
+                  "bg-[#5E6AD2] hover:bg-[#6872D9] text-white text-sm font-medium",
+                  "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
+                  "active:scale-[0.98] transition-all duration-200",
+                )}
+              >
+                Enter Your Picks
+                <ArrowRight className="w-4 h-4" />
+              </Link>
             </div>
           </div>
-        </Card>
+        </SpotlightCard>
+
+        {/* Your Standing — col-span-2 */}
+        <SpotlightCard className="md:col-span-2">
+          <div className="h-full p-6 flex flex-col">
+            {/* Label */}
+            <div className="flex items-center gap-2 mb-4">
+              <Trophy className="w-4 h-4 text-[#5E6AD2]" />
+              <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+                Your Standing
+              </span>
+            </div>
+
+            {/* Big rank */}
+            <div className="mb-1">
+              <span className="text-5xl font-semibold text-[#EDEDEF]">#{user.rank}</span>
+            </div>
+            <p className="text-sm text-[#8A8F98] mb-6">
+              of {user.totalPlayers.toLocaleString()}
+            </p>
+
+            {/* Points + percentile row */}
+            <div className="flex items-center justify-between mt-auto">
+              <span className="text-sm text-[#8A8F98]">
+                {user.totalPoints.toLocaleString()} pts
+              </span>
+              <span className="text-sm font-medium text-[#5E6AD2]">
+                Top {percentile}%
+              </span>
+            </div>
+
+            {/* Footer link */}
+            <div className="mt-4 pt-4 border-t border-white/[0.06]">
+              <Link
+                href="/leaderboards"
+                className="text-xs text-[#8A8F98] hover:text-[#EDEDEF] transition-colors duration-200"
+              >
+                View full leaderboard &rarr;
+              </Link>
+            </div>
+          </div>
+        </SpotlightCard>
+
+        {/* Leaderboard Mini — col-span-2 */}
+        <SpotlightCard className="md:col-span-2">
+          <div className="h-full p-6 flex flex-col">
+            {/* Label */}
+            <div className="flex items-center gap-2 mb-4">
+              <Crown className="w-4 h-4 text-[#5E6AD2]" />
+              <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+                Top Players
+              </span>
+            </div>
+
+            {/* Top 3 rows */}
+            <div className="space-y-3 flex-1">
+              {top3.map((player) => (
+                <div key={player.rank} className="flex items-center gap-3">
+                  <MiniRankCircle rank={player.rank} />
+                  <div className="w-6 h-6 rounded-full overflow-hidden border border-white/[0.10] flex-shrink-0">
+                    <ImageWithFallback
+                      src={player.avatar}
+                      alt={player.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <span className="text-sm text-[#EDEDEF] truncate flex-1">{player.name}</span>
+                  <span className="text-xs font-mono text-[#8A8F98] flex-shrink-0">
+                    {player.points.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer link */}
+            <div className="mt-4 pt-4 border-t border-white/[0.06]">
+              <Link
+                href="/leaderboards"
+                className="text-xs text-[#8A8F98] hover:text-[#EDEDEF] transition-colors duration-200"
+              >
+                See all rankings &rarr;
+              </Link>
+            </div>
+          </div>
+        </SpotlightCard>
       </div>
 
-      {/* Global Competition Section */}
-      <Card className="relative overflow-hidden border-2 border-orange-500/50 bg-gradient-to-br from-orange-500/10 via-card to-card">
-        <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent" />
-        <div className="relative p-6 sm:p-8">
-          <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start lg:items-center justify-between">
-            <div className="flex-1 space-y-4">
+      {/* ------------------------------------------------------------------ */}
+      {/* Bento grid — Row 3–4                                                */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+
+        {/* Full Leaderboard — col-span-4, row-span-2 */}
+        <SpotlightCard className="md:col-span-4 md:row-span-2 min-h-[420px]">
+          <div className="h-full p-6 sm:p-8 flex flex-col">
+            {/* Header row */}
+            <div className="flex items-start justify-between mb-6">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-yellow-500 flex items-center justify-center shadow-lg">
-                  <Globe className="w-6 h-6 text-white" />
+                <div className="w-9 h-9 rounded-xl bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 flex items-center justify-center flex-shrink-0">
+                  <Trophy className="w-4 h-4 text-[#5E6AD2]" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-foreground">Global Championship</h2>
-                  <p className="text-sm text-orange-400">
-                    Compete against 50,000+ players worldwide
-                  </p>
+                  <h2 className="text-lg font-semibold tracking-tight text-[#EDEDEF]">
+                    Global Leaderboard
+                  </h2>
+                  <p className="text-xs text-[#8A8F98]">Top players this season</p>
                 </div>
               </div>
-              <p className="text-muted-foreground">
-                Submit your official bracket and compete against the best. Everyone plays with the
-                same rules.
-              </p>
-              <div className="flex flex-wrap gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-orange-400" />
-                  <span className="text-foreground">50,234 Entries</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-orange-400" />
-                  <span className="text-foreground">Closes Mar 17</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Star className="w-4 h-4 text-orange-400" />
-                  <span className="text-foreground">Free to Enter</span>
-                </div>
-              </div>
-            </div>
-            <div className="w-full lg:w-auto">
-              <Button
-                size="lg"
-                asChild
-                className="w-full lg:w-auto bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600 text-white shadow-lg shadow-orange-500/30 h-12 px-8"
-              >
-                <Link href="/global-contest/picks">
-                  Enter Global Picks
-                  <ArrowRight className="ml-2 w-5 h-5" />
-                </Link>
-              </Button>
-              <p className="text-xs text-muted-foreground mt-2 text-center lg:text-left">
-                No entry fee required
-              </p>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Quick Actions */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Join with Code Card */}
-        <Card className="p-6 bg-gradient-to-br from-purple-500/10 via-card to-blue-500/10 border-purple-500/30 hover:border-purple-500/60 transition-all relative overflow-hidden group h-full">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl group-hover:bg-purple-500/30 transition-all" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/20 rounded-full blur-2xl group-hover:bg-blue-500/30 transition-all" />
-
-          <div className="relative h-full flex flex-col">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center shadow-lg">
-                <Lock className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-bold text-foreground text-xl mb-1">Join Private Draft</h3>
-                <p className="text-sm text-muted-foreground">Enter a friend's invite code</p>
-              </div>
-            </div>
-
-            <div className="space-y-3 mb-6">
-              <div className="p-4 rounded-lg bg-background/50 backdrop-blur-sm border border-border space-y-3">
-                <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-purple-400" />
-                  Invite Code
-                </label>
-                <Input
-                  placeholder="e.g. MARCH2026"
-                  value={inviteCode}
-                  onChange={(e) => setInviteCode(e.target.value)}
-                  className="bg-background border-border text-lg font-mono tracking-wider placeholder:tracking-normal placeholder:font-sans"
-                />
-              </div>
-              <Button
-                onClick={handleJoinWithCode}
-                disabled={isPending}
-                className="w-full bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white shadow-lg group-hover:shadow-purple-500/25 transition-all h-11"
-              >
-                {isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Joining...
-                  </>
-                ) : (
-                  <>
-                    Join Draft
-                    <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                  </>
+              <Link
+                href="/leaderboards"
+                className={cn(
+                  "inline-flex items-center gap-1 text-xs text-[#8A8F98] hover:text-[#EDEDEF]",
+                  "px-3 py-1.5 rounded-lg border border-white/[0.06] hover:border-white/[0.10]",
+                  "bg-white/[0.03] hover:bg-white/[0.06] transition-all duration-200",
                 )}
-              </Button>
-            </div>
-
-            <div className="space-y-2 mb-6">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                <span>Instant access to exclusive drafts</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-                <span>Compete with friends and colleagues</span>
-              </div>
-            </div>
-
-            <div className="flex-1" />
-
-            <div className="space-y-4">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border"></div>
-                </div>
-                <div className="relative flex justify-center text-xs">
-                  <span className="bg-card px-3 text-muted-foreground">Don't have a code?</span>
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                className="w-full border-purple-500/30 hover:bg-purple-500/10 hover:border-purple-500/50 group/create"
-                asChild
               >
-                <Link href="/drafts/new">
-                  <Plus className="w-4 h-4 mr-2 group-hover/create:rotate-90 transition-transform" />
-                  Create Your Own Draft
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </Card>
-
-        {/* Browse Public Drafts Card */}
-        <Card className="p-6 bg-gradient-to-br from-orange-500/10 via-card to-purple-500/10 border-orange-500/30 hover:border-orange-500/60 transition-all cursor-pointer group relative overflow-hidden h-full">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/20 rounded-full blur-3xl group-hover:bg-orange-500/30 transition-all" />
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-purple-500/20 rounded-full blur-2xl group-hover:bg-purple-500/30 transition-all" />
-
-          <Link href="/drafts/public" className="relative h-full flex flex-col">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-purple-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                    <Globe className="w-6 h-6 text-white" />
-                  </div>
-                  <Badge className="bg-green-500/10 text-green-400 border-green-500/30">
-                    24 Open Now
-                  </Badge>
-                </div>
-                <h3 className="font-bold text-foreground text-xl mb-1">Browse Public Drafts</h3>
-                <p className="text-sm text-muted-foreground">
-                  Discover and join competitions worldwide
-                </p>
-              </div>
-              <ChevronRight className="w-6 h-6 text-orange-400 group-hover:translate-x-1 transition-all flex-shrink-0 mt-1" />
+                View all
+                <ChevronRight className="w-3 h-3" />
+              </Link>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="p-3 rounded-lg bg-background/50 backdrop-blur-sm border border-border group-hover:border-orange-500/30 transition-all">
-                <div className="flex items-center gap-2 mb-1">
-                  <Flame className="w-4 h-4 text-green-400" />
-                  <span className="text-xs text-muted-foreground">Free Entry</span>
-                </div>
-                <p className="text-lg font-bold text-foreground">12 Drafts</p>
-              </div>
-              <div className="p-3 rounded-lg bg-background/50 backdrop-blur-sm border border-border group-hover:border-orange-500/30 transition-all">
-                <div className="flex items-center gap-2 mb-1">
-                  <Flame className="w-4 h-4 text-orange-400" />
-                  <span className="text-xs text-muted-foreground">Filling Fast</span>
-                </div>
-                <p className="text-lg font-bold text-orange-400">8 Drafts</p>
-              </div>
-            </div>
-
-            <div className="space-y-2 mb-6">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                <span>Filter by entry fee, difficulty & prize pool</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                <span>Join beginner-friendly or expert competitions</span>
-              </div>
-            </div>
-
-            <div className="flex-1" />
-
-            <Button className="w-full bg-gradient-to-r from-orange-500 to-purple-600 hover:from-orange-600 hover:to-purple-700 text-white shadow-lg group-hover:shadow-orange-500/25 transition-all">
-              Explore All Drafts
-              <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-            </Button>
-          </Link>
-        </Card>
-      </div>
-
-      {/* Leaderboard Preview Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-yellow-500/20 to-orange-500/20 flex items-center justify-center">
-              <Trophy className="w-5 h-5 text-yellow-400" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-foreground">Global Leaderboard</h2>
-              <p className="text-sm text-muted-foreground">Top players this season</p>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" asChild className="hover:border-orange-500/50">
-            <Link href="/leaderboards">
-              View Full Leaderboard
-              <ChevronRight className="w-4 h-4 ml-1" />
-            </Link>
-          </Button>
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Top 5 Players */}
-          <Card className="lg:col-span-2 bg-card border-border">
-            <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-foreground">Top Players</h3>
-                <Badge className="bg-orange-500/10 text-orange-400 border-orange-500/30">
-                  Live
-                </Badge>
-              </div>
-
-              <div className="space-y-3">
-                {leaderboard.map((player, idx) => (
+            {/* Player rows */}
+            <div className="space-y-2 flex-1">
+              {leaderboard.map((player) => {
+                const isTop3 = player.rank <= 3;
+                return (
                   <div
                     key={player.rank}
-                    className={`flex items-center gap-4 p-3 rounded-lg transition-all ${
-                      idx < 3
-                        ? "bg-gradient-to-r from-orange-500/5 to-transparent border border-orange-500/20"
-                        : "bg-muted/30 hover:bg-muted/50"
-                    }`}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200",
+                      isTop3
+                        ? "bg-[#5E6AD2]/[0.06] border border-[#5E6AD2]/10"
+                        : "hover:bg-white/[0.04] border border-transparent",
+                    )}
                   >
-                    <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
-                        player.rank === 1
-                          ? "bg-gradient-to-br from-yellow-500 to-yellow-600 text-white"
-                          : player.rank === 2
-                            ? "bg-gradient-to-br from-gray-300 to-gray-400 text-gray-900"
-                            : player.rank === 3
-                              ? "bg-gradient-to-br from-orange-600 to-orange-700 text-white"
-                              : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {player.rank}
-                    </div>
+                    <RankBadge rank={player.rank} />
 
-                    <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-border">
+                    <div className="w-9 h-9 rounded-full overflow-hidden border border-white/[0.10] flex-shrink-0">
                       <ImageWithFallback
                         src={player.avatar}
                         alt={player.name}
@@ -489,79 +447,149 @@ export function DashboardClient({
                       />
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-foreground truncate">{player.name}</p>
-                      <div className="flex items-center gap-2">
-                        <Crown className="w-3 h-3 text-orange-400" />
-                        <span className="text-sm text-orange-400 font-medium">
-                          {player.points.toLocaleString()} pts
-                        </span>
-                      </div>
-                    </div>
+                    <span className="text-sm text-[#EDEDEF] truncate flex-1">{player.name}</span>
 
-                    <div className="flex items-center gap-1">
+                    <span className="text-sm font-mono text-[#8A8F98] flex-shrink-0">
+                      {player.points.toLocaleString()}
+                    </span>
+
+                    <div className="w-4 flex-shrink-0">
                       {player.change === "up" ? (
-                        <TrendingUp className="w-4 h-4 text-green-400" />
+                        <TrendingUp className="w-4 h-4 text-emerald-400" />
                       ) : player.change === "down" ? (
-                        <TrendingUp className="w-4 h-4 text-red-400 rotate-180" />
+                        <TrendingDown className="w-4 h-4 text-red-400" />
                       ) : (
-                        <div className="w-4 h-0.5 bg-muted-foreground" />
+                        <Minus className="w-4 h-4 text-[#8A8F98]" />
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          </Card>
 
-          {/* Your Rank Card */}
-          <Card className="bg-gradient-to-br from-orange-500/10 via-card to-card border-orange-500/30">
-            <div className="p-6 space-y-4">
-              <div className="flex items-center gap-2">
-                <Star className="w-5 h-5 text-orange-400" />
-                <h3 className="font-semibold text-foreground">Your Standing</h3>
-              </div>
-
-              <div className="space-y-6">
-                <div className="text-center p-6 rounded-xl bg-gradient-to-br from-orange-500/20 to-orange-600/10 border border-orange-500/30">
-                  <p className="text-sm text-muted-foreground mb-2">Current Rank</p>
-                  <div className="flex items-baseline justify-center gap-2">
-                    <span className="text-5xl font-bold text-orange-400">#{user.rank}</span>
-                    <span className="text-lg text-muted-foreground">
-                      / {user.totalPlayers.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                    <span className="text-sm text-muted-foreground">Total Points</span>
-                    <span className="font-bold text-foreground">
-                      {user.totalPoints.toLocaleString()}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                    <span className="text-sm text-muted-foreground">Percentile</span>
-                    <span className="font-bold text-green-400">
-                      Top {Math.round((user.rank / user.totalPlayers) * 100)}%
-                    </span>
-                  </div>
-                </div>
-
-                <Button
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-                  asChild
+            {/* "Your position" separator */}
+            <div className="mt-4 pt-4 border-t border-white/[0.06]">
+              <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[#5E6AD2]/[0.06] border border-[#5E6AD2]/20">
+                <div
+                  className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0",
+                    "bg-[#5E6AD2]/20 text-[#5E6AD2] border border-[#5E6AD2]/30",
+                  )}
                 >
-                  <Link href="/leaderboards">
-                    View Detailed Stats
-                    <BarChart3 className="w-4 h-4 ml-2" />
-                  </Link>
-                </Button>
+                  {user.rank}
+                </div>
+
+                <div className="w-9 h-9 rounded-full bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 flex items-center justify-center flex-shrink-0">
+                  <Star className="w-4 h-4 text-[#5E6AD2]" />
+                </div>
+
+                <span className="text-sm text-[#EDEDEF] flex-1">You</span>
+
+                <span className="text-sm font-mono text-[#8A8F98] flex-shrink-0">
+                  {user.totalPoints.toLocaleString()}
+                </span>
+
+                <div className="w-4 flex-shrink-0" />
               </div>
             </div>
-          </Card>
-        </div>
+          </div>
+        </SpotlightCard>
+
+        {/* Join Private Draft — col-span-2 */}
+        <SpotlightCard className="md:col-span-2">
+          <div className="h-full p-6 flex flex-col">
+            {/* Label */}
+            <div className="flex items-center gap-2 mb-4">
+              <Lock className="w-4 h-4 text-[#5E6AD2]" />
+              <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+                Private Draft
+              </span>
+            </div>
+
+            {/* Input + button row */}
+            <div className="flex gap-2 mb-4">
+              <Input
+                placeholder="Invite code"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleJoinWithCode();
+                }}
+                disabled={isPending}
+                className={cn(
+                  "flex-1 font-mono text-sm h-9",
+                  "bg-white/[0.04] border-white/[0.10]",
+                  "focus-visible:border-[#5E6AD2] focus-visible:ring-0",
+                  "placeholder:font-sans placeholder:text-[#8A8F98]",
+                  "text-[#EDEDEF]",
+                )}
+              />
+              <button
+                onClick={handleJoinWithCode}
+                disabled={isPending}
+                aria-label="Join draft"
+                className={cn(
+                  "flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0",
+                  "bg-[#5E6AD2] hover:bg-[#6872D9]",
+                  "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
+                  "active:scale-[0.98] transition-all duration-200",
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                )}
+              >
+                {isPending ? (
+                  <Loader2 className="w-4 h-4 text-white animate-spin" />
+                ) : (
+                  <ArrowRight className="w-4 h-4 text-white" />
+                )}
+              </button>
+            </div>
+
+            {/* Create link */}
+            <div className="mt-auto pt-4 border-t border-white/[0.06]">
+              <Link
+                href="/drafts/new"
+                className="text-xs text-[#8A8F98] hover:text-[#EDEDEF] transition-colors duration-200"
+              >
+                + Create a new draft
+              </Link>
+            </div>
+          </div>
+        </SpotlightCard>
+
+        {/* Browse Public Drafts — col-span-2, full card is a link */}
+        <SpotlightCard className="md:col-span-2 group">
+          <Link href="/drafts/public" className="block h-full">
+            <div className="h-full p-6 flex flex-col">
+              {/* Label + live dot */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-[#5E6AD2]" />
+                  <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+                    Public Drafts
+                  </span>
+                </div>
+                <div className="w-5 h-5 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                  </span>
+                </div>
+              </div>
+
+              {/* Big number */}
+              <div className="flex-1">
+                <p className="text-3xl font-semibold text-[#EDEDEF]">24</p>
+                <p className="text-sm text-[#8A8F98] mt-1">Open drafts</p>
+              </div>
+
+              {/* Footer */}
+              <div className="mt-4 pt-4 border-t border-white/[0.06] flex items-center gap-1">
+                <span className="text-xs text-[#5E6AD2]">Browse all</span>
+                <ChevronRight className="w-3 h-3 text-[#5E6AD2] transition-transform duration-200 group-hover:translate-x-0.5" />
+              </div>
+            </div>
+          </Link>
+        </SpotlightCard>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useRef, useState, type MouseEvent } from "react";
+import { formatMediumDate } from "@/lib/date";
 import { useFormStatus } from "react-dom";
 import {
   Settings as SettingsIcon,
@@ -14,11 +15,11 @@ import {
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { updateProfileAction, type UpdateProfileFormState } from "@/server/actions/users";
+import { cn } from "@/lib/utils";
 
 interface SettingsClientProps {
   initialProfile: {
@@ -31,6 +32,56 @@ interface SettingsClientProps {
   };
 }
 
+// ---------------------------------------------------------------------------
+// SpotlightCard — mouse-tracking radial gradient on card surface
+// ---------------------------------------------------------------------------
+function SpotlightCard({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [opacity, setOpacity] = useState(0);
+
+  function handleMouseMove(e: MouseEvent<HTMLDivElement>) {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  }
+
+  return (
+    <div
+      ref={ref}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setOpacity(1)}
+      onMouseLeave={() => setOpacity(0)}
+      className={cn(
+        "relative overflow-hidden rounded-2xl border border-white/[0.06]",
+        "bg-gradient-to-b from-white/[0.08] to-white/[0.02]",
+        "shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_2px_20px_rgba(0,0,0,0.4),0_0_40px_rgba(0,0,0,0.2)]",
+        "transition-shadow duration-300",
+        "hover:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_8px_40px_rgba(0,0,0,0.5),0_0_80px_rgba(94,106,210,0.1)]",
+        className,
+      )}
+    >
+      {/* Spotlight */}
+      <div
+        className="pointer-events-none absolute inset-0 transition-opacity duration-300"
+        style={{
+          opacity,
+          background: `radial-gradient(300px circle at ${position.x}px ${position.y}px, rgba(94,106,210,0.15), transparent 70%)`,
+        }}
+      />
+      {/* Top edge highlight */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+      {children}
+    </div>
+  );
+}
+
 function SaveButton() {
   const { pending } = useFormStatus();
 
@@ -38,9 +89,23 @@ function SaveButton() {
     <Button
       type="submit"
       disabled={pending}
-      className="bg-orange-500 hover:bg-orange-600 text-white"
+      className={cn(
+        "bg-[#5E6AD2] hover:bg-[#6872D9] text-white font-medium",
+        "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
+        "hover:shadow-[0_0_0_1px_rgba(104,114,217,0.6),0_4px_20px_rgba(94,106,210,0.4),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
+        "active:scale-[0.98]",
+        "transition-all duration-200",
+        "disabled:opacity-60 disabled:cursor-not-allowed",
+      )}
     >
-      {pending ? "Saving..." : "Save Profile"}
+      {pending ? (
+        <>
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          Saving…
+        </>
+      ) : (
+        "Save Profile"
+      )}
     </Button>
   );
 }
@@ -60,11 +125,7 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
   const nextUsernameChangeLabel = useMemo(() => {
     if (!effectiveNextUsernameChangeAt) return null;
 
-    return new Date(effectiveNextUsernameChangeAt).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+    return formatMediumDate(effectiveNextUsernameChangeAt);
   }, [effectiveNextUsernameChangeAt]);
 
   const handleAvatarUpload = async (file: File) => {
@@ -151,65 +212,74 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
 
   return (
     <div className="space-y-8 max-w-3xl">
+      {/* Page header */}
       <div>
         <div className="flex items-center gap-4 mb-2">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-yellow-500 flex items-center justify-center">
-            <SettingsIcon className="w-6 h-6 text-white" />
+          <div className="w-12 h-12 rounded-xl border border-white/10 bg-[#5E6AD2]/10 flex items-center justify-center flex-shrink-0 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]">
+            <SettingsIcon className="w-6 h-6 text-[#5E6AD2]" />
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold">Settings</h1>
+          <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight bg-gradient-to-b from-white via-white/95 to-white/70 bg-clip-text text-transparent">
+            Settings
+          </h1>
         </div>
-        <p className="text-muted-foreground">
+        <p className="text-[#8A8F98] text-sm leading-relaxed pl-16">
           Manage your public profile name and username.
         </p>
       </div>
 
-      <Card className="p-6">
+      {/* Profile card */}
+      <SpotlightCard className="p-6">
+        {/* Card section header */}
         <div className="flex items-start gap-4 mb-6">
-          <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center flex-shrink-0">
-            <User className="w-5 h-5 text-orange-400" />
+          <div className="w-10 h-10 rounded-xl border border-white/10 bg-white/[0.05] flex items-center justify-center flex-shrink-0">
+            <User className="w-5 h-5 text-[#5E6AD2]" />
           </div>
-          <div className="flex-1">
-            <h2 className="text-xl font-bold mb-1">Profile</h2>
-            <p className="text-sm text-muted-foreground">
-              Username rules: 5-20 chars, case-sensitive, letters/numbers/underscores.
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Username changes are limited to once every 30 days.
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight text-[#EDEDEF]">Profile</h2>
+            <p className="text-sm text-[#8A8F98] mt-0.5">
+              Username: 5–20 chars, letters/numbers/underscores. Changes limited to once every 30 days.
             </p>
           </div>
         </div>
 
-        <form action={formAction} className="space-y-4">
+        <form action={formAction} className="space-y-5">
           <input type="hidden" name="image" value={effectiveImageUrl ?? ""} />
 
-          <div className="rounded-lg border border-border bg-background/30 p-4">
+          {/* Avatar section */}
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-              <Avatar className="w-16 h-16 border border-border">
+              <Avatar className="w-16 h-16 border border-white/10 flex-shrink-0">
                 <AvatarImage src={effectiveImageUrl || undefined} alt="Profile photo" />
-                <AvatarFallback>{initials}</AvatarFallback>
+                <AvatarFallback className="bg-[#5E6AD2]/20 text-[#EDEDEF] font-semibold">
+                  {initials}
+                </AvatarFallback>
               </Avatar>
 
               <div className="flex-1 space-y-2">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">Profile Photo</p>
-                  <p className="text-xs text-muted-foreground">
-                    Upload JPG, PNG, or WEBP (max 5MB)
-                  </p>
+                <div>
+                  <p className="text-sm font-medium text-[#EDEDEF]">Profile Photo</p>
+                  <p className="text-xs text-[#8A8F98]">JPG, PNG, or WEBP — max 5 MB</p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Label
                     htmlFor="avatar-upload"
-                    className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors"
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-lg border border-white/10",
+                      "bg-white/[0.05] hover:bg-white/[0.08] px-3 py-2 text-sm text-[#EDEDEF]",
+                      "cursor-pointer transition-colors duration-200",
+                      "shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]",
+                      isUploading && "opacity-60 pointer-events-none",
+                    )}
                   >
                     {isUploading ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Uploading...
+                        <Loader2 className="w-4 h-4 animate-spin text-[#8A8F98]" />
+                        <span className="text-[#8A8F98]">Uploading…</span>
                       </>
                     ) : (
                       <>
-                        <Camera className="w-4 h-4" />
+                        <Camera className="w-4 h-4 text-[#8A8F98]" />
                         Upload Photo
                       </>
                     )}
@@ -222,29 +292,30 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
                     disabled={isUploading}
                     onChange={event => {
                       const file = event.target.files?.[0];
-                      if (file) {
-                        void handleAvatarUpload(file);
-                      }
+                      if (file) void handleAvatarUpload(file);
                       event.currentTarget.value = "";
                     }}
                   />
                   {effectiveImageUrl && (
-                    <Button
+                    <button
                       type="button"
-                      variant="outline"
-                      onClick={() => {
-                        void handleRemoveAvatar();
-                      }}
+                      onClick={() => void handleRemoveAvatar()}
                       disabled={isUploading}
+                      className={cn(
+                        "inline-flex items-center gap-2 rounded-lg border border-white/[0.06]",
+                        "bg-white/[0.03] hover:bg-white/[0.06] px-3 py-2 text-sm text-[#8A8F98]",
+                        "transition-colors duration-200 cursor-pointer",
+                        isUploading && "opacity-60 pointer-events-none",
+                      )}
                     >
                       Remove Photo
-                    </Button>
+                    </button>
                   )}
                 </div>
 
                 {uploadError && (
                   <div className="flex items-center gap-2 text-red-400 text-sm">
-                    <AlertCircle className="w-4 h-4" />
+                    <AlertCircle className="w-4 h-4 shrink-0" />
                     {uploadError}
                   </div>
                 )}
@@ -252,9 +323,10 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
             </div>
           </div>
 
+          {/* Email field */}
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-medium inline-flex items-center gap-2">
-              <Mail className="w-4 h-4 text-muted-foreground" />
+            <Label htmlFor="email" className="text-sm font-medium text-[#8A8F98] inline-flex items-center gap-2">
+              <Mail className="w-4 h-4" />
               Email
             </Label>
             <Input
@@ -262,72 +334,74 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
               type="email"
               value={initialProfile.email ?? ""}
               disabled
-              className="bg-muted/20 border-border text-muted-foreground"
+              className="bg-[#0F0F12] border-white/10 text-[#8A8F98] cursor-not-allowed"
             />
           </div>
 
+          {/* Display name */}
           <div className="space-y-2">
-            <Label htmlFor="name" className="text-sm font-medium">Display Name</Label>
+            <Label htmlFor="name" className="text-sm font-medium text-[#EDEDEF]">Display Name</Label>
             <Input
               id="name"
               name="name"
               type="text"
               defaultValue={state.profile?.name ?? initialProfile.name ?? ""}
               placeholder="Your display name"
-              className="bg-background border-border"
+              className="bg-[#0F0F12] border-white/10 text-[#EDEDEF] placeholder:text-[#8A8F98] focus-visible:border-[#5E6AD2] focus-visible:ring-[#5E6AD2]/30"
             />
             {state.fieldErrors?.name && (
               <div className="flex items-center gap-2 text-red-400 text-sm">
-                <AlertCircle className="w-4 h-4" />
+                <AlertCircle className="w-4 h-4 shrink-0" />
                 {state.fieldErrors.name}
               </div>
             )}
           </div>
 
+          {/* Username */}
           <div className="space-y-2">
-            <Label htmlFor="username" className="text-sm font-medium">Username</Label>
+            <Label htmlFor="username" className="text-sm font-medium text-[#EDEDEF]">Username</Label>
             <Input
               id="username"
               name="username"
               type="text"
               defaultValue={state.profile?.username ?? initialProfile.username ?? ""}
               placeholder="your_username"
-              className="bg-background border-border"
+              className="bg-[#0F0F12] border-white/10 text-[#EDEDEF] placeholder:text-[#8A8F98] focus-visible:border-[#5E6AD2] focus-visible:ring-[#5E6AD2]/30"
             />
             {state.fieldErrors?.username ? (
               <div className="flex items-center gap-2 text-red-400 text-sm">
-                <AlertCircle className="w-4 h-4" />
+                <AlertCircle className="w-4 h-4 shrink-0" />
                 {state.fieldErrors.username}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">
-                Case-sensitive and unique.
-              </p>
+              <p className="text-xs text-[#8A8F98]">Case-sensitive and unique.</p>
             )}
             {!state.fieldErrors?.username && nextUsernameChangeLabel && (
-                <p className="text-xs text-muted-foreground">
-                  Next username change available: {nextUsernameChangeLabel}
-                </p>
+              <p className="text-xs text-[#8A8F98]">
+                Next change available: {nextUsernameChangeLabel}
+              </p>
             )}
           </div>
 
+          {/* Success banner */}
           {state.success && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/30">
-              <CheckCircle className="w-4 h-4 text-green-400" />
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+              <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
               <span className="text-sm text-green-400">Profile updated successfully.</span>
             </div>
           )}
 
+          {/* General error banner */}
           {!state.success && state.error && !state.fieldErrors && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30">
-              <AlertCircle className="w-4 h-4 text-red-400" />
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
               <span className="text-sm text-red-400">{state.error}</span>
             </div>
           )}
 
           <SaveButton />
         </form>
-      </Card>
+      </SpotlightCard>
     </div>
   );
 }
