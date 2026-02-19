@@ -5,9 +5,11 @@ services:
     restart: unless-stopped
     environment:
       DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
     ports:
       - "80:80"
       - "443:443"
+      - "443:443/udp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -15,7 +17,8 @@ services:
     networks:
       - fm-network
     depends_on:
-      - web
+      web:
+        condition: service_healthy
 
   redis:
     image: redis:7-alpine
@@ -51,6 +54,12 @@ services:
         condition: service_healthy
     networks:
       - fm-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   ingest:
     env_file:
@@ -63,7 +72,8 @@ services:
     environment:
       NODE_ENV: production
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     networks:
       - fm-network
 
