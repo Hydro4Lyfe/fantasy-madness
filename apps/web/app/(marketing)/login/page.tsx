@@ -1,58 +1,13 @@
 'use client';
 
-import React, { useState, useRef, type MouseEvent } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { signInWithEmailPassword, signInWithGoogle } from '@/server/actions/auth';
 import { cn } from '@/lib/utils';
-
-// ---------------------------------------------------------------------------
-// SpotlightCard
-// ---------------------------------------------------------------------------
-function SpotlightCard({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [opacity, setOpacity] = useState(0);
-
-  function handleMouseMove(e: MouseEvent<HTMLDivElement>) {
-    if (!ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  }
-
-  return (
-    <div
-      ref={ref}
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => setOpacity(1)}
-      onMouseLeave={() => setOpacity(0)}
-      className={cn(
-        'relative overflow-hidden rounded-2xl border border-white/[0.06]',
-        'bg-gradient-to-b from-white/[0.08] to-white/[0.03]',
-        'shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_4px_40px_rgba(0,0,0,0.5),0_0_60px_rgba(0,0,0,0.3)]',
-        className,
-      )}
-    >
-      <div
-        className="pointer-events-none absolute inset-0 transition-opacity duration-300"
-        style={{
-          opacity,
-          background: `radial-gradient(300px circle at ${position.x}px ${position.y}px, rgba(94,106,210,0.12), transparent 70%)`,
-        }}
-      />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-      {children}
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Google icon SVG
@@ -84,6 +39,7 @@ function GoogleIcon() {
 // Login page
 // ---------------------------------------------------------------------------
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -95,10 +51,14 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const result = await signInWithEmailPassword(email, password);
-      if (result?.error) setError(result.error);
+      if (result?.error) {
+        setError(result.error);
+        setIsLoading(false);
+      } else {
+        router.push('/dashboard');
+      }
     } catch {
       setError('An unexpected error occurred. Please try again.');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -119,43 +79,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050506] text-[#EDEDEF] flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Ambient background */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,#0a0a0f_0%,#050506_50%,#020203_100%)]" />
-        <div
-          className="absolute inset-0 opacity-[0.015]"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='a'%3E%3CfeTurbulence baseFrequency='.75' stitchTiles='stitch' type='fractalNoise'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Cpath d='M0 0h300v300H0z' filter='url(%23a)' opacity='.05'/%3E%3C/svg%3E")`,
-          }}
-        />
-        <div
-          className="absolute top-[-20%] left-[10%] w-[700px] h-[600px] rounded-full opacity-20 blur-[150px]"
-          style={{
-            background: 'radial-gradient(circle, #5E6AD2, transparent 70%)',
-            animation: 'blob-float 10s ease-in-out infinite',
-          }}
-        />
-        <div
-          className="absolute bottom-[-10%] right-[5%] w-[500px] h-[400px] rounded-full opacity-[0.1] blur-[120px]"
-          style={{
-            background: 'radial-gradient(circle, #4338ca, transparent 70%)',
-            animation: 'blob-float 12s ease-in-out infinite reverse',
-          }}
-        />
-      </div>
-
+    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6 relative overflow-hidden">
       <div className="relative z-10 w-full max-w-md">
         {/* Back link */}
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-sm text-[#8A8F98] hover:text-[#EDEDEF] transition-colors mb-8"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-8"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to home
         </Link>
 
-        <SpotlightCard className="p-8">
+        <div className="bg-card border border-border rounded-lg p-8">
           {/* Logo + headline */}
           <div className="flex flex-col items-center mb-8">
             <img
@@ -163,10 +98,10 @@ export default function LoginPage() {
               alt="Fantasy Madness"
               className="h-12 w-auto mb-5"
             />
-            <h1 className="text-2xl font-semibold tracking-tight bg-gradient-to-b from-white to-white/80 bg-clip-text text-transparent">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
               Welcome back
             </h1>
-            <p className="text-sm text-[#8A8F98] mt-1">Sign in to your account</p>
+            <p className="text-sm text-muted-foreground mt-1">Sign in to your account</p>
           </div>
 
           {/* Error */}
@@ -184,9 +119,8 @@ export default function LoginPage() {
             disabled={isLoading}
             className={cn(
               'w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-lg text-sm font-medium',
-              'bg-white/[0.06] hover:bg-white/[0.10] text-[#EDEDEF]',
-              'border border-white/[0.08] hover:border-white/[0.14]',
-              'shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]',
+              'bg-secondary hover:bg-secondary/80 text-foreground',
+              'border border-border hover:border-border/80',
               'transition-all duration-200 active:scale-[0.98]',
               'disabled:opacity-60 disabled:cursor-not-allowed',
             )}
@@ -202,17 +136,17 @@ export default function LoginPage() {
           {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/[0.06]" />
+              <div className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-transparent px-3 text-[#8A8F98]">or continue with email</span>
+              <span className="bg-transparent px-3 text-muted-foreground">or continue with email</span>
             </div>
           </div>
 
           {/* Email/password form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium text-[#EDEDEF]">
+              <Label htmlFor="email" className="text-sm font-medium text-foreground">
                 Email
               </Label>
               <Input
@@ -221,7 +155,7 @@ export default function LoginPage() {
                 placeholder="you@example.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                className="bg-[#0F0F12] border-white/10 text-[#EDEDEF] placeholder:text-[#8A8F98] focus-visible:border-[#5E6AD2] focus-visible:ring-[#5E6AD2]/30"
+                className="bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/30"
                 required
                 disabled={isLoading}
               />
@@ -229,12 +163,12 @@ export default function LoginPage() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-sm font-medium text-[#EDEDEF]">
+                <Label htmlFor="password" className="text-sm font-medium text-foreground">
                   Password
                 </Label>
                 <button
                   type="button"
-                  className="text-xs text-[#5E6AD2] hover:text-[#6872D9] transition-colors"
+                  className="text-xs text-primary hover:text-primary/80 transition-colors"
                   disabled={isLoading}
                 >
                   Forgot password?
@@ -246,7 +180,7 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="bg-[#0F0F12] border-white/10 text-[#EDEDEF] placeholder:text-[#8A8F98] focus-visible:border-[#5E6AD2] focus-visible:ring-[#5E6AD2]/30"
+                className="bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/30"
                 required
                 disabled={isLoading}
               />
@@ -257,8 +191,8 @@ export default function LoginPage() {
               disabled={isLoading}
               className={cn(
                 'w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium text-white',
-                'bg-[#5E6AD2] hover:bg-[#6872D9]',
-                'shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]',
+                'bg-primary hover:bg-primary/90',
+                'shadow-[0_0_0_1px_rgba(59,130,246,0.5),0_4px_12px_rgba(59,130,246,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]',
                 'transition-all duration-200 active:scale-[0.98]',
                 'disabled:opacity-60 disabled:cursor-not-allowed',
               )}
@@ -268,18 +202,18 @@ export default function LoginPage() {
           </form>
 
           {/* Sign up link */}
-          <p className="text-center text-sm text-[#8A8F98] mt-6">
+          <p className="text-center text-sm text-muted-foreground mt-6">
             Don&apos;t have an account?{' '}
             <Link
               href="/signup"
-              className="text-[#5E6AD2] hover:text-[#6872D9] font-medium transition-colors"
+              className="text-primary hover:text-primary/80 font-medium transition-colors"
             >
               Sign up free
             </Link>
           </p>
-        </SpotlightCard>
+        </div>
 
-        <p className="text-center text-xs text-[#8A8F98]/60 mt-5">
+        <p className="text-center text-xs text-muted-foreground/60 mt-5">
           Protected by industry-standard encryption
         </p>
       </div>

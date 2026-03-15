@@ -40,7 +40,7 @@ export async function signInWithEmailPassword(email: string, password: string) {
     return { error: error.message };
   }
 
-  redirect("/");
+  return { success: true };
 }
 
 export async function signUpWithEmailPassword(
