@@ -53,17 +53,34 @@ export async function startDraft(args: {
       throw new DomainError("INVALID_STATE", "Need at least 2 participants to start");
     }
 
-    // 3. Update draft status
+    // 3. Randomize pick order
+    const participantIds = draft.participants.map((p: any) => p.userId);
+    // Fisher-Yates shuffle
+    for (let i = participantIds.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [participantIds[i], participantIds[j]] = [participantIds[j], participantIds[i]];
+    }
+    // Update each participant's pickOrder based on shuffled position
+    await Promise.all(
+      participantIds.map((uid: string, idx: number) =>
+        tx.draftParticipant.update({
+          where: { draftId_userId: { draftId, userId: uid } },
+          data: { pickOrder: idx + 1 },
+        })
+      )
+    );
+
+    // 4. Update draft status
     await tx.draft.update({
       where: { id: draftId },
       data: { status: "DRAFTING" },
     });
 
-    // 4. Initialize timer if enabled
+    // 5. Initialize timer if enabled
     let firstDeadlineAt: Date | null = null;
-    const firstPicker = draft.participants.find((p: any) => p.pickOrder === 1);
+    const firstPicker = participantIds[0]; // pickOrder 1 after shuffle
 
-    if (draft.pickTimerSec && firstPicker) {
+    if (draft.pickTimerSec) {
       const now = new Date();
       firstDeadlineAt = new Date(now.getTime() + draft.pickTimerSec * 1000);
 
@@ -79,7 +96,7 @@ export async function startDraft(args: {
 
     return {
       success: true,
-      firstPickerUserId: firstPicker?.userId ?? draft.participants[0].userId,
+      firstPickerUserId: firstPicker,
       firstDeadlineAt,
     };
   });

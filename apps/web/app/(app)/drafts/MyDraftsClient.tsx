@@ -1,201 +1,312 @@
 "use client";
 
-import { useRef, useState, useTransition, type MouseEvent } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { joinDraftByInviteAction } from "@/server/actions/drafts";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 import {
   Plus,
   KeyRound,
-  Calendar,
   Lock,
   Globe,
-  Archive,
   Loader2,
   ChevronRight,
   Users,
+  Timer,
+  Zap,
+  Search,
+  ArrowRight,
 } from "lucide-react";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Draft {
   id: string;
   name: string;
-  type: "private" | "public";
+  isPrivate: boolean;
   participants: number;
   maxParticipants: number;
-  status: "active" | "draft" | "completed";
-  draftDate: string;
-  startTime: string;
-  myRank: number | null;
-  totalPoints: number;
-  thumbnail: string;
+  status: "OPEN" | "DRAFTING" | "LOCKED" | "COMPLETE";
+  tournamentName: string;
+  tournamentYear: number;
+  pickTimerSec: number | null;
+  lockAt: string | null;
 }
 
 interface MyDraftsClientProps {
   drafts: Draft[];
 }
 
-function SpotlightCard({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [opacity, setOpacity] = useState(0);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-  function handleMouseMove(e: MouseEvent<HTMLDivElement>) {
-    if (!ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  }
-
-  return (
-    <div
-      ref={ref}
-      className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/[0.06]",
-        "bg-gradient-to-b from-white/[0.08] to-white/[0.02]",
-        "shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_2px_20px_rgba(0,0,0,0.4),0_0_40px_rgba(0,0,0,0.2)]",
-        "transition-shadow duration-300",
-        "hover:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_8px_40px_rgba(0,0,0,0.5),0_0_80px_rgba(94,106,210,0.08)]",
-        className,
-      )}
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => setOpacity(1)}
-      onMouseLeave={() => setOpacity(0)}
-    >
-      <div
-        className="pointer-events-none absolute -inset-px transition-opacity duration-300"
-        style={{
-          opacity,
-          background: `radial-gradient(300px circle at ${position.x}px ${position.y}px, rgba(94,106,210,0.12), transparent 80%)`,
-        }}
-      />
-      {children}
-    </div>
-  );
+function formatTimer(seconds: number | null): string {
+  if (!seconds) return "No limit";
+  if (seconds >= 60) return `${Math.floor(seconds / 60)}m ${seconds % 60 ? `${seconds % 60}s` : ""}`;
+  return `${seconds}s`;
 }
 
-function TypeBadge({ type }: { type: "private" | "public" }) {
-  if (type === "private") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-white/[0.10] px-2 py-0.5 text-xs text-[#8A8F98]">
-        <Lock className="w-3 h-3" />
-        Private
-      </span>
-    );
+function mapStatusBadge(status: Draft["status"]): "open" | "drafting" | "locked" | "complete" {
+  switch (status) {
+    case "OPEN": return "open";
+    case "DRAFTING": return "drafting";
+    case "LOCKED": return "locked";
+    case "COMPLETE": return "complete";
   }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-[#5E6AD2]/30 px-2 py-0.5 text-xs text-[#5E6AD2]">
-      <Globe className="w-3 h-3" />
-      Public
-    </span>
-  );
 }
 
-function DraftCard({ draft }: { draft: Draft }) {
-  const isActive = draft.status === "active";
+// ─── Live Draft Card ──────────────────────────────────────────────────────────
+
+function LiveDraftCard({ draft, index }: { draft: Draft; index: number }) {
   const fillPercent = Math.round((draft.participants / draft.maxParticipants) * 100);
 
   return (
-    <Link href={`/drafts/${draft.id}`} className="block group">
-      <SpotlightCard>
-        <div className="p-5 flex flex-col gap-4">
-          {/* Top row: name + badges (stacked) */}
+    <Link
+      href={`/drafts/${draft.id}/room`}
+      className="block group"
+      style={{ animationDelay: `${index * 80}ms` }}
+    >
+      <div className="relative overflow-hidden rounded-xl border border-[#10B981]/40 bg-card hover:border-[#10B981]/70 transition-all duration-300">
+        {/* Animated top accent line */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#10B981] to-transparent" />
+
+        {/* Subtle court-line pattern */}
+        <div className="absolute inset-0 opacity-[0.02]">
+          <div className="absolute top-1/2 left-0 right-0 h-px bg-white" />
+          <div className="absolute top-0 bottom-0 left-1/2 w-px bg-white" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full border border-white" />
+        </div>
+
+        <div className="relative p-5 space-y-4">
+          {/* Header row */}
           <div className="flex items-start justify-between gap-3">
-            <h3 className="font-semibold text-[#EDEDEF] leading-tight line-clamp-2 flex-1">
-              {draft.name}
-            </h3>
-            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-              {isActive && (
-                <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1.5">
+                <StatusBadge status="drafting" />
+                {draft.isPrivate ? (
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> Private
                   </span>
-                  <span className="text-xs font-mono text-emerald-400">Live</span>
-                </div>
-              )}
-              <TypeBadge type={draft.type} />
-            </div>
-          </div>
-
-          {/* Tournament label / draft date */}
-          <p className="text-xs text-[#8A8F98]">{draft.draftDate}</p>
-
-          {/* Stats row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-xs font-mono tracking-widest uppercase text-[#8A8F98] mb-1">
-                Players
-              </p>
-              <p className="text-base font-semibold text-[#EDEDEF]">
-                {draft.participants}
-                <span className="text-[#8A8F98] text-xs">/{draft.maxParticipants}</span>
-              </p>
-              <div className="mt-1.5 h-1 rounded-full bg-white/[0.06]">
-                <div
-                  className="h-1 rounded-full bg-[#5E6AD2]"
-                  style={{ width: `${fillPercent}%` }}
-                />
+                ) : (
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <Globe className="w-2.5 h-2.5" /> Public
+                  </span>
+                )}
               </div>
-            </div>
-            <div>
-              <p className="text-xs font-mono tracking-widest uppercase text-[#8A8F98] mb-1">
-                Start Time
+              <h3 className="font-display text-xl font-bold uppercase tracking-tight text-foreground leading-tight truncate">
+                {draft.name}
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                {draft.tournamentName} &middot; {draft.tournamentYear}
               </p>
-              <p className="text-base font-semibold text-[#EDEDEF]">{draft.startTime}</p>
+            </div>
+
+            {/* Participant count */}
+            <div className="text-right flex-shrink-0">
+              <div className="font-display text-3xl font-extrabold text-[#10B981] leading-none">
+                {draft.participants}
+                <span className="text-lg text-muted-foreground font-semibold">/{draft.maxParticipants}</span>
+              </div>
+              <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground mt-1">Players</p>
             </div>
           </div>
 
-          {/* Footer CTA hint */}
-          <div className="border-t border-white/[0.06] pt-3 flex items-center justify-between">
-            <span className="text-xs text-[#5E6AD2]">
-              {isActive ? "Join Live Draft" : "View Details"}
+          {/* Fill bar */}
+          <div className="space-y-1.5">
+            <div className="h-1.5 rounded-full bg-[#21262D] overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#10B981] to-[#34D399] transition-all duration-500"
+                style={{ width: `${fillPercent}%` }}
+              />
+            </div>
+            {draft.pickTimerSec && (
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <Timer className="w-3 h-3" />
+                <span>{formatTimer(draft.pickTimerSec)} per pick</span>
+              </div>
+            )}
+          </div>
+
+          {/* CTA */}
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-sm font-semibold text-[#10B981] group-hover:text-[#34D399] transition-colors">
+              Enter Draft Room
             </span>
-            <ChevronRight className="w-3.5 h-3.5 text-[#5E6AD2]" />
+            <div className="w-7 h-7 rounded-lg bg-[#10B981]/10 border border-[#10B981]/20 flex items-center justify-center group-hover:bg-[#10B981]/20 transition-colors">
+              <ArrowRight className="w-3.5 h-3.5 text-[#10B981]" />
+            </div>
           </div>
         </div>
-      </SpotlightCard>
+      </div>
     </Link>
   );
 }
 
-function SectionHeader({
-  label,
+// ─── Open Draft Card ──────────────────────────────────────────────────────────
+
+function OpenDraftCard({ draft, index }: { draft: Draft; index: number }) {
+  const fillPercent = Math.round((draft.participants / draft.maxParticipants) * 100);
+  const spotsLeft = draft.maxParticipants - draft.participants;
+  const isAlmostFull = spotsLeft <= 2;
+
+  return (
+    <Link
+      href={`/drafts/${draft.id}`}
+      className="block group"
+      style={{ animationDelay: `${index * 60}ms` }}
+    >
+      <div className="relative overflow-hidden rounded-xl border border-border bg-card hover:border-[#10B981]/30 transition-all duration-300">
+        <div className="p-5 space-y-3.5">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <StatusBadge status="open" />
+                {draft.isPrivate ? (
+                  <Lock className="w-3 h-3 text-muted-foreground" />
+                ) : (
+                  <Globe className="w-3 h-3 text-muted-foreground" />
+                )}
+              </div>
+              <h3 className="font-semibold text-foreground leading-tight truncate text-[15px]">
+                {draft.name}
+              </h3>
+            </div>
+          </div>
+
+          {/* Meta row */}
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span>{draft.tournamentName} {draft.tournamentYear}</span>
+            {draft.pickTimerSec && (
+              <>
+                <span className="w-px h-3 bg-border" />
+                <span className="flex items-center gap-1">
+                  <Timer className="w-3 h-3" />
+                  {formatTimer(draft.pickTimerSec)}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Roster fill */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                {draft.participants}/{draft.maxParticipants} joined
+              </span>
+              <span className={cn(
+                "font-semibold",
+                isAlmostFull ? "text-[#F59E0B]" : "text-muted-foreground",
+              )}>
+                {isAlmostFull ? `${spotsLeft} spot${spotsLeft === 1 ? "" : "s"} left!` : `${fillPercent}%`}
+              </span>
+            </div>
+            <div className="h-1 rounded-full bg-[#21262D] overflow-hidden">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-500",
+                  isAlmostFull
+                    ? "bg-gradient-to-r from-[#F59E0B] to-[#FBBF24]"
+                    : "bg-[#10B981]",
+                )}
+                style={{ width: `${fillPercent}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between pt-0.5">
+            <span className="text-xs text-[#10B981] font-medium group-hover:text-[#34D399] transition-colors">
+              View Details
+            </span>
+            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-[#10B981] transition-colors" />
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+// ─── Completed Draft Row ──────────────────────────────────────────────────────
+
+function CompletedDraftRow({ draft }: { draft: Draft }) {
+  return (
+    <Link
+      href={`/drafts/${draft.id}`}
+      className="flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors group"
+    >
+      {/* Name + meta */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-foreground truncate">{draft.name}</p>
+        <p className="text-[11px] text-muted-foreground">
+          {draft.tournamentName} {draft.tournamentYear}
+        </p>
+      </div>
+
+      {/* Players */}
+      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground flex-shrink-0">
+        <Users className="w-3 h-3" />
+        <span className="font-mono">{draft.participants}/{draft.maxParticipants}</span>
+      </div>
+
+      {/* Privacy */}
+      <div className="hidden sm:block flex-shrink-0">
+        {draft.isPrivate ? (
+          <Lock className="w-3 h-3 text-muted-foreground" />
+        ) : (
+          <Globe className="w-3 h-3 text-muted-foreground" />
+        )}
+      </div>
+
+      {/* Status */}
+      <StatusBadge status="complete" className="flex-shrink-0" />
+
+      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors flex-shrink-0" />
+    </Link>
+  );
+}
+
+// ─── Section Header ───────────────────────────────────────────────────────────
+
+function SectionHeading({
+  title,
   count,
-  variant,
+  accent,
+  dot,
 }: {
-  label: string;
+  title: string;
   count: number;
-  variant: "live" | "scheduled" | "finished";
+  accent: string;
+  dot?: boolean;
 }) {
   return (
     <div className="flex items-center gap-2.5 mb-4">
-      {variant === "live" && (
+      {dot && (
         <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+          <span
+            className="absolute inline-flex h-full w-full rounded-full opacity-75"
+            style={{ backgroundColor: accent, animation: "pulse-live 2s ease-in-out infinite" }}
+          />
+          <span
+            className="relative inline-flex rounded-full h-2 w-2"
+            style={{ backgroundColor: accent }}
+          />
         </span>
       )}
-      {variant === "scheduled" && (
-        <Calendar className="w-4 h-4 text-[#5E6AD2]" />
-      )}
-      {variant === "finished" && (
-        <Archive className="w-4 h-4 text-[#8A8F98]" />
-      )}
-      <h2 className="text-sm font-semibold text-[#EDEDEF] tracking-tight">{label}</h2>
-      <span className="bg-white/[0.06] text-[#8A8F98] rounded-full px-2 py-0.5 text-xs font-mono">
+      <h2 className="font-display text-sm font-bold uppercase tracking-wide text-foreground">
+        {title}
+      </h2>
+      <span className="bg-[#21262D] text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold">
         {count}
       </span>
     </div>
   );
 }
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export function MyDraftsClient({ drafts }: MyDraftsClientProps) {
   const [joinCode, setJoinCode] = useState("");
@@ -225,184 +336,178 @@ export function MyDraftsClient({ drafts }: MyDraftsClientProps) {
     });
   };
 
-  const activeDrafts = drafts.filter((d) => d.status === "active");
-  const upcomingDrafts = drafts.filter((d) => d.status === "draft");
-  const completedDrafts = drafts.filter((d) => d.status === "completed");
-
-  const subtitleParts: string[] = [];
-  if (activeDrafts.length > 0)
-    subtitleParts.push(`${activeDrafts.length} active`);
-  if (upcomingDrafts.length > 0)
-    subtitleParts.push(`${upcomingDrafts.length} scheduled`);
-  if (completedDrafts.length > 0)
-    subtitleParts.push(`${completedDrafts.length} completed`);
+  const liveDrafts = drafts.filter((d) => d.status === "DRAFTING");
+  const openDrafts = drafts.filter((d) => d.status === "OPEN");
+  const lockedDrafts = drafts.filter((d) => d.status === "LOCKED");
+  const completedDrafts = [...lockedDrafts, ...drafts.filter((d) => d.status === "COMPLETE")];
 
   return (
     <div className="space-y-8">
-      {/* Page header */}
-      <div>
-        <h1
-          className={cn(
-            "text-3xl font-bold tracking-tight",
-            "bg-gradient-to-b from-[#EDEDEF] to-[#EDEDEF]/70 bg-clip-text text-transparent",
-          )}
+      {/* ── Page Header ───────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5 mb-1">
+            <Zap className="w-5 h-5 text-[#10B981]" />
+            <h1 className="font-display text-3xl font-extrabold uppercase tracking-tight text-foreground leading-none">
+              My Drafts
+            </h1>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {drafts.length === 0
+              ? "Create or join a draft to start competing"
+              : `${liveDrafts.length > 0 ? `${liveDrafts.length} live` : ""}${liveDrafts.length > 0 && openDrafts.length > 0 ? " \u00b7 " : ""}${openDrafts.length > 0 ? `${openDrafts.length} open` : ""}${(liveDrafts.length > 0 || openDrafts.length > 0) && completedDrafts.length > 0 ? " \u00b7 " : ""}${completedDrafts.length > 0 ? `${completedDrafts.length} completed` : ""}`
+            }
+          </p>
+        </div>
+
+        {/* Browse Public link */}
+        <Link
+          href="/drafts/public"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
-          Drafts
-        </h1>
-        {subtitleParts.length > 0 ? (
-          <p className="mt-1 text-sm text-[#8A8F98]">{subtitleParts.join(" · ")}</p>
-        ) : (
-          <p className="mt-1 text-sm text-[#8A8F98]">No drafts yet</p>
-        )}
+          <Search className="w-3.5 h-3.5" />
+          Browse Public Drafts
+          <ChevronRight className="w-3 h-3" />
+        </Link>
       </div>
 
-      {/* Action bar */}
-      <SpotlightCard>
-        <div className="p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-          {/* Create Draft */}
-          <Link
-            href="/drafts/new"
-            className={cn(
-              "inline-flex items-center justify-center gap-2 h-9 px-4 rounded-lg text-sm font-medium text-white",
-              "bg-[#5E6AD2] hover:bg-[#6872D9]",
-              "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
-              "transition-colors duration-150 flex-shrink-0",
-            )}
-          >
-            <Plus className="w-4 h-4" />
-            Create New Draft
-          </Link>
-
-          {/* Divider */}
-          <div className="hidden sm:block w-px bg-white/[0.06] self-stretch" />
-
-          {/* Join with code */}
-          <div className="flex-1 flex items-center gap-2">
-            <KeyRound className="w-4 h-4 text-[#5E6AD2] flex-shrink-0" />
-            <Input
-              placeholder="Invite code..."
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleJoinWithCode();
-              }}
-              className="flex-1 h-9 bg-white/[0.04] border-white/[0.10] focus-visible:border-[#5E6AD2] focus-visible:ring-0 text-[#EDEDEF] placeholder:text-[#8A8F98] font-mono text-sm"
-            />
-            <button
-              onClick={handleJoinWithCode}
-              disabled={isPending}
-              className={cn(
-                "h-9 px-4 rounded-lg bg-[#5E6AD2] hover:bg-[#6872D9] text-white text-sm font-medium flex-shrink-0",
-                "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
-                "transition-colors duration-150",
-                "disabled:opacity-50 disabled:cursor-not-allowed",
-                "inline-flex items-center gap-1.5",
-              )}
-            >
-              {isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                "Join"
-              )}
-            </button>
-          </div>
-        </div>
-      </SpotlightCard>
-
-      {/* Empty state */}
-      {drafts.length === 0 && (
-        <SpotlightCard>
-          <div className="py-16 px-8 flex flex-col items-center text-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 flex items-center justify-center">
-              <Users className="w-6 h-6 text-[#5E6AD2]" />
+      {/* ── Action Bar ────────────────────────────────────────────────── */}
+      <div className="grid sm:grid-cols-2 gap-3">
+        {/* Create Draft */}
+        <Link
+          href="/drafts/new"
+          className="group relative overflow-hidden rounded-xl border-2 border-dashed border-[#10B981]/30 bg-[#10B981]/[0.04] hover:border-[#10B981]/60 hover:bg-[#10B981]/[0.08] transition-all duration-300 p-4"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-[#10B981]/10 border border-[#10B981]/20 flex items-center justify-center group-hover:bg-[#10B981]/20 transition-colors">
+              <Plus className="w-5 h-5 text-[#10B981]" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-[#EDEDEF] mb-1">No Drafts Yet</h3>
-              <p className="text-sm text-[#8A8F98] max-w-xs">
-                Create a new draft or join one with an invite code to get started.
+              <p className="text-sm font-semibold text-foreground">Create New Draft</p>
+              <p className="text-xs text-muted-foreground">Set up a draft and invite friends</p>
+            </div>
+          </div>
+        </Link>
+
+        {/* Join with Code */}
+        <div className="relative rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-[#21262D] border border-border flex items-center justify-center flex-shrink-0">
+              <KeyRound className="w-4 h-4 text-[#10B981]" />
+            </div>
+            <div className="flex-1 flex items-center gap-2">
+              <Input
+                placeholder="Enter invite code..."
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleJoinWithCode();
+                }}
+                className="flex-1 h-9 bg-[#21262D] border-border focus-visible:border-[#10B981] focus-visible:ring-0 text-foreground placeholder:text-muted-foreground font-mono text-sm"
+              />
+              <button
+                onClick={handleJoinWithCode}
+                disabled={isPending}
+                className={cn(
+                  "h-9 px-4 rounded-lg bg-[#10B981] hover:bg-[#10B981]/90 text-white text-sm font-semibold flex-shrink-0",
+                  "transition-colors duration-150",
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                  "inline-flex items-center gap-1.5",
+                )}
+              >
+                {isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  "Join"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Empty State ───────────────────────────────────────────────── */}
+      {drafts.length === 0 && (
+        <div className="relative overflow-hidden rounded-xl border border-border bg-card">
+          {/* Faint court lines */}
+          <div className="absolute inset-0 opacity-[0.015]">
+            <div className="absolute top-1/2 left-0 right-0 h-px bg-white" />
+            <div className="absolute top-0 bottom-0 left-1/2 w-px bg-white" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full border border-white" />
+          </div>
+
+          <div className="relative py-16 px-8 flex flex-col items-center text-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-[#10B981]/10 border border-[#10B981]/20 flex items-center justify-center">
+              <Zap className="w-7 h-7 text-[#10B981]" />
+            </div>
+            <div>
+              <h3 className="font-display text-lg font-bold uppercase tracking-tight text-foreground mb-1">
+                No Drafts Yet
+              </h3>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                Create a new draft and invite friends, or join an existing one with an invite code.
               </p>
             </div>
-            <Link
-              href="/drafts/new"
-              className={cn(
-                "inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium text-white mt-2",
-                "bg-[#5E6AD2] hover:bg-[#6872D9]",
-                "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
-                "transition-colors duration-150",
-              )}
-            >
-              <Plus className="w-4 h-4" />
-              Create New Draft
-            </Link>
+            <div className="flex gap-3 mt-2">
+              <Link
+                href="/drafts/new"
+                className={cn(
+                  "inline-flex items-center gap-2 h-9 px-5 rounded-lg text-sm font-semibold text-white",
+                  "bg-[#10B981] hover:bg-[#10B981]/90",
+                  "transition-colors duration-150",
+                )}
+              >
+                <Plus className="w-4 h-4" />
+                Create Draft
+              </Link>
+              <Link
+                href="/drafts/public"
+                className={cn(
+                  "inline-flex items-center gap-2 h-9 px-5 rounded-lg text-sm font-semibold",
+                  "border border-border text-muted-foreground hover:text-foreground hover:bg-accent",
+                  "transition-colors duration-150",
+                )}
+              >
+                Browse Public
+              </Link>
+            </div>
           </div>
-        </SpotlightCard>
+        </div>
       )}
 
-      {/* Live Now section */}
-      {activeDrafts.length > 0 && (
+      {/* ── Live Now ──────────────────────────────────────────────────── */}
+      {liveDrafts.length > 0 && (
         <section>
-          <SectionHeader label="Live Now" count={activeDrafts.length} variant="live" />
+          <SectionHeading title="Live Now" count={liveDrafts.length} accent="#10B981" dot />
           <div className="grid sm:grid-cols-2 gap-4">
-            {activeDrafts.map((draft) => (
-              <DraftCard key={draft.id} draft={draft} />
+            {liveDrafts.map((draft, i) => (
+              <LiveDraftCard key={draft.id} draft={draft} index={i} />
             ))}
           </div>
         </section>
       )}
 
-      {/* Scheduled section */}
-      {upcomingDrafts.length > 0 && (
+      {/* ── Open & Waiting ────────────────────────────────────────────── */}
+      {openDrafts.length > 0 && (
         <section>
-          <SectionHeader label="Scheduled" count={upcomingDrafts.length} variant="scheduled" />
+          <SectionHeading title="Open &amp; Waiting" count={openDrafts.length} accent="#10B981" />
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {upcomingDrafts.map((draft) => (
-              <DraftCard key={draft.id} draft={draft} />
+            {openDrafts.map((draft, i) => (
+              <OpenDraftCard key={draft.id} draft={draft} index={i} />
             ))}
           </div>
         </section>
       )}
 
-      {/* Finished section — compact row list */}
+      {/* ── Completed ─────────────────────────────────────────────────── */}
       {completedDrafts.length > 0 && (
         <section>
-          <SectionHeader label="Finished" count={completedDrafts.length} variant="finished" />
-          <SpotlightCard>
-            <div className="divide-y divide-white/[0.04]">
-              {completedDrafts.map((draft) => (
-                <Link
-                  key={draft.id}
-                  href={`/drafts/${draft.id}`}
-                  className="flex items-center gap-3 px-5 py-3.5 hover:bg-white/[0.04] transition-colors"
-                >
-                  {/* Archive icon */}
-                  <div className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/[0.06] flex items-center justify-center flex-shrink-0">
-                    <Archive className="w-3.5 h-3.5 text-[#8A8F98]" />
-                  </div>
-
-                  {/* Name + date */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-[#EDEDEF] truncate">{draft.name}</p>
-                    <p className="text-xs text-[#8A8F98]">{draft.draftDate}</p>
-                  </div>
-
-                  {/* Type badge */}
-                  <div className="hidden sm:block flex-shrink-0">
-                    <TypeBadge type={draft.type} />
-                  </div>
-
-                  {/* Players */}
-                  <div className="text-right hidden sm:block flex-shrink-0">
-                    <p className="text-xs text-[#8A8F98] font-mono">
-                      {draft.participants}/{draft.maxParticipants}
-                    </p>
-                  </div>
-
-                  {/* Chevron */}
-                  <ChevronRight className="w-4 h-4 text-[#8A8F98] flex-shrink-0" />
-                </Link>
-              ))}
-            </div>
-          </SpotlightCard>
+          <SectionHeading title="Completed" count={completedDrafts.length} accent="#8B949E" />
+          <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
+            {completedDrafts.map((draft) => (
+              <CompletedDraftRow key={draft.id} draft={draft} />
+            ))}
+          </div>
         </section>
       )}
     </div>

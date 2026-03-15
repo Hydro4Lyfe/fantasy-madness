@@ -9,13 +9,14 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
+        display: ["Barlow Condensed", "Impact", "sans-serif"],
       },
       colors: {
         dark: {
-          900: "#0A0E1A",
-          800: "#111827",
-          700: "#1F2937",
-          600: "#374151",
+          900: "#0d1117",
+          800: "#161B22",
+          700: "#21262D",
+          600: "#30363D",
         },
       },
     },

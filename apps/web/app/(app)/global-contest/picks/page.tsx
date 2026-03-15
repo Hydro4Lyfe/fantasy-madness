@@ -32,5 +32,20 @@ export default async function GlobalPicksPage({
     );
   }
 
+  if (!picksState.bracketLocked) {
+    return (
+      <Card className="p-10 text-center space-y-4">
+        <h1 className="text-2xl font-bold">Bracket Not Yet Available</h1>
+        <p className="text-muted-foreground">
+          The bracket hasn&apos;t been announced yet. Picks will open once the
+          bracket is locked after Selection Sunday.
+        </p>
+        <Button asChild>
+          <Link href="/global-contest">Back to Global Contest</Link>
+        </Button>
+      </Card>
+    );
+  }
+
   return <GlobalPicksClient picksState={picksState} />;
 }

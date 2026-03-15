@@ -1,12 +1,12 @@
 "use client";
 
-import { useActionState, useRef, useState, type MouseEvent } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, parseISO, startOfDay } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { formatLongDate } from "@/lib/date";
 import {
@@ -27,60 +27,9 @@ import {
   type CreateDraftFormState,
 } from "@/server/actions/createDraft";
 
-interface Tournament {
-  id: string;
-  seasonYear: number;
-  name: string;
-  startDate: string | null;
-}
-
 interface CreateDraftPageProps {
-  tournaments: Tournament[];
-}
-
-// ---------------------------------------------------------------------------
-// SpotlightCard — matches the pattern used across the app
-// ---------------------------------------------------------------------------
-function SpotlightCard({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [opacity, setOpacity] = useState(0);
-
-  function handleMouseMove(e: MouseEvent<HTMLDivElement>) {
-    if (!ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  }
-
-  return (
-    <div
-      ref={ref}
-      className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/[0.06]",
-        "bg-gradient-to-b from-white/[0.08] to-white/[0.02]",
-        "shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_2px_20px_rgba(0,0,0,0.4),0_0_40px_rgba(0,0,0,0.2)]",
-        className,
-      )}
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => setOpacity(1)}
-      onMouseLeave={() => setOpacity(0)}
-    >
-      <div
-        className="pointer-events-none absolute -inset-px transition-opacity duration-300"
-        style={{
-          opacity,
-          background: `radial-gradient(300px circle at ${position.x}px ${position.y}px, rgba(94,106,210,0.12), transparent 80%)`,
-        }}
-      />
-      {children}
-    </div>
-  );
+  tournamentId: string;
+  tournamentLabel: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -89,10 +38,10 @@ function SpotlightCard({
 function SectionLabel({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 mb-5">
-      <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+      <span className="text-xs font-mono tracking-widest uppercase text-muted-foreground font-display">
         {label}
       </span>
-      <div className="flex-1 h-px bg-gradient-to-r from-white/[0.06] to-transparent" />
+      <div className="flex-1 h-px bg-border" />
     </div>
   );
 }
@@ -133,27 +82,27 @@ function ToggleRow({
       htmlFor={id}
       className={cn(
         "flex items-center justify-between gap-4 px-4 py-3.5 rounded-xl cursor-pointer",
-        "border border-white/[0.06] bg-white/[0.02]",
-        "transition-colors duration-150 hover:bg-white/[0.04] hover:border-white/[0.10]",
+        "border border-border bg-card",
+        "transition-colors duration-150 hover:bg-accent hover:border-border/80",
       )}
     >
       <div className="flex items-center gap-3 min-w-0">
         <div
           className={cn(
             "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-            "border border-white/[0.08]",
+            "border border-border",
             checked
-              ? "bg-[#5E6AD2]/15 border-[#5E6AD2]/30"
-              : "bg-white/[0.04]",
+              ? "bg-primary/15 border-primary/30"
+              : "bg-secondary/50",
           )}
         >
           {icon}
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium text-[#EDEDEF] leading-tight">
+          <p className="text-sm font-medium text-foreground leading-tight">
             {label}
           </p>
-          <p className="text-xs text-[#8A8F98] mt-0.5 leading-snug">
+          <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
             {description}
           </p>
         </div>
@@ -162,7 +111,7 @@ function ToggleRow({
         id={id}
         checked={checked}
         onCheckedChange={onCheckedChange}
-        className="flex-shrink-0 data-[state=checked]:bg-[#5E6AD2]"
+        className="flex-shrink-0 data-[state=checked]:bg-primary"
       />
     </label>
   );
@@ -180,7 +129,7 @@ function RevealPanel({
 }) {
   if (!visible) return null;
   return (
-    <div className="mt-2 ml-11 pl-4 border-l border-[#5E6AD2]/20">
+    <div className="mt-2 ml-11 pl-4 border-l border-primary/20">
       {children}
     </div>
   );
@@ -198,8 +147,7 @@ function SubmitButton() {
       className={cn(
         "flex-1 inline-flex items-center justify-center gap-2 h-10 px-5 rounded-lg",
         "text-sm font-medium text-white",
-        "bg-[#5E6AD2] hover:bg-[#6872D9]",
-        "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
+        "bg-primary hover:bg-primary/90",
         "transition-colors duration-150 active:scale-[0.98]",
         "disabled:opacity-50 disabled:cursor-not-allowed",
       )}
@@ -228,9 +176,9 @@ function StyledInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
       {...props}
       className={cn(
         "w-full h-10 px-3 rounded-lg text-sm",
-        "bg-[#0F0F12] border border-white/[0.10]",
-        "text-[#EDEDEF] placeholder:text-[#8A8F98]",
-        "focus:outline-none focus:border-[#5E6AD2] focus:ring-2 focus:ring-[#5E6AD2]/20",
+        "bg-input border border-border",
+        "text-foreground placeholder:text-muted-foreground",
+        "focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20",
         "transition-colors duration-150",
         "[color-scheme:dark]",
         props.className,
@@ -242,7 +190,7 @@ function StyledInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
 // ---------------------------------------------------------------------------
 // Main page component
 // ---------------------------------------------------------------------------
-export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
+export function CreateDraftPage({ tournamentId, tournamentLabel }: CreateDraftPageProps) {
   const initialState: CreateDraftFormState = { success: false };
   const [state, formAction] = useActionState(createDraftAction, initialState);
 
@@ -252,15 +200,6 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>("12:00");
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [selectedTournamentId, setSelectedTournamentId] = useState(
-    tournaments[0]?.id ?? ""
-  );
-
-  const selectedTournament = tournaments.find((t) => t.id === selectedTournamentId);
-  // End of allowed range — the day the tournament starts (inclusive)
-  const tournamentStartDate = selectedTournament?.startDate
-    ? startOfDay(parseISO(selectedTournament.startDate))
-    : undefined;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -268,7 +207,7 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
       {/* Back link */}
       <Link
         href="/drafts"
-        className="inline-flex items-center gap-1.5 text-sm text-[#8A8F98] hover:text-[#EDEDEF] transition-colors duration-150"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors duration-150"
       >
         <ArrowLeft className="w-4 h-4" />
         Back to Drafts
@@ -276,15 +215,10 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
 
       {/* Page title */}
       <div>
-        <h1
-          className={cn(
-            "text-3xl font-semibold tracking-tight",
-            "bg-gradient-to-b from-[#EDEDEF] to-[#EDEDEF]/70 bg-clip-text text-transparent",
-          )}
-        >
+        <h1 className="text-3xl font-semibold tracking-tight font-display uppercase tracking-wide text-foreground">
           New Draft
         </h1>
-        <p className="mt-1 text-sm text-[#8A8F98]">
+        <p className="mt-1 text-sm text-muted-foreground">
           Configure a snake draft for up to 8 participants
         </p>
       </div>
@@ -303,7 +237,7 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
       )}
 
       {/* Form card */}
-      <SpotlightCard>
+      <div className="bg-card border border-border rounded-lg">
         <form action={formAction} className="p-6 space-y-8">
           {/* Hidden: always SNAKE */}
           <input type="hidden" name="draftType" value="SNAKE" />
@@ -322,7 +256,7 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
             />
           )}
 
-          {/* ── BASICS ────────────────────────────────────────────── */}
+          {/* -- BASICS -------------------------------------------------- */}
           <section className="space-y-4">
             <SectionLabel label="Basics" />
 
@@ -330,10 +264,10 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
             <div>
               <label
                 htmlFor="name"
-                className="block text-xs font-medium text-[#8A8F98] mb-1.5"
+                className="block text-xs font-medium text-muted-foreground mb-1.5"
               >
                 Draft Name
-                <span className="text-[#5E6AD2] ml-0.5">*</span>
+                <span className="text-primary ml-0.5">*</span>
               </label>
               <StyledInput
                 id="name"
@@ -350,77 +284,46 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
               <FieldError error={state.fieldErrors?.name} />
             </div>
 
-            {/* Tournament select */}
+            {/* Tournament (auto-selected) */}
             <div>
               <label
-                htmlFor="tournamentId"
-                className="block text-xs font-medium text-[#8A8F98] mb-1.5"
+                className="block text-xs font-medium text-muted-foreground mb-1.5"
               >
                 Tournament
-                <span className="text-[#5E6AD2] ml-0.5">*</span>
               </label>
-              {tournaments.length === 0 ? (
-                <div
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-xl",
-                    "bg-amber-500/[0.06] border border-amber-500/20",
-                  )}
-                >
-                  <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                  <p className="text-sm text-amber-400">
-                    No tournaments available yet. A tournament must be synced before drafts can be created.
-                  </p>
-                </div>
-              ) : (
-                <select
-                  id="tournamentId"
-                  name="tournamentId"
-                  value={selectedTournamentId}
-                  onChange={(e) => {
-                    setSelectedTournamentId(e.target.value);
-                    setSelectedDate(undefined); // reset date when tournament changes
-                  }}
-                  className={cn(
-                    "w-full h-10 px-3 rounded-lg text-sm appearance-none",
-                    "bg-[#0F0F12] border border-white/[0.10]",
-                    "text-[#EDEDEF]",
-                    "focus:outline-none focus:border-[#5E6AD2] focus:ring-2 focus:ring-[#5E6AD2]/20",
-                    "transition-colors duration-150",
-                    state.fieldErrors?.tournamentId
-                      ? "border-red-500/60"
-                      : undefined,
-                  )}
-                >
-                  {tournaments.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} {t.seasonYear}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <FieldError error={state.fieldErrors?.tournamentId} />
+              <input type="hidden" name="tournamentId" value={tournamentId} />
+              <div
+                className={cn(
+                  "w-full h-10 px-3 rounded-lg text-sm",
+                  "bg-input border border-border",
+                  "text-foreground",
+                  "flex items-center",
+                )}
+              >
+                {tournamentLabel}
+              </div>
             </div>
 
             {/* Static Snake Draft row */}
             <div
               className={cn(
                 "flex items-center gap-3 px-4 py-3.5 rounded-xl",
-                "border border-[#5E6AD2]/20 bg-[#5E6AD2]/[0.04]",
+                "border border-primary/20 bg-primary/[0.04]",
               )}
             >
-              <div className="w-8 h-8 rounded-lg bg-[#5E6AD2]/15 border border-[#5E6AD2]/30 flex items-center justify-center flex-shrink-0">
-                <Repeat className="w-4 h-4 text-[#5E6AD2]" />
+              <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center flex-shrink-0">
+                <Repeat className="w-4 h-4 text-primary" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-[#EDEDEF] leading-tight">
+                <p className="text-sm font-medium text-foreground leading-tight">
                   Snake Draft
                 </p>
-                <p className="text-xs text-[#8A8F98] mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   Pick order reverses each round (1–8, 8–1, …)
                 </p>
               </div>
               <div className="ml-auto flex-shrink-0">
-                <span className="inline-flex items-center gap-1 rounded-full border border-[#5E6AD2]/30 bg-[#5E6AD2]/10 px-2.5 py-0.5 text-xs font-mono text-[#5E6AD2]">
+                <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-mono text-primary">
                   <CheckCircle className="w-3 h-3" />
                   Selected
                 </span>
@@ -428,7 +331,7 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
             </div>
           </section>
 
-          {/* ── SETTINGS ──────────────────────────────────────────── */}
+          {/* -- SETTINGS ------------------------------------------------ */}
           <section className="space-y-3">
             <SectionLabel label="Settings" />
 
@@ -437,9 +340,9 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
               id="isPrivate-toggle"
               icon={
                 isPrivate ? (
-                  <Lock className="w-4 h-4 text-[#5E6AD2]" />
+                  <Lock className="w-4 h-4 text-primary" />
                 ) : (
-                  <Globe className="w-4 h-4 text-[#8A8F98]" />
+                  <Globe className="w-4 h-4 text-muted-foreground" />
                 )
               }
               label={isPrivate ? "Private Draft" : "Public Draft"}
@@ -460,7 +363,7 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
                   <Clock
                     className={cn(
                       "w-4 h-4",
-                      showTimer ? "text-[#5E6AD2]" : "text-[#8A8F98]",
+                      showTimer ? "text-primary" : "text-muted-foreground",
                     )}
                   />
                 }
@@ -473,10 +376,10 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
                 <div className="py-3">
                   <label
                     htmlFor="pickTimerSec"
-                    className="block text-xs font-medium text-[#8A8F98] mb-1.5"
+                    className="block text-xs font-medium text-muted-foreground mb-1.5"
                   >
                     Seconds per pick
-                    <span className="ml-1 text-[#8A8F98]/60">(30 – 300)</span>
+                    <span className="ml-1 text-muted-foreground/60">(30 – 300)</span>
                   </label>
                   <StyledInput
                     id="pickTimerSec"
@@ -500,7 +403,7 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
                   <CalendarIcon
                     className={cn(
                       "w-4 h-4",
-                      showStartAt ? "text-[#5E6AD2]" : "text-[#8A8F98]",
+                      showStartAt ? "text-primary" : "text-muted-foreground",
                     )}
                   />
                 }
@@ -511,7 +414,7 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
               />
               <RevealPanel visible={showStartAt}>
                 <div className="py-3">
-                  <label className="block text-xs font-medium text-[#8A8F98] mb-1.5">
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">
                     Start Date &amp; Time
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -522,31 +425,30 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
                           type="button"
                           className={cn(
                             "flex-1 min-w-[180px] h-10 px-3 rounded-lg text-sm text-left",
-                            "bg-[#0F0F12] border border-white/[0.10]",
+                            "bg-input border border-border",
                             "flex items-center gap-2",
-                            "focus:outline-none focus:border-[#5E6AD2] focus:ring-2 focus:ring-[#5E6AD2]/20",
-                            "hover:border-white/[0.16]",
+                            "focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20",
+                            "hover:border-border/80",
                             "transition-colors duration-150",
-                            selectedDate ? "text-[#EDEDEF]" : "text-[#8A8F98]",
+                            selectedDate ? "text-foreground" : "text-muted-foreground",
                           )}
                         >
-                          <CalendarIcon className="w-4 h-4 text-[#8A8F98] flex-shrink-0" />
+                          <CalendarIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                           <span className="truncate">
                             {selectedDate ? formatLongDate(selectedDate) : "Pick a date"}
                           </span>
                         </button>
                       </PopoverTrigger>
                       <PopoverContent
-                        className="w-auto p-0 border border-white/[0.08] rounded-2xl bg-[#0F0F12] shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_8px_40px_rgba(0,0,0,0.5),0_0_80px_rgba(94,106,210,0.1)]"
+                        className="w-auto p-0 border border-border rounded-2xl bg-card shadow-lg"
                         align="start"
                       >
-                        {/* Override CSS variables so the calendar renders with our accent color
-                            instead of the dark theme's --primary (#00FF66 neon green). */}
+                        {/* Override CSS variables so the calendar renders with our accent color */}
                         <div
                           style={{
-                            "--primary": "#5E6AD2",
+                            "--primary": "#3B82F6",
                             "--primary-foreground": "#ffffff",
-                            "--ring": "#5E6AD2",
+                            "--ring": "#3B82F6",
                           } as React.CSSProperties}
                         >
                           <Calendar
@@ -556,13 +458,8 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
                               setSelectedDate(d);
                               setCalendarOpen(false);
                             }}
-                            disabled={(date) => {
-                              if (date < startOfDay(new Date())) return true;
-                              if (tournamentStartDate && date > tournamentStartDate) return true;
-                              return false;
-                            }}
+                            disabled={(date) => date < startOfDay(new Date())}
                             fromDate={startOfDay(new Date())}
-                            toDate={tournamentStartDate}
                             initialFocus
                           />
                         </div>
@@ -576,10 +473,10 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
                       onChange={(e) => setSelectedTime(e.target.value)}
                       className={cn(
                         "w-32 h-10 px-3 rounded-lg text-sm",
-                        "bg-[#0F0F12] border border-white/[0.10]",
-                        "text-[#EDEDEF]",
-                        "focus:outline-none focus:border-[#5E6AD2] focus:ring-2 focus:ring-[#5E6AD2]/20",
-                        "hover:border-white/[0.16]",
+                        "bg-input border border-border",
+                        "text-foreground",
+                        "focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20",
+                        "hover:border-border/80",
                         "transition-colors duration-150",
                         "[color-scheme:dark]",
                       )}
@@ -588,7 +485,7 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
 
                   {/* Validation hint — shown only when no date is selected yet */}
                   {!selectedDate && (
-                    <p className="mt-1.5 text-xs text-[#8A8F98]">
+                    <p className="mt-1.5 text-xs text-muted-foreground">
                       Select a date and time for the draft to begin.
                     </p>
                   )}
@@ -599,30 +496,30 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
             </div>
           </section>
 
-          {/* ── INFO CALLOUT ──────────────────────────────────────── */}
+          {/* -- INFO CALLOUT -------------------------------------------- */}
           <div
             className={cn(
               "flex gap-3 px-4 py-3.5 rounded-xl",
-              "bg-[#5E6AD2]/[0.06] border border-[#5E6AD2]/20",
+              "bg-primary/[0.06] border border-primary/20",
             )}
           >
-            <Info className="w-4 h-4 text-[#5E6AD2] flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-[#8A8F98] leading-relaxed">
+            <Info className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground leading-relaxed">
               After creating, you&apos;ll receive an invite code to share with
               participants. They can join via the Drafts page or a direct link.
               A minimum of 8 participants is required to start.
             </p>
           </div>
 
-          {/* ── ACTIONS ───────────────────────────────────────────── */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-white/[0.06]">
+          {/* -- ACTIONS ------------------------------------------------- */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-border">
             <Link
               href="/drafts"
               className={cn(
                 "flex-1 inline-flex items-center justify-center h-10 px-5 rounded-lg",
-                "text-sm font-medium text-[#8A8F98]",
-                "bg-white/[0.03] border border-white/[0.08]",
-                "hover:bg-white/[0.06] hover:text-[#EDEDEF] hover:border-white/[0.12]",
+                "text-sm font-medium text-muted-foreground",
+                "bg-secondary/50 border border-border",
+                "hover:bg-accent hover:text-foreground hover:border-border/80",
                 "transition-colors duration-150",
               )}
             >
@@ -631,12 +528,12 @@ export function CreateDraftPage({ tournaments }: CreateDraftPageProps) {
             <SubmitButton />
           </div>
         </form>
-      </SpotlightCard>
+      </div>
 
       {/* Subtle users hint beneath card */}
       <div className="flex items-center justify-center gap-2 pb-8">
-        <Users className="w-3.5 h-3.5 text-[#8A8F98]" />
-        <p className="text-xs text-[#8A8F98]">
+        <Users className="w-3.5 h-3.5 text-muted-foreground" />
+        <p className="text-xs text-muted-foreground">
           Requires 8 participants to begin drafting
         </p>
       </div>

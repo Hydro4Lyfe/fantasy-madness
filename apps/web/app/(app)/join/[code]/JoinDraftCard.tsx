@@ -51,7 +51,7 @@ export function JoinDraftCard({ draft, inviteCode }: JoinDraftCardProps) {
         </div>
         <h1 className="text-2xl font-bold text-foreground">{draft.name}</h1>
         <p className="text-sm text-muted-foreground">
-          {draft.tournamentName} {draft.tournamentYear}
+          {draft.tournamentName}
         </p>
         {draft.hostName && (
           <p className="text-sm text-muted-foreground">

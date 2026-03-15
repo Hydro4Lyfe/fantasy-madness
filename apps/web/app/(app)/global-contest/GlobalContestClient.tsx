@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type MouseEvent } from "react";
 import { cn } from "@/lib/utils";
 import { formatShortDate } from "@/lib/date";
 import type { GlobalContestOverviewDTO } from "@/server/dal/queries/globalContests.getOverview";
@@ -22,53 +21,6 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-
-// ---------------------------------------------------------------------------
-// SpotlightCard — mouse-tracking radial gradient on card surface
-// ---------------------------------------------------------------------------
-function SpotlightCard({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [opacity, setOpacity] = useState(0);
-
-  function handleMouseMove(e: MouseEvent<HTMLDivElement>) {
-    if (!ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  }
-
-  return (
-    <div
-      ref={ref}
-      className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/[0.06]",
-        "bg-gradient-to-b from-white/[0.08] to-white/[0.02]",
-        "shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_2px_20px_rgba(0,0,0,0.4),0_0_40px_rgba(0,0,0,0.2)]",
-        "transition-shadow duration-300",
-        "hover:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_8px_40px_rgba(0,0,0,0.5),0_0_80px_rgba(94,106,210,0.08)]",
-        className,
-      )}
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => setOpacity(1)}
-      onMouseLeave={() => setOpacity(0)}
-    >
-      <div
-        className="pointer-events-none absolute -inset-px transition-opacity duration-300"
-        style={{
-          opacity,
-          background: `radial-gradient(300px circle at ${position.x}px ${position.y}px, rgba(94,106,210,0.12), transparent 80%)`,
-        }}
-      />
-      {children}
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // RankBadge
@@ -94,7 +46,7 @@ function RankBadge({ rank }: { rank: number }) {
         3
       </div>
     );
-  return <div className={cn(base, "bg-white/[0.06] text-[#8A8F98]")}>{rank}</div>;
+  return <div className={cn(base, "bg-secondary/50 text-muted-foreground")}>{rank}</div>;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,22 +62,17 @@ export function GlobalContestClient({ data }: { data: GlobalContestOverviewDTO }
       {/* Page header                                                          */}
       {/* ------------------------------------------------------------------ */}
       <div className="space-y-2">
-        <div className="inline-flex items-center gap-2 rounded-full border border-[#5E6AD2]/40 bg-[#5E6AD2]/10 px-3 py-1">
-          <Globe className="w-3.5 h-3.5 text-[#5E6AD2]" />
-          <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+        <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1">
+          <Globe className="w-3.5 h-3.5 text-primary" />
+          <span className="text-xs font-mono tracking-widest uppercase text-muted-foreground">
             Global Contest
           </span>
         </div>
-        <h1
-          className={cn(
-            "text-3xl sm:text-4xl font-semibold tracking-tight",
-            "bg-gradient-to-b from-[#EDEDEF] to-[#EDEDEF]/70 bg-clip-text text-transparent",
-          )}
-        >
+        <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight font-display uppercase tracking-wide text-foreground">
           Global Championship
         </h1>
-        <p className="text-sm text-[#8A8F98]">
-          {data.tournamentName} {data.seasonYear} &middot; Compete against players worldwide
+        <p className="text-sm text-muted-foreground">
+          {data.tournamentName} &middot; Compete against players worldwide
         </p>
       </div>
 
@@ -135,23 +82,7 @@ export function GlobalContestClient({ data }: { data: GlobalContestOverviewDTO }
       <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
 
         {/* Hero card — col-span-4 */}
-        <SpotlightCard className="md:col-span-4 min-h-[320px]">
-          {/* Ambient blobs */}
-          <div
-            className="pointer-events-none absolute -top-24 -left-24 w-[480px] h-[480px] rounded-full"
-            style={{
-              background: "radial-gradient(circle, rgba(94,106,210,0.22) 0%, transparent 70%)",
-              filter: "blur(120px)",
-            }}
-          />
-          <div
-            className="pointer-events-none absolute -bottom-16 -right-16 w-[320px] h-[320px] rounded-full"
-            style={{
-              background: "radial-gradient(circle, rgba(139,92,246,0.15) 0%, transparent 70%)",
-              filter: "blur(100px)",
-            }}
-          />
-
+        <div className="bg-card border border-border rounded-lg md:col-span-4 min-h-[320px]">
           <div className="relative h-full flex flex-col p-6 sm:p-8">
             {/* Status pill */}
             <div className="mb-6">
@@ -166,11 +97,11 @@ export function GlobalContestClient({ data }: { data: GlobalContestOverviewDTO }
                   </span>
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.10] bg-white/[0.04] px-3 py-1">
+                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary/50 px-3 py-1">
                   <span className="relative flex h-2 w-2">
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#8A8F98]" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-muted-foreground" />
                   </span>
-                  <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+                  <span className="text-xs font-mono tracking-widest uppercase text-muted-foreground">
                     Locked
                   </span>
                 </div>
@@ -178,7 +109,7 @@ export function GlobalContestClient({ data }: { data: GlobalContestOverviewDTO }
             </div>
 
             {/* Description */}
-            <p className="text-[#8A8F98] text-base leading-relaxed max-w-md mb-8">
+            <p className="text-muted-foreground text-base leading-relaxed max-w-md mb-8">
               Submit your 8-slot bracket before the tournament starts. You can edit picks any
               time while the contest is open. Points are awarded for each correct pick as the
               tournament progresses.
@@ -187,46 +118,55 @@ export function GlobalContestClient({ data }: { data: GlobalContestOverviewDTO }
             {/* Stats row */}
             <div className="flex flex-wrap gap-6 mb-10">
               <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#5E6AD2]" />
-                <span className="text-sm text-[#8A8F98]">
+                <Users className="w-4 h-4 text-primary" />
+                <span className="text-sm text-muted-foreground">
                   {data.totalEntries.toLocaleString()} Entries
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-[#5E6AD2]" />
-                <span className="text-sm text-[#8A8F98]">Closes {entryDeadline}</span>
+                <Clock className="w-4 h-4 text-primary" />
+                <span className="text-sm text-muted-foreground">Closes {entryDeadline}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-[#5E6AD2]" />
-                <span className="text-sm text-[#8A8F98]">Starts {tournamentStart}</span>
+                <Calendar className="w-4 h-4 text-primary" />
+                <span className="text-sm text-muted-foreground">Starts {tournamentStart}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 text-[#5E6AD2]" />
-                <span className="text-sm text-[#8A8F98]">Free to Enter</span>
+                <Star className="w-4 h-4 text-primary" />
+                <span className="text-sm text-muted-foreground">Free to Enter</span>
               </div>
             </div>
 
             {/* CTA */}
             <div className="mt-auto">
-              {data.isOpen ? (
+              {data.isOpen && data.bracketLocked ? (
                 <Link
                   href="/global-contest/picks"
                   className={cn(
                     "inline-flex items-center gap-2 rounded-lg px-5 py-2.5",
-                    "bg-[#5E6AD2] hover:bg-[#6872D9] text-white text-sm font-medium",
-                    "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
+                    "bg-primary hover:bg-primary/90 text-white text-sm font-medium",
                     "active:scale-[0.98] transition-all duration-200",
                   )}
                 >
                   {data.hasEntered ? "Edit My Bracket" : "Create My Bracket"}
                   <ArrowRight className="w-4 h-4" />
                 </Link>
+              ) : !data.bracketLocked ? (
+                <div
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-lg px-5 py-2.5",
+                    "bg-secondary/50 text-muted-foreground text-sm font-medium cursor-not-allowed",
+                    "border border-border",
+                  )}
+                >
+                  Bracket Not Yet Available
+                </div>
               ) : (
                 <div
                   className={cn(
                     "inline-flex items-center gap-2 rounded-lg px-5 py-2.5",
-                    "bg-white/[0.04] text-[#8A8F98] text-sm font-medium cursor-not-allowed",
-                    "border border-white/[0.06]",
+                    "bg-secondary/50 text-muted-foreground text-sm font-medium cursor-not-allowed",
+                    "border border-border",
                   )}
                 >
                   Contest Locked
@@ -234,16 +174,16 @@ export function GlobalContestClient({ data }: { data: GlobalContestOverviewDTO }
               )}
             </div>
           </div>
-        </SpotlightCard>
+        </div>
 
         {/* Right column — col-span-2 */}
         <div className="md:col-span-2 flex flex-col gap-4">
           {/* Entry Status card */}
-          <SpotlightCard className="flex-1">
+          <div className="bg-card border border-border rounded-lg flex-1">
             <div className="h-full p-6 flex flex-col">
               <div className="flex items-center gap-2 mb-4">
-                <Trophy className="w-4 h-4 text-[#5E6AD2]" />
-                <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+                <Trophy className="w-4 h-4 text-primary" />
+                <span className="text-xs font-mono tracking-widest uppercase text-muted-foreground">
                   Entry Status
                 </span>
               </div>
@@ -254,28 +194,28 @@ export function GlobalContestClient({ data }: { data: GlobalContestOverviewDTO }
                     <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-1">
                       <CheckCircle className="w-5 h-5 text-emerald-400" />
                     </div>
-                    <p className="text-sm font-semibold text-[#EDEDEF]">Entered</p>
-                    <p className="text-xs text-[#8A8F98]">Your bracket is submitted</p>
+                    <p className="text-sm font-semibold text-foreground">Entered</p>
+                    <p className="text-xs text-muted-foreground">Your bracket is submitted</p>
                   </>
                 ) : (
                   <>
-                    <div className="w-10 h-10 rounded-full bg-white/[0.04] border border-white/[0.10] flex items-center justify-center mb-1">
-                      <Trophy className="w-5 h-5 text-[#8A8F98]" />
+                    <div className="w-10 h-10 rounded-full bg-secondary/50 border border-border flex items-center justify-center mb-1">
+                      <Trophy className="w-5 h-5 text-muted-foreground" />
                     </div>
-                    <p className="text-sm font-semibold text-[#EDEDEF]">Not Entered</p>
-                    <p className="text-xs text-[#8A8F98]">Submit a bracket to compete</p>
+                    <p className="text-sm font-semibold text-foreground">Not Entered</p>
+                    <p className="text-xs text-muted-foreground">Submit a bracket to compete</p>
                   </>
                 )}
               </div>
             </div>
-          </SpotlightCard>
+          </div>
 
           {/* Your Rank card */}
-          <SpotlightCard className="flex-1">
+          <div className="bg-card border border-border rounded-lg flex-1">
             <div className="h-full p-6 flex flex-col">
               <div className="flex items-center gap-2 mb-4">
-                <Star className="w-4 h-4 text-[#5E6AD2]" />
-                <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+                <Star className="w-4 h-4 text-primary" />
+                <span className="text-xs font-mono tracking-widest uppercase text-muted-foreground">
                   Your Rank
                 </span>
               </div>
@@ -285,48 +225,48 @@ export function GlobalContestClient({ data }: { data: GlobalContestOverviewDTO }
                   className={cn(
                     "text-5xl font-semibold mb-1",
                     data.yourRank
-                      ? "bg-gradient-to-b from-[#EDEDEF] to-[#EDEDEF]/70 bg-clip-text text-transparent"
-                      : "text-[#8A8F98]",
+                      ? "text-foreground"
+                      : "text-muted-foreground",
                   )}
                 >
                   {data.yourRank ? `#${data.yourRank}` : "—"}
                 </p>
-                <p className="text-xs text-[#8A8F98]">
+                <p className="text-xs text-muted-foreground">
                   {data.hasEntered
                     ? `${data.yourPoints.toLocaleString()} pts`
                     : "Submit your bracket to start competing"}
                 </p>
               </div>
 
-              <div className="mt-4 pt-4 border-t border-white/[0.06]">
+              <div className="mt-4 pt-4 border-t border-border">
                 <Link
                   href="/leaderboards"
-                  className="text-xs text-[#8A8F98] hover:text-[#EDEDEF] transition-colors duration-200"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors duration-200"
                 >
                   View full leaderboard &rarr;
                 </Link>
               </div>
             </div>
-          </SpotlightCard>
+          </div>
         </div>
       </div>
 
       {/* ------------------------------------------------------------------ */}
       {/* Full-width leaderboard section                                       */}
       {/* ------------------------------------------------------------------ */}
-      <SpotlightCard>
+      <div className="bg-card border border-border rounded-lg">
         <div className="p-6 sm:p-8 flex flex-col">
           {/* Header row */}
           <div className="flex items-start justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 flex items-center justify-center flex-shrink-0">
-                <Crown className="w-4 h-4 text-[#5E6AD2]" />
+              <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+                <Crown className="w-4 h-4 text-primary" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold tracking-tight text-[#EDEDEF]">
+                <h2 className="text-lg font-semibold tracking-tight font-display uppercase tracking-wide text-foreground">
                   Top 10 Leaders
                 </h2>
-                <p className="text-xs text-[#8A8F98]">
+                <p className="text-xs text-muted-foreground">
                   {data.totalEntries.toLocaleString()} players competing
                 </p>
               </div>
@@ -334,9 +274,9 @@ export function GlobalContestClient({ data }: { data: GlobalContestOverviewDTO }
             <Link
               href="/leaderboards"
               className={cn(
-                "inline-flex items-center gap-1 text-xs text-[#8A8F98] hover:text-[#EDEDEF]",
-                "px-3 py-1.5 rounded-lg border border-white/[0.06] hover:border-white/[0.10]",
-                "bg-white/[0.03] hover:bg-white/[0.06] transition-all duration-200",
+                "inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground",
+                "px-3 py-1.5 rounded-lg border border-border hover:border-border/80",
+                "bg-secondary/50 hover:bg-accent transition-all duration-200",
               )}
             >
               View all
@@ -346,8 +286,8 @@ export function GlobalContestClient({ data }: { data: GlobalContestOverviewDTO }
 
           {/* Player rows / empty state */}
           {data.topPlayers.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-white/[0.10] p-10 text-center">
-              <p className="text-sm text-[#8A8F98]">
+            <div className="rounded-xl border border-dashed border-border p-10 text-center">
+              <p className="text-sm text-muted-foreground">
                 Leaderboard will appear after players submit picks.
               </p>
             </div>
@@ -361,19 +301,19 @@ export function GlobalContestClient({ data }: { data: GlobalContestOverviewDTO }
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200",
                       isTop3
-                        ? "bg-[#5E6AD2]/[0.06] border border-[#5E6AD2]/10"
-                        : "hover:bg-white/[0.04] border border-transparent",
+                        ? "bg-primary/[0.06] border border-primary/10"
+                        : "hover:bg-accent border border-transparent",
                     )}
                   >
                     <RankBadge rank={player.rank} />
 
-                    <span className="text-sm text-[#EDEDEF] truncate flex-1">
+                    <span className="text-sm text-foreground truncate flex-1">
                       {player.name}
                     </span>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <Crown className="w-3.5 h-3.5 text-[#5E6AD2]" />
-                      <span className="text-sm font-mono text-[#8A8F98]">
+                      <Crown className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-sm font-mono text-muted-foreground">
                         {player.points.toLocaleString()}
                       </span>
                     </div>
@@ -383,7 +323,7 @@ export function GlobalContestClient({ data }: { data: GlobalContestOverviewDTO }
             </div>
           )}
         </div>
-      </SpotlightCard>
+      </div>
     </div>
   );
 }

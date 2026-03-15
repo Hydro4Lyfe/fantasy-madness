@@ -11,14 +11,15 @@ import { log } from "../logger.js";
 import { runSyncOnce } from "../sync.js";
 
 /**
- * Compute current season year for March Madness.
- * - Jul-Dec -> next calendar year (upcoming tournament)
- * - Jan-Jun -> current calendar year (current tournament cycle)
+ * Compute BallDontLie season year for March Madness.
+ * BDL uses academic-year start: season 2025 = 2025-26 school year = March 2026 tournament.
+ * - Jul-Dec -> current calendar year (e.g., Oct 2025 → season 2025)
+ * - Jan-Jun -> previous calendar year (e.g., Mar 2026 → season 2025)
  */
 function computeSeasonYear(now = new Date()): number {
   const month = now.getMonth() + 1; // 1-12
   const year = now.getFullYear();
-  return month >= 7 ? year + 1 : year;
+  return month >= 7 ? year : year - 1;
 }
 
 /**
@@ -53,6 +54,7 @@ export async function bracketSyncHandler(job: any) {
       name: `NCAA Tournament ${seasonYear}`,
       startDate: null,
       endDate: null,
+      picksLockAt: null,
       payloadRaw: {
         source: "bootstrap",
         reason: "no-active-tournament",

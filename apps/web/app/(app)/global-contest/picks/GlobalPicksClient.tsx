@@ -147,7 +147,7 @@ export function GlobalPicksClient({ picksState }: GlobalPicksClientProps) {
           Pick Your 8 Teams
         </h1>
         <p className="text-sm text-[#8A8F98]">
-          Select 8 teams for {picksState.tournamentName} {picksState.seasonYear}. You
+          Select 8 teams for {picksState.tournamentName}. You
           can edit until {lockLabel}.
         </p>
       </div>

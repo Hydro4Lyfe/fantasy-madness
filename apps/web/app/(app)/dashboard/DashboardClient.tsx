@@ -1,57 +1,46 @@
 "use client";
 
-import { useState, useRef, useTransition, type MouseEvent } from "react";
+import { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
-import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
 import {
-  Trophy,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   Globe,
   Crown,
-  Star,
   ChevronRight,
   ArrowRight,
-  Clock,
-  Users,
   Lock,
   Loader2,
+  Target,
+  Zap,
+  Shield,
+  Plus,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { joinDraftByInviteAction } from "@/server/actions/drafts";
 import { cn } from "@/lib/utils";
+import { SportCard } from "@/components/shared/SportCard";
+import { StatBlock } from "@/components/shared/StatBlock";
+import { StatusBadge } from "@/components/shared/StatusBadge";
+import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export interface Pick {
+  id: string;
+  seed: number;
+  teamName: string;
+  quadrant: string;
+  status: "alive" | "eliminated" | "pending";
+  wins: number;
+  points: number;
+}
 
 interface LeaderboardEntry {
   rank: number;
   name: string;
   points: number;
-  change: "up" | "down" | "same";
-  avatar: string;
-}
-
-interface Draft {
-  id: string;
-  name: string;
-  type: "private" | "public";
-  participants: number;
-  maxParticipants: number;
-  status: "active" | "draft" | "completed";
-  draftDate: string;
-  myRank: number | null;
-}
-
-interface Contest {
-  id: string;
-  name: string;
-  type: "private" | "public";
-  participants: number;
-  maxParticipants: number;
-  status: "active" | "draft" | "completed";
-  startDate: string;
-  myRank: number;
 }
 
 interface DashboardClientProps {
@@ -61,77 +50,30 @@ interface DashboardClientProps {
     rank: number;
     totalPlayers: number;
     activeDrafts: number;
-    activeContests: number;
-    winRate: number;
-    wins: number;
-    total: number;
   };
+  picks: Pick[];
   leaderboard: LeaderboardEntry[];
-  drafts: Draft[];
-  contests: Contest[];
+  activeLeagues: number;
+  tournamentName: string | null;
+  seasonYear: number;
+  hasContest: boolean;
+  bracketLocked: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// SpotlightCard — mouse-tracking radial gradient on card surface
-// ---------------------------------------------------------------------------
-function SpotlightCard({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [opacity, setOpacity] = useState(0);
+// ─── Rank Badge ───────────────────────────────────────────────────────────────
 
-  function handleMouseMove(e: MouseEvent<HTMLDivElement>) {
-    if (!ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  }
-
-  return (
-    <div
-      ref={ref}
-      className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/[0.06]",
-        "bg-gradient-to-b from-white/[0.08] to-white/[0.02]",
-        "shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_2px_20px_rgba(0,0,0,0.4),0_0_40px_rgba(0,0,0,0.2)]",
-        "transition-shadow duration-300",
-        "hover:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_8px_40px_rgba(0,0,0,0.5),0_0_80px_rgba(94,106,210,0.08)]",
-        className,
-      )}
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => setOpacity(1)}
-      onMouseLeave={() => setOpacity(0)}
-    >
-      <div
-        className="pointer-events-none absolute -inset-px transition-opacity duration-300"
-        style={{
-          opacity,
-          background: `radial-gradient(300px circle at ${position.x}px ${position.y}px, rgba(94,106,210,0.12), transparent 80%)`,
-        }}
-      />
-      {children}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Rank badge helper used in the leaderboard section
-// ---------------------------------------------------------------------------
 function RankBadge({ rank }: { rank: number }) {
-  const base = "w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0";
+  const base =
+    "w-7 h-7 rounded-md flex items-center justify-center font-bold text-xs flex-shrink-0";
   if (rank === 1)
     return (
-      <div className={cn(base, "bg-gradient-to-br from-yellow-400 to-yellow-600 text-[#050506]")}>
+      <div className={cn(base, "bg-gradient-to-br from-yellow-400 to-yellow-600 text-black")}>
         1
       </div>
     );
   if (rank === 2)
     return (
-      <div className={cn(base, "bg-gradient-to-br from-slate-300 to-slate-400 text-[#050506]")}>
+      <div className={cn(base, "bg-gradient-to-br from-slate-300 to-slate-400 text-black")}>
         2
       </div>
     );
@@ -141,49 +83,130 @@ function RankBadge({ rank }: { rank: number }) {
         3
       </div>
     );
+  return <div className={cn(base, "bg-secondary text-muted-foreground")}>{rank}</div>;
+}
+
+// ─── Pick Card ────────────────────────────────────────────────────────────────
+
+function PickCard({ pick }: { pick: Pick }) {
+  const isEmpty = !pick.teamName;
+  const isAlive = pick.status === "alive";
+  const isEliminated = pick.status === "eliminated";
+
+  if (isEmpty) {
+    return (
+      <div className="relative h-full min-h-[140px] rounded-lg border border-dashed border-border bg-secondary/30 flex flex-col items-center justify-center gap-2">
+        <Plus className="w-5 h-5 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">
+          Empty slot
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <div className={cn(base, "bg-white/[0.06] text-[#8A8F98]")}>{rank}</div>
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-lg border transition-all duration-200",
+        isAlive && "border-l-2 border-l-[#10B981] border-t-border border-r-border border-b-border bg-card",
+        isEliminated && "border-l-2 border-l-[#F85149] border-t-border border-r-border border-b-border bg-card opacity-60",
+        pick.status === "pending" && !isEmpty && "border-border bg-card",
+      )}
+    >
+      <div className="p-3 flex flex-col h-full min-h-[140px]">
+        {/* Header: seed badge + status */}
+        <div className="flex items-start justify-between mb-2">
+          <div
+            className={cn(
+              "w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold flex-shrink-0",
+              isAlive
+                ? "bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30"
+                : "bg-secondary text-muted-foreground border border-border",
+            )}
+          >
+            {pick.seed}
+          </div>
+          {isAlive && <StatusBadge status="live" />}
+          {isEliminated && <StatusBadge status="eliminated" />}
+        </div>
+
+        {/* Team name + quadrant */}
+        <div className="flex-1">
+          <p
+            className={cn(
+              "text-sm font-semibold leading-tight",
+              isAlive ? "text-foreground" : "text-muted-foreground",
+              isEliminated && "line-through",
+            )}
+          >
+            {pick.teamName}
+          </p>
+          <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground mt-1">
+            {pick.quadrant}
+          </p>
+        </div>
+
+        {/* Footer: wins + points */}
+        <div className="mt-2 pt-2 border-t border-border flex items-end justify-between">
+          <span className="text-xs text-muted-foreground">{pick.wins}W</span>
+          <div className="text-right">
+            <span
+              className={cn(
+                "font-display text-lg font-bold",
+                isAlive ? "text-foreground" : "text-muted-foreground",
+              )}
+            >
+              {pick.points}
+            </span>
+            <span className="text-xs text-muted-foreground ml-0.5">pts</span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Mini rank indicator (circled number) for the top-players mini card
-// ---------------------------------------------------------------------------
-function MiniRankCircle({ rank }: { rank: number }) {
-  const base =
-    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0";
-  if (rank === 1)
-    return <div className={cn(base, "bg-yellow-400/20 text-yellow-400 border border-yellow-400/30")}>{rank}</div>;
-  if (rank === 2)
-    return <div className={cn(base, "bg-slate-400/20 text-slate-300 border border-slate-400/30")}>{rank}</div>;
-  return (
-    <div className={cn(base, "bg-amber-600/20 text-amber-500 border border-amber-600/30")}>{rank}</div>
-  );
-}
+// ─── Main Component ───────────────────────────────────────────────────────────
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
 export function DashboardClient({
   user,
+  picks,
   leaderboard,
+  activeLeagues,
+  tournamentName,
+  seasonYear,
+  hasContest,
+  bracketLocked,
 }: DashboardClientProps) {
   const [inviteCode, setInviteCode] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const router = useRouter();
 
-  const percentile = Math.round((user.rank / user.totalPlayers) * 100);
-  const top3 = leaderboard.slice(0, 3);
+  const hasPicks = picks.some((p) => p.teamName);
+  const alivePicks = picks.filter((p) => p.status === "alive").length;
+  const eliminatedPicks = picks.filter((p) => p.status === "eliminated").length;
+  const totalPickPoints = picks.reduce((sum, p) => sum + p.points, 0);
+
+  useEffect(() => {
+    const onboarded = localStorage.getItem("fm_onboarded");
+    if (!onboarded) {
+      setShowOnboarding(true);
+    }
+  }, []);
+
+  const handleOnboardingComplete = () => {
+    localStorage.setItem("fm_onboarded", "true");
+    setShowOnboarding(false);
+  };
 
   const handleJoinWithCode = () => {
     if (!inviteCode.trim()) {
       toast.error("Please enter an invite code");
       return;
     }
-
     startTransition(async () => {
       const result = await joinDraftByInviteAction(inviteCode.trim());
-
       if (result.success && result.draftId) {
         setInviteCode("");
         if (result.alreadyJoined) {
@@ -199,398 +222,322 @@ export function DashboardClient({
   };
 
   return (
-    <div className="space-y-6">
-      {/* ------------------------------------------------------------------ */}
-      {/* Page header                                                          */}
-      {/* ------------------------------------------------------------------ */}
-      <div className="space-y-1">
-        <h1
-          className={cn(
-            "text-3xl font-semibold tracking-tight",
-            "bg-gradient-to-b from-[#EDEDEF] to-[#EDEDEF]/70 bg-clip-text text-transparent",
-          )}
-        >
-          Welcome back, {user.name}
-        </h1>
-        <p className="text-sm text-[#8A8F98]">
-          March Madness 2026 &middot; {user.activeDrafts} active{" "}
-          {user.activeDrafts === 1 ? "draft" : "drafts"}
-        </p>
-      </div>
+    <>
+      {showOnboarding && (
+        <OnboardingModal onComplete={handleOnboardingComplete} />
+      )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Bento grid — Row 1–2                                                */}
-      {/* ------------------------------------------------------------------ */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-
-        {/* Global Championship — hero card (col-span-4, row-span-2) */}
-        <SpotlightCard className="md:col-span-4 md:row-span-2 min-h-[420px]">
-          {/* Ambient blobs */}
-          <div
-            className="pointer-events-none absolute -top-24 -left-24 w-[480px] h-[480px] rounded-full"
-            style={{
-              background: "radial-gradient(circle, rgba(94,106,210,0.22) 0%, transparent 70%)",
-              filter: "blur(120px)",
-            }}
-          />
-          <div
-            className="pointer-events-none absolute -bottom-16 -right-16 w-[320px] h-[320px] rounded-full"
-            style={{
-              background: "radial-gradient(circle, rgba(139,92,246,0.15) 0%, transparent 70%)",
-              filter: "blur(100px)",
-            }}
-          />
-
-          <div className="relative h-full flex flex-col p-6 sm:p-8">
-            {/* Live pill */}
-            <div className="mb-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#5E6AD2]/40 bg-[#5E6AD2]/10 px-3 py-1">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#5E6AD2] opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#5E6AD2]" />
-                </span>
-                <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
-                  Live Now
-                </span>
-              </div>
+      <div className="space-y-6">
+        {/* ── Score Strip ── */}
+        <div className="bg-card border border-border rounded-lg px-5 sm:px-7 py-4">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h1 className="font-display text-2xl sm:text-3xl font-bold uppercase tracking-tight text-foreground">
+                {tournamentName ?? `March Madness ${seasonYear}`}
+              </h1>
+              <p className="text-xs font-semibold tracking-widest uppercase text-muted-foreground mt-0.5">
+                {hasContest ? "Global Contest" : "No Active Contest"}
+              </p>
             </div>
 
-            {/* Headline */}
-            <h2
-              className={cn(
-                "text-3xl sm:text-4xl font-semibold tracking-tight mb-4",
-                "bg-gradient-to-b from-[#EDEDEF] to-[#EDEDEF]/70 bg-clip-text text-transparent",
-              )}
-            >
-              Global Championship
-            </h2>
-
-            {/* Body */}
-            <p className="text-[#8A8F98] text-base leading-relaxed max-w-md mb-8">
-              Submit your official picks and compete against the best. One bracket. Everyone plays
-              the same rules.
-            </p>
-
-            {/* Stats row */}
-            <div className="flex flex-wrap gap-6 mb-10">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#5E6AD2]" />
-                <span className="text-sm text-[#8A8F98]">50,234 Entries</span>
+            {hasContest && user.totalPlayers > 0 && (
+              <div className="flex items-center gap-5 sm:gap-8">
+                <StatBlock value={user.rank > 0 ? `#${user.rank}` : "\u2014"} label="Rank" />
+                <div className="w-px h-8 bg-border" />
+                <StatBlock
+                  value={user.totalPoints.toLocaleString()}
+                  label="Points"
+                />
+                <div className="w-px h-8 bg-border" />
+                <StatBlock
+                  value={user.rank > 0 && user.totalPlayers > 0 ? `Top ${Math.max(1, Math.round((user.rank / user.totalPlayers) * 100))}%` : "\u2014"}
+                  label={`of ${user.totalPlayers.toLocaleString()}`}
+                  valueClassName="text-primary"
+                />
               </div>
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-[#5E6AD2]" />
-                <span className="text-sm text-[#8A8F98]">Closes Mar 17</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 text-[#5E6AD2]" />
-                <span className="text-sm text-[#8A8F98]">Free to Enter</span>
-              </div>
-            </div>
-
-            <div className="mt-auto">
-              <Link
-                href="/global-contest/picks"
-                className={cn(
-                  "inline-flex items-center gap-2 rounded-lg px-5 py-2.5",
-                  "bg-[#5E6AD2] hover:bg-[#6872D9] text-white text-sm font-medium",
-                  "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
-                  "active:scale-[0.98] transition-all duration-200",
-                )}
-              >
-                Enter Your Picks
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            </div>
+            )}
           </div>
-        </SpotlightCard>
+        </div>
 
-        {/* Your Standing — col-span-2 */}
-        <SpotlightCard className="md:col-span-2">
-          <div className="h-full p-6 flex flex-col">
-            {/* Label */}
-            <div className="flex items-center gap-2 mb-4">
-              <Trophy className="w-4 h-4 text-[#5E6AD2]" />
-              <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
-                Your Standing
-              </span>
-            </div>
-
-            {/* Big rank */}
-            <div className="mb-1">
-              <span className="text-5xl font-semibold text-[#EDEDEF]">#{user.rank}</span>
-            </div>
-            <p className="text-sm text-[#8A8F98] mb-6">
-              of {user.totalPlayers.toLocaleString()}
-            </p>
-
-            {/* Points + percentile row */}
-            <div className="flex items-center justify-between mt-auto">
-              <span className="text-sm text-[#8A8F98]">
-                {user.totalPoints.toLocaleString()} pts
-              </span>
-              <span className="text-sm font-medium text-[#5E6AD2]">
-                Top {percentile}%
-              </span>
-            </div>
-
-            {/* Footer link */}
-            <div className="mt-4 pt-4 border-t border-white/[0.06]">
-              <Link
-                href="/leaderboards"
-                className="text-xs text-[#8A8F98] hover:text-[#EDEDEF] transition-colors duration-200"
-              >
-                View full leaderboard &rarr;
-              </Link>
-            </div>
-          </div>
-        </SpotlightCard>
-
-        {/* Leaderboard Mini — col-span-2 */}
-        <SpotlightCard className="md:col-span-2">
-          <div className="h-full p-6 flex flex-col">
-            {/* Label */}
-            <div className="flex items-center gap-2 mb-4">
-              <Crown className="w-4 h-4 text-[#5E6AD2]" />
-              <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
-                Top Players
-              </span>
-            </div>
-
-            {/* Top 3 rows */}
-            <div className="space-y-3 flex-1">
-              {top3.map((player) => (
-                <div key={player.rank} className="flex items-center gap-3">
-                  <MiniRankCircle rank={player.rank} />
-                  <div className="w-6 h-6 rounded-full overflow-hidden border border-white/[0.10] flex-shrink-0">
-                    <ImageWithFallback
-                      src={player.avatar}
-                      alt={player.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <span className="text-sm text-[#EDEDEF] truncate flex-1">{player.name}</span>
-                  <span className="text-xs font-mono text-[#8A8F98] flex-shrink-0">
-                    {player.points.toLocaleString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Footer link */}
-            <div className="mt-4 pt-4 border-t border-white/[0.06]">
-              <Link
-                href="/leaderboards"
-                className="text-xs text-[#8A8F98] hover:text-[#EDEDEF] transition-colors duration-200"
-              >
-                See all rankings &rarr;
-              </Link>
-            </div>
-          </div>
-        </SpotlightCard>
-      </div>
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Bento grid — Row 3–4                                                */}
-      {/* ------------------------------------------------------------------ */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-
-        {/* Full Leaderboard — col-span-4, row-span-2 */}
-        <SpotlightCard className="md:col-span-4 md:row-span-2 min-h-[420px]">
-          <div className="h-full p-6 sm:p-8 flex flex-col">
-            {/* Header row */}
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 flex items-center justify-center flex-shrink-0">
-                  <Trophy className="w-4 h-4 text-[#5E6AD2]" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold tracking-tight text-[#EDEDEF]">
-                    Global Leaderboard
-                  </h2>
-                  <p className="text-xs text-[#8A8F98]">Top players this season</p>
-                </div>
-              </div>
-              <Link
-                href="/leaderboards"
-                className={cn(
-                  "inline-flex items-center gap-1 text-xs text-[#8A8F98] hover:text-[#EDEDEF]",
-                  "px-3 py-1.5 rounded-lg border border-white/[0.06] hover:border-white/[0.10]",
-                  "bg-white/[0.03] hover:bg-white/[0.06] transition-all duration-200",
-                )}
-              >
-                View all
-                <ChevronRight className="w-3 h-3" />
-              </Link>
-            </div>
-
-            {/* Player rows */}
-            <div className="space-y-2 flex-1">
-              {leaderboard.map((player) => {
-                const isTop3 = player.rank <= 3;
-                return (
-                  <div
-                    key={player.rank}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200",
-                      isTop3
-                        ? "bg-[#5E6AD2]/[0.06] border border-[#5E6AD2]/10"
-                        : "hover:bg-white/[0.04] border border-transparent",
-                    )}
-                  >
-                    <RankBadge rank={player.rank} />
-
-                    <div className="w-9 h-9 rounded-full overflow-hidden border border-white/[0.10] flex-shrink-0">
-                      <ImageWithFallback
-                        src={player.avatar}
-                        alt={player.name}
-                        className="w-full h-full object-cover"
-                      />
+        {/* ── What's Happening (Action Cards) ── */}
+        <div>
+          <h2 className="font-display text-lg font-bold uppercase tracking-wide text-foreground mb-3">
+            What&apos;s Happening
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Link href="/drafts" className="block">
+              <SportCard accent="emerald" className="h-full hover:bg-accent/50 transition-colors">
+                <div className="p-4 flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Zap className="w-4 h-4 text-[#10B981]" />
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Drafts
+                      </span>
                     </div>
-
-                    <span className="text-sm text-[#EDEDEF] truncate flex-1">{player.name}</span>
-
-                    <span className="text-sm font-mono text-[#8A8F98] flex-shrink-0">
-                      {player.points.toLocaleString()}
-                    </span>
-
-                    <div className="w-4 flex-shrink-0">
-                      {player.change === "up" ? (
-                        <TrendingUp className="w-4 h-4 text-emerald-400" />
-                      ) : player.change === "down" ? (
-                        <TrendingDown className="w-4 h-4 text-red-400" />
-                      ) : (
-                        <Minus className="w-4 h-4 text-[#8A8F98]" />
-                      )}
-                    </div>
+                    <p className="font-display text-2xl font-bold text-foreground">
+                      {user.activeDrafts}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Active {user.activeDrafts === 1 ? "draft" : "drafts"}
+                    </p>
                   </div>
-                );
-              })}
+                  <ChevronRight className="w-4 h-4 text-muted-foreground mt-1" />
+                </div>
+              </SportCard>
+            </Link>
+
+            <Link href={bracketLocked ? "/global-contest/picks" : "/global-contest"} className="block">
+              <SportCard accent="blue" className="h-full hover:bg-accent/50 transition-colors">
+                <div className="p-4 flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Globe className="w-4 h-4 text-[#3B82F6]" />
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Global
+                      </span>
+                    </div>
+                    <p className="font-display text-2xl font-bold text-foreground">
+                      {picks.filter((p) => p.teamName).length}/8
+                    </p>
+                    <p className="text-xs text-muted-foreground">Picks made</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground mt-1" />
+                </div>
+              </SportCard>
+            </Link>
+
+            <Link href="/leagues" className="block">
+              <SportCard accent="amber" className="h-full hover:bg-accent/50 transition-colors">
+                <div className="p-4 flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Shield className="w-4 h-4 text-[#F59E0B]" />
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Leagues
+                      </span>
+                    </div>
+                    <p className="font-display text-2xl font-bold text-foreground">{activeLeagues}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {activeLeagues === 1 ? "League" : "Leagues"} joined
+                    </p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground mt-1" />
+                </div>
+              </SportCard>
+            </Link>
+          </div>
+        </div>
+
+        {/* ── Main two-column layout ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_288px] gap-6">
+          {/* ── Left: Global Contest Picks ── */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-display text-lg font-bold uppercase tracking-wide text-foreground">
+                  Your Global Picks
+                </h2>
+                {hasPicks && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {alivePicks} alive &middot; {eliminatedPicks} eliminated &middot; {totalPickPoints} pts
+                  </p>
+                )}
+              </div>
+              <Link
+                href={bracketLocked ? "/global-contest/picks" : "/global-contest"}
+                className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-border bg-secondary hover:bg-accent text-muted-foreground hover:text-foreground transition-all duration-200"
+              >
+                {hasPicks ? "Edit picks" : "Make picks"}
+                <ArrowRight className="w-3 h-3" />
+              </Link>
             </div>
 
-            {/* "Your position" separator */}
-            <div className="mt-4 pt-4 border-t border-white/[0.06]">
-              <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[#5E6AD2]/[0.06] border border-[#5E6AD2]/20">
-                <div
-                  className={cn(
-                    "w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0",
-                    "bg-[#5E6AD2]/20 text-[#5E6AD2] border border-[#5E6AD2]/30",
+            {hasPicks ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {picks.map((pick) => (
+                  <PickCard key={pick.id} pick={pick} />
+                ))}
+              </div>
+            ) : (
+              <SportCard accent="blue">
+                <div className="p-10 flex flex-col items-center text-center">
+                  <div className="w-12 h-12 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
+                    <Target className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="text-base font-semibold text-foreground mb-2">
+                    No picks yet
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-6 max-w-xs leading-relaxed">
+                    {bracketLocked
+                      ? "Choose 8 bracket slots for the Global Contest. Picks close when play-ins end."
+                      : "The bracket hasn\u2019t been announced yet. Check back after Selection Sunday."}
+                  </p>
+                  {bracketLocked && (
+                    <Link
+                      href="/global-contest/picks"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                    >
+                      Make your picks
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
                   )}
-                >
-                  {user.rank}
                 </div>
-
-                <div className="w-9 h-9 rounded-full bg-[#5E6AD2]/10 border border-[#5E6AD2]/20 flex items-center justify-center flex-shrink-0">
-                  <Star className="w-4 h-4 text-[#5E6AD2]" />
-                </div>
-
-                <span className="text-sm text-[#EDEDEF] flex-1">You</span>
-
-                <span className="text-sm font-mono text-[#8A8F98] flex-shrink-0">
-                  {user.totalPoints.toLocaleString()}
-                </span>
-
-                <div className="w-4 flex-shrink-0" />
-              </div>
-            </div>
+              </SportCard>
+            )}
           </div>
-        </SpotlightCard>
 
-        {/* Join Private Draft — col-span-2 */}
-        <SpotlightCard className="md:col-span-2">
-          <div className="h-full p-6 flex flex-col">
-            {/* Label */}
-            <div className="flex items-center gap-2 mb-4">
-              <Lock className="w-4 h-4 text-[#5E6AD2]" />
-              <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
-                Private Draft
-              </span>
-            </div>
+          {/* ── Right sidebar ── */}
+          <div className="space-y-4">
+            {/* Leaderboard */}
+            <SportCard>
+              <div className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Crown className="w-3.5 h-3.5 text-primary" />
+                    <span className="font-display text-sm font-bold uppercase tracking-wide text-foreground">
+                      Leaderboard
+                    </span>
+                  </div>
+                  <Link
+                    href="/leaderboards"
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
+                  >
+                    All
+                    <ChevronRight className="w-3 h-3" />
+                  </Link>
+                </div>
 
-            {/* Input + button row */}
-            <div className="flex gap-2 mb-4">
-              <Input
-                placeholder="Invite code"
-                value={inviteCode}
-                onChange={(e) => setInviteCode(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleJoinWithCode();
-                }}
-                disabled={isPending}
-                className={cn(
-                  "flex-1 font-mono text-sm h-9",
-                  "bg-white/[0.04] border-white/[0.10]",
-                  "focus-visible:border-[#5E6AD2] focus-visible:ring-0",
-                  "placeholder:font-sans placeholder:text-[#8A8F98]",
-                  "text-[#EDEDEF]",
-                )}
-              />
-              <button
-                onClick={handleJoinWithCode}
-                disabled={isPending}
-                aria-label="Join draft"
-                className={cn(
-                  "flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0",
-                  "bg-[#5E6AD2] hover:bg-[#6872D9]",
-                  "shadow-[0_0_0_1px_rgba(94,106,210,0.5),0_4px_12px_rgba(94,106,210,0.3),inset_0_1px_0_0_rgba(255,255,255,0.2)]",
-                  "active:scale-[0.98] transition-all duration-200",
-                  "disabled:opacity-50 disabled:cursor-not-allowed",
-                )}
-              >
-                {isPending ? (
-                  <Loader2 className="w-4 h-4 text-white animate-spin" />
+                {leaderboard.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">
+                    No entries yet
+                  </p>
                 ) : (
-                  <ArrowRight className="w-4 h-4 text-white" />
+                  <div className="space-y-1">
+                    {leaderboard.map((player) => (
+                      <div
+                        key={player.rank}
+                        className={cn(
+                          "flex items-center gap-2.5 px-2 py-1.5 rounded-md transition-colors",
+                          player.rank <= 3
+                            ? "bg-primary/5 border border-primary/10"
+                            : "hover:bg-accent border border-transparent",
+                        )}
+                      >
+                        <RankBadge rank={player.rank} />
+                        <span className="text-sm text-foreground truncate flex-1 min-w-0">
+                          {player.name}
+                        </span>
+                        <span className="text-xs font-mono text-muted-foreground flex-shrink-0">
+                          {player.points.toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </button>
-            </div>
 
-            {/* Create link */}
-            <div className="mt-auto pt-4 border-t border-white/[0.06]">
-              <Link
-                href="/drafts/new"
-                className="text-xs text-[#8A8F98] hover:text-[#EDEDEF] transition-colors duration-200"
-              >
-                + Create a new draft
-              </Link>
-            </div>
+                {/* Your position */}
+                {hasContest && (
+                  <div className="mt-3 pt-3 border-t border-border">
+                    <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-md bg-primary/10 border border-primary/20">
+                      <div className="w-7 h-7 rounded-md flex items-center justify-center text-xs font-bold bg-primary/20 text-primary border border-primary/30 flex-shrink-0">
+                        {user.rank > 0 ? user.rank : "\u2014"}
+                      </div>
+                      <span className="text-sm text-foreground flex-1">You</span>
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {user.totalPoints.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </SportCard>
+
+            {/* Join Private Draft */}
+            <SportCard>
+              <div className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Lock className="w-3.5 h-3.5 text-primary" />
+                  <span className="font-display text-sm font-bold uppercase tracking-wide text-foreground">
+                    Join Draft
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Invite code"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleJoinWithCode();
+                    }}
+                    disabled={isPending}
+                    className="flex-1 font-mono text-sm h-9 bg-input border-border focus-visible:border-primary focus-visible:ring-0 placeholder:font-sans placeholder:text-muted-foreground text-foreground"
+                  />
+                  <button
+                    onClick={handleJoinWithCode}
+                    disabled={isPending}
+                    aria-label="Join draft"
+                    className="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 bg-primary hover:bg-primary/90 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isPending ? (
+                      <Loader2 className="w-4 h-4 text-primary-foreground animate-spin" />
+                    ) : (
+                      <ArrowRight className="w-4 h-4 text-primary-foreground" />
+                    )}
+                  </button>
+                </div>
+                <div className="mt-3 pt-3 border-t border-border">
+                  <Link
+                    href="/drafts/new"
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    + Create a new draft
+                  </Link>
+                </div>
+              </div>
+            </SportCard>
+
+            {/* Quick Actions */}
+            <SportCard>
+              <div className="p-4">
+                <span className="font-display text-sm font-bold uppercase tracking-wide text-foreground">
+                  Quick Actions
+                </span>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <Link
+                    href="/drafts/new"
+                    className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium border border-border bg-secondary hover:bg-accent text-foreground transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-[#10B981]" />
+                    Create Draft
+                  </Link>
+                  <Link
+                    href="/drafts/public"
+                    className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium border border-border bg-secondary hover:bg-accent text-foreground transition-colors"
+                  >
+                    <Users className="w-3.5 h-3.5 text-primary" />
+                    Browse
+                  </Link>
+                  <Link
+                    href="/leagues/new"
+                    className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium border border-border bg-secondary hover:bg-accent text-foreground transition-colors"
+                  >
+                    <Shield className="w-3.5 h-3.5 text-[#F59E0B]" />
+                    New League
+                  </Link>
+                  <Link
+                    href="/leagues"
+                    className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium border border-border bg-secondary hover:bg-accent text-foreground transition-colors"
+                  >
+                    <Globe className="w-3.5 h-3.5 text-[#3B82F6]" />
+                    My Leagues
+                  </Link>
+                </div>
+              </div>
+            </SportCard>
           </div>
-        </SpotlightCard>
-
-        {/* Browse Public Drafts — col-span-2, full card is a link */}
-        <SpotlightCard className="md:col-span-2 group">
-          <Link href="/drafts/public" className="block h-full">
-            <div className="h-full p-6 flex flex-col">
-              {/* Label + live dot */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-[#5E6AD2]" />
-                  <span className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
-                    Public Drafts
-                  </span>
-                </div>
-                <div className="w-5 h-5 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
-                  </span>
-                </div>
-              </div>
-
-              {/* Big number */}
-              <div className="flex-1">
-                <p className="text-3xl font-semibold text-[#EDEDEF]">24</p>
-                <p className="text-sm text-[#8A8F98] mt-1">Open drafts</p>
-              </div>
-
-              {/* Footer */}
-              <div className="mt-4 pt-4 border-t border-white/[0.06] flex items-center gap-1">
-                <span className="text-xs text-[#5E6AD2]">Browse all</span>
-                <ChevronRight className="w-3 h-3 text-[#5E6AD2] transition-transform duration-200 group-hover:translate-x-0.5" />
-              </div>
-            </div>
-          </Link>
-        </SpotlightCard>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -14,6 +14,7 @@ export * from "./queries/users.getProfile";
 export * from "./queries/drafts.getById";
 export * from "./queries/drafts.getByInviteCode";
 export * from "./queries/drafts.listForUser";
+export * from "./queries/drafts.listPublic";
 export * from "./queries/drafts.getRoomState";
 export * from "./queries/drafts.getForEdit";
 export * from "./queries/drafts.selectOptimalSlot";

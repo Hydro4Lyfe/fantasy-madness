@@ -325,7 +325,7 @@ export function DraftResultsClient({ results, currentUserId }: DraftResultsClien
               "bg-white/[0.04] px-3 py-1 text-xs text-[#8A8F98]",
             )}
           >
-            {results.tournamentName} {results.seasonYear}
+            {results.tournamentName}
           </span>
         </div>
       </div>

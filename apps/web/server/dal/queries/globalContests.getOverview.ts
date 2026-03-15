@@ -15,6 +15,7 @@ export type GlobalContestOverviewDTO = {
   tournamentStartAt: string | null;
   lockAt: string | null;
   isOpen: boolean;
+  bracketLocked: boolean;
   totalEntries: number;
   hasEntered: boolean;
   yourRank: number | null;
@@ -40,6 +41,7 @@ export async function getGlobalContestOverview(args: {
           name: true,
           seasonYear: true,
           startDate: true,
+          syncState: true,
         },
       },
       entries: {
@@ -61,6 +63,11 @@ export async function getGlobalContestOverview(args: {
   const now = Date.now();
   const lockAtMs = contest.lockAt?.getTime() ?? null;
   const isOpen = contest.status === "OPEN" && (lockAtMs === null || lockAtMs > now);
+
+  const BRACKET_LOCKED_STATES = new Set(["BRACKET_LOCKED", "LIVE", "COMPLETED"]);
+  const bracketLocked = BRACKET_LOCKED_STATES.has(
+    String(contest.tournament?.syncState ?? "")
+  );
 
   const leaderboard = contest.entries
     .map((entry: any) => ({
@@ -89,6 +96,7 @@ export async function getGlobalContestOverview(args: {
     tournamentStartAt: contest.tournament?.startDate?.toISOString() ?? null,
     lockAt: contest.lockAt?.toISOString() ?? null,
     isOpen,
+    bracketLocked,
     totalEntries: contest.entries.length,
     hasEntered: yourRow !== null,
     yourRank: yourRow?.rank ?? null,

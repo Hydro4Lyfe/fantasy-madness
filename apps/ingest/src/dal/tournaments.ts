@@ -8,6 +8,7 @@ export async function upsertTournamentFromSummary(args: {
   name: string;
   startDate: Date | null;
   endDate: Date | null;
+  picksLockAt: Date | null;
   payloadRaw: Prisma.InputJsonValue;
 }): Promise<void> {
   const { db } = args;
@@ -20,6 +21,7 @@ export async function upsertTournamentFromSummary(args: {
       name: args.name,
       startDate: args.startDate,
       endDate: args.endDate,
+      picksLockAt: args.picksLockAt,
       syncState: "MONITORING",
       eventStatusRaw: Prisma.JsonNull,
       payloadRaw: args.payloadRaw,
@@ -30,6 +32,7 @@ export async function upsertTournamentFromSummary(args: {
       name: args.name,
       startDate: args.startDate ?? undefined,
       endDate: args.endDate ?? undefined,
+      picksLockAt: args.picksLockAt ?? undefined,
       payloadRaw: args.payloadRaw,
       statsUpdatedAt: new Date(),
     },

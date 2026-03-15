@@ -66,6 +66,10 @@ model Tournament {
   /// Used as the one-way latch for BracketSlot materialization (created once).
   bracketLockedAt  DateTime? @db.Timestamptz(6) @map("bracket_locked_at")
 
+  /// Round 1 start date — when picks lock for drafts, leagues, and global contest.
+  /// Excludes First Four (play-in) games; derived from earliest round >= 1 game.
+  picksLockAt      DateTime? @db.Timestamptz(6) @map("picks_lock_at")
+
   /// Used as a simple cursor in our MVP+ daily change-log polling.
   nextCheckAt      DateTime? @db.Timestamptz(6) @map("next_check_at")
 
@@ -434,6 +438,7 @@ model Draft {
 
   rosterSize   Int @default(8) @map("roster_size")
   isPrivate    Boolean @default(true) @map("is_private")
+  isFeatured   Boolean @default(false) @map("is_featured")
 
   inviteCode   String? @db.Text @unique(map: "ux_drafts_invite_code") @map("invite_code")
   pickTimerSec Int? @map("pick_timer_sec")

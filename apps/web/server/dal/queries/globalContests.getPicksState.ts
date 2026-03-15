@@ -20,6 +20,7 @@ export type GlobalContestPicksStateDTO = {
   seasonYear: number;
   lockAt: string | null;
   isOpen: boolean;
+  bracketLocked: boolean;
   selectedSlotIds: string[];
   slotOptions: GlobalContestSlotOptionDTO[];
 };
@@ -52,6 +53,7 @@ export async function getGlobalContestPicksState(args: {
         select: {
           name: true,
           seasonYear: true,
+          syncState: true,
         },
       },
       entries: {
@@ -126,6 +128,11 @@ export async function getGlobalContestPicksState(args: {
   const lockAtMs = contest.lockAt?.getTime() ?? null;
   const isOpen = contest.status === "OPEN" && (lockAtMs === null || lockAtMs > now);
 
+  const BRACKET_LOCKED_STATES = new Set(["BRACKET_LOCKED", "LIVE", "COMPLETED"]);
+  const bracketLocked = BRACKET_LOCKED_STATES.has(
+    String(contest.tournament?.syncState ?? "")
+  );
+
   return {
     contestId: contest.id,
     tournamentId: contest.tournamentId,
@@ -133,6 +140,7 @@ export async function getGlobalContestPicksState(args: {
     seasonYear: contest.tournament?.seasonYear ?? new Date().getFullYear(),
     lockAt: contest.lockAt?.toISOString() ?? null,
     isOpen,
+    bracketLocked,
     selectedSlotIds,
     slotOptions,
   };

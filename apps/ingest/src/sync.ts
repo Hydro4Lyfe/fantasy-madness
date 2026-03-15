@@ -231,6 +231,27 @@ export async function runSyncOnce(params: {
   const startDate = gameDates[0] ?? null;
   const endDate = gameDates[gameDates.length - 1] ?? null;
 
+  // Round 1+ start date (excludes First Four / play-in round 0).
+  // This is when picks lock — users can pick from Selection Sunday until Round 1 tips off.
+  const round1Dates = bracketGames
+    .filter((g) => g.round >= 1)
+    .map((g) => parseDateMaybe(g.date))
+    .filter((d): d is Date => d !== null)
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  const round1StartDate = round1Dates[0] ?? null;
+
+  log.info(
+    {
+      startDate: startDate?.toISOString() ?? null,
+      endDate: endDate?.toISOString() ?? null,
+      round1StartDate: round1StartDate?.toISOString() ?? null,
+      firstFourGames: bracketGames.filter((g) => g.round === 0).length,
+      round1Games: bracketGames.filter((g) => g.round === 1).length,
+    },
+    "tournament dates derived",
+  );
+
   // B) Upsert tournament record
   await upsertTournamentFromSummary({
     db: prisma,
@@ -239,13 +260,14 @@ export async function runSyncOnce(params: {
     name: `NCAA Tournament ${params.seasonYear}`,
     startDate,
     endDate,
+    picksLockAt: round1StartDate,
     payloadRaw: { source: "balldontlie", games_count: bracketGames.length },
   });
 
   const globalContestResult = await ensureGlobalContestForTournament({
     db: prisma,
     tournamentId: params.tournamentId,
-    lockAt: startDate,
+    lockAt: round1StartDate,
   });
   log.info(
     {
@@ -355,8 +377,9 @@ export async function runSyncOnce(params: {
   log.info({ gamesUpserted: stats.gamesUpserted }, "games synced");
 
   // F.1) Advance tournament sync state when warranted.
+  // LIVE triggers when Round 1 starts (not First Four), since picks lock at Round 1.
   const now = new Date();
-  const hasStarted = !!startDate && now.getTime() >= startDate.getTime();
+  const round1HasStarted = !!round1StartDate && now.getTime() >= round1StartDate.getTime();
   const hasGames = bracketGames.length > 0;
   const allGamesTerminal =
     hasGames &&
@@ -374,7 +397,7 @@ export async function runSyncOnce(params: {
       },
       data: { syncState: "COMPLETED" as any },
     });
-  } else if (hasStarted) {
+  } else if (round1HasStarted) {
     await prisma.tournament.updateMany({
       where: {
         id: params.tournamentId,

@@ -192,7 +192,18 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
   if (!draft) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-[#8A8F98]/50" />
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative">
+            <div
+              className="absolute inset-0 rounded-full blur-xl"
+              style={{ background: "rgba(59,130,246,0.3)", animation: "pulse 2s ease-in-out infinite" }}
+            />
+            <Loader2 className="w-6 h-6 animate-spin text-[#3B82F6] relative z-10" />
+          </div>
+          <p className="text-xs font-mono tracking-widest uppercase text-muted-foreground/50">
+            Loading draft room
+          </p>
+        </div>
       </div>
     )
   }
@@ -248,87 +259,153 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
 
   return (
     <>
+      {/* ── Custom keyframes for draft room animations ── */}
+      <style>{`
+        @keyframes dr-fade-up {
+          from { opacity: 0; transform: translateY(14px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes dr-pulse-ring {
+          0%, 100% { box-shadow: 0 0 0 1px rgba(59,130,246,0.25), 0 0 20px rgba(59,130,246,0.08); }
+          50% { box-shadow: 0 0 0 1px rgba(59,130,246,0.5), 0 0 40px rgba(59,130,246,0.18); }
+        }
+        @keyframes dr-shimmer {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        @keyframes dr-urgent-pulse {
+          0%, 100% { box-shadow: 0 0 0 1px rgba(239,68,68,0.4), 0 0 24px rgba(239,68,68,0.15); }
+          50% { box-shadow: 0 0 0 1px rgba(239,68,68,0.7), 0 0 48px rgba(239,68,68,0.3); }
+        }
+        @keyframes dr-clock-glow {
+          0%, 100% {
+            box-shadow: 0 0 0 1px rgba(59,130,246,0.3), 0 0 32px rgba(59,130,246,0.12), inset 0 1px 0 rgba(255,255,255,0.06);
+          }
+          50% {
+            box-shadow: 0 0 0 1px rgba(59,130,246,0.55), 0 0 60px rgba(59,130,246,0.22), inset 0 1px 0 rgba(255,255,255,0.08);
+          }
+        }
+        .dr-fade-up {
+          animation: dr-fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .dr-fade-up-1 { animation-delay: 0ms; }
+        .dr-fade-up-2 { animation-delay: 60ms; }
+        .dr-fade-up-3 { animation-delay: 120ms; }
+        .dr-fade-up-4 { animation-delay: 180ms; }
+        .dr-fade-up-5 { animation-delay: 240ms; }
+      `}</style>
+
       {/* ─────────────────────────────────────────────────────────────────────
           MOBILE LAYOUT  (hidden md+)
       ───────────────────────────────────────────────────────────────────── */}
-      <div className="flex md:hidden flex-col gap-2 h-[calc(100dvh-80px)]">
-        <ConnectionBanner
-          connectionState={connectionState}
-          error={wsError}
-          onReconnect={reconnect}
-        />
-        {draft.status === "COMPLETE" && <DraftCompleteBanner />}
+      <div className="relative flex md:hidden flex-col gap-2 h-[calc(100dvh-80px)] overflow-hidden">
 
-        <DraftHeader {...headerProps} />
-        <OnTheClockBanner {...clockProps} />
+        <div className="relative z-10 flex flex-col gap-2 h-full">
+          <div className="dr-fade-up dr-fade-up-1">
+            <ConnectionBanner
+              connectionState={connectionState}
+              error={wsError}
+              onReconnect={reconnect}
+            />
+          </div>
+          {draft.status === "COMPLETE" && (
+            <div className="dr-fade-up dr-fade-up-1">
+              <DraftCompleteBanner />
+            </div>
+          )}
 
-        {/* Team picker fills all remaining space */}
-        <TeamPickerPanel {...pickerProps} />
+          <div className="dr-fade-up dr-fade-up-2">
+            <DraftHeader {...headerProps} />
+          </div>
+          <div className="dr-fade-up dr-fade-up-3">
+            <OnTheClockBanner {...clockProps} />
+          </div>
 
-        {/* ── Mobile bottom action bar ── */}
-        <div className={cn(
-          "flex-shrink-0 flex items-center gap-2 px-4 py-2.5",
-          "border-t border-white/[0.06]",
-          "bg-gradient-to-b from-white/[0.06] to-white/[0.02]",
-        )}>
-          {/* Seed weight — left anchor */}
-          <div className="flex-1 flex items-baseline gap-1 min-w-0">
-            {seedWeight > 0 ? (
-              <>
-                <span className="text-sm font-bold tabular-nums font-mono text-[#5E6AD2]">
-                  {seedWeight}
+          {/* Team picker fills all remaining space */}
+          <div className="dr-fade-up dr-fade-up-4 flex-1 min-h-0">
+            <TeamPickerPanel {...pickerProps} />
+          </div>
+
+          {/* ── Mobile bottom action bar ── */}
+          <div className={cn(
+            "flex-shrink-0 flex items-center gap-2 px-4 py-2.5",
+            "border-t border-border",
+            "bg-card",
+            "backdrop-blur-sm",
+          )}>
+            {/* Seed weight — left anchor */}
+            <div className="flex-1 flex items-baseline gap-1 min-w-0">
+              {seedWeight > 0 ? (
+                <>
+                  <span
+                    className="text-sm font-bold tabular-nums font-mono"
+                    style={{
+                      background: "linear-gradient(135deg, #3B82F6 0%, #60A5FA 50%, #3B82F6 100%)",
+                      backgroundSize: "200% auto",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      backgroundClip: "text",
+                      animation: "dr-shimmer 3s linear infinite",
+                    }}
+                  >
+                    {seedWeight}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground/60 font-mono">pts/w</span>
+                </>
+              ) : (
+                <span className="text-[10px] text-muted-foreground/40 font-mono">No picks yet</span>
+              )}
+            </div>
+
+            {/* Pick progress — center */}
+            <div className="text-xs tabular-nums flex-shrink-0">
+              <span className="text-muted-foreground text-[10px]">Rd</span>
+              <span className="text-foreground font-semibold ml-0.5">{currentRound}</span>
+              <span className="text-muted-foreground/40 mx-1">·</span>
+              <span className="text-muted-foreground text-[10px]">P</span>
+              <span className="text-foreground font-semibold">{draft.currentPickNumber}</span>
+              <span className="text-muted-foreground/40">/{draft.totalPicks}</span>
+            </div>
+
+            {/* Board button */}
+            <button
+              onClick={() => setShowBoardDrawer(true)}
+              className={cn(
+                "flex items-center gap-1.5 h-9 px-3 rounded-xl flex-shrink-0",
+                "text-xs font-medium transition-all duration-200",
+                "bg-secondary border border-border text-muted-foreground",
+                "hover:bg-secondary/80 hover:text-foreground hover:border-border",
+                "active:scale-[0.98]",
+              )}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              Board
+            </button>
+
+            {/* Queue button */}
+            <button
+              onClick={() => setShowQueueDrawer(true)}
+              className={cn(
+                "relative flex items-center gap-1.5 h-9 px-3 rounded-xl flex-shrink-0",
+                "text-xs font-medium transition-all duration-200",
+                draftQueue.length > 0
+                  ? "bg-[#3B82F6]/15 border border-[#3B82F6]/25 text-[#3B82F6]"
+                  : "bg-secondary border border-border text-muted-foreground",
+                "active:scale-[0.98]",
+              )}
+            >
+              <List className="w-3.5 h-3.5" />
+              Queue
+              {draftQueue.length > 0 && (
+                <span
+                  className="w-4 h-4 text-white text-[10px] rounded-full flex items-center justify-center font-bold"
+                  style={{ background: "#3B82F6" }}
+                >
+                  {draftQueue.length}
                 </span>
-                <span className="text-[10px] text-[#8A8F98]/60 font-mono">pts/w</span>
-              </>
-            ) : (
-              <span className="text-[10px] text-[#8A8F98]/40 font-mono">No picks yet</span>
-            )}
+              )}
+            </button>
           </div>
-
-          {/* Pick progress — center */}
-          <div className="text-xs tabular-nums flex-shrink-0">
-            <span className="text-[#8A8F98] text-[10px]">Rd</span>
-            <span className="text-[#EDEDEF] font-semibold ml-0.5">{currentRound}</span>
-            <span className="text-[#8A8F98]/40 mx-1">·</span>
-            <span className="text-[#8A8F98] text-[10px]">P</span>
-            <span className="text-[#EDEDEF] font-semibold">{draft.currentPickNumber}</span>
-            <span className="text-[#8A8F98]/40">/{draft.totalPicks}</span>
-          </div>
-
-          {/* Board button */}
-          <button
-            onClick={() => setShowBoardDrawer(true)}
-            className={cn(
-              "flex items-center gap-1.5 h-9 px-3 rounded-xl flex-shrink-0",
-              "text-xs font-medium transition-all duration-200",
-              "bg-white/[0.05] border border-white/[0.08] text-[#8A8F98]",
-              "active:scale-[0.98]",
-            )}
-          >
-            <LayoutGrid className="w-3.5 h-3.5" />
-            Board
-          </button>
-
-          {/* Queue button */}
-          <button
-            onClick={() => setShowQueueDrawer(true)}
-            className={cn(
-              "relative flex items-center gap-1.5 h-9 px-3 rounded-xl flex-shrink-0",
-              "text-xs font-medium transition-all duration-200",
-              draftQueue.length > 0
-                ? "bg-[#5E6AD2]/15 border border-[#5E6AD2]/25 text-[#5E6AD2]"
-                : "bg-white/[0.05] border border-white/[0.08] text-[#8A8F98]",
-              "active:scale-[0.98]",
-            )}
-          >
-            <List className="w-3.5 h-3.5" />
-            Queue
-            {draftQueue.length > 0 && (
-              <span className="w-4 h-4 bg-[#5E6AD2] text-white text-[10px] rounded-full flex items-center justify-center font-bold">
-                {draftQueue.length}
-              </span>
-            )}
-          </button>
         </div>
       </div>
 
@@ -337,26 +414,21 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
       ───────────────────────────────────────────────────────────────────── */}
       <Drawer open={showBoardDrawer} onOpenChange={setShowBoardDrawer} direction="bottom">
         <DrawerContent className={cn(
-          "bg-[#0a0a0c] border-white/[0.06]",
+          "bg-card border-border",
           "max-h-[85dvh] flex flex-col",
         )}>
-          {/* Drag handle */}
-          <div className="mx-auto mt-3 mb-1 h-1 w-10 flex-shrink-0 rounded-full bg-white/[0.12]" />
-
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] flex-shrink-0">
-            <h2 className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+          <div className="mx-auto mt-3 mb-1 h-1 w-10 flex-shrink-0 rounded-full bg-border" />
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+            <h2 className="text-xs font-mono tracking-widest uppercase text-muted-foreground">
               Draft Board
             </h2>
             <span className={cn(
-              "text-[10px] h-5 px-2 rounded-full border border-white/[0.06]",
-              "text-[#8A8F98] inline-flex items-center font-mono",
+              "text-[10px] h-5 px-2 rounded-full border border-border",
+              "text-muted-foreground inline-flex items-center font-mono",
             )}>
               {draft.draftType === "SNAKE" ? "Snake" : "Linear"}
             </span>
           </div>
-
-          {/* Scrollable board content */}
           <div className="flex-1 overflow-y-auto p-3">
             <DraftBoard {...boardProps} className="h-auto" />
           </div>
@@ -368,13 +440,10 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
       ───────────────────────────────────────────────────────────────────── */}
       <Drawer open={showQueueDrawer} onOpenChange={setShowQueueDrawer} direction="bottom">
         <DrawerContent className={cn(
-          "bg-[#0a0a0c] border-white/[0.06]",
+          "bg-card border-border",
           "max-h-[75dvh] flex flex-col",
         )}>
-          {/* Drag handle */}
-          <div className="mx-auto mt-3 mb-1 h-1 w-10 flex-shrink-0 rounded-full bg-white/[0.12]" />
-
-          {/* Scrollable queue content */}
+          <div className="mx-auto mt-3 mb-1 h-1 w-10 flex-shrink-0 rounded-full bg-border" />
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {myParticipant && <SeedWeightCard picks={myParticipant.picks} />}
             <DraftQueuePanel
@@ -388,33 +457,53 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
       {/* ─────────────────────────────────────────────────────────────────────
           DESKTOP LAYOUT  (hidden below md)
       ───────────────────────────────────────────────────────────────────── */}
-      <div className="hidden md:flex flex-col gap-3 h-[calc(100vh-140px)]">
-        <ConnectionBanner
-          connectionState={connectionState}
-          error={wsError}
-          onReconnect={reconnect}
-        />
-        {draft.status === "COMPLETE" && <DraftCompleteBanner />}
+      <div className="relative hidden md:flex flex-col gap-3 h-[calc(100vh-140px)] overflow-hidden">
 
-        <DraftHeader {...headerProps} />
+        {/* Content */}
+        <div className="relative z-10 flex flex-col gap-3 h-full">
+          <div className="dr-fade-up dr-fade-up-1">
+            <ConnectionBanner
+              connectionState={connectionState}
+              error={wsError}
+              onReconnect={reconnect}
+            />
+          </div>
+          {draft.status === "COMPLETE" && (
+            <div className="dr-fade-up dr-fade-up-1">
+              <DraftCompleteBanner />
+            </div>
+          )}
 
-        {/* Main content: 60/40 split */}
-        <div className="flex gap-4 flex-1 min-h-0">
-          {/* Left panel */}
-          <div className="flex-1 flex flex-col gap-3 min-h-0">
-            <OnTheClockBanner {...clockProps} />
-            {myParticipant && <SeedWeightCard picks={myParticipant.picks} />}
-            <TeamPickerPanel {...pickerProps} />
+          <div className="dr-fade-up dr-fade-up-2">
+            <DraftHeader {...headerProps} />
           </div>
 
-          {/* Right panel */}
-          <div className="w-[420px] flex-shrink-0 flex flex-col gap-3 min-h-0">
-            <div className="flex-1 min-h-0">
-              <DraftBoard {...boardProps} />
+          {/* Main content: 60/40 split */}
+          <div className="flex gap-4 flex-1 min-h-0">
+            {/* Left panel */}
+            <div className="flex-1 flex flex-col gap-3 min-h-0">
+              <div className="dr-fade-up dr-fade-up-3">
+                <OnTheClockBanner {...clockProps} />
+              </div>
+              {myParticipant && (
+                <div className="dr-fade-up dr-fade-up-4">
+                  <SeedWeightCard picks={myParticipant.picks} />
+                </div>
+              )}
+              <div className="dr-fade-up dr-fade-up-5 flex-1 min-h-0">
+                <TeamPickerPanel {...pickerProps} />
+              </div>
             </div>
-            {showQueue && (
-              <DraftQueuePanel {...queueProps} />
-            )}
+
+            {/* Right panel */}
+            <div className="w-[420px] flex-shrink-0 flex flex-col gap-3 min-h-0 dr-fade-up dr-fade-up-4">
+              <div className="flex-1 min-h-0">
+                <DraftBoard {...boardProps} />
+              </div>
+              {showQueue && (
+                <DraftQueuePanel {...queueProps} />
+              )}
+            </div>
           </div>
         </div>
       </div>

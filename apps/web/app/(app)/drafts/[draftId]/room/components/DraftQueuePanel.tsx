@@ -36,22 +36,39 @@ export function DraftQueuePanel({
   )
 
   return (
-    <div className={cn(
-      "rounded-2xl border border-[#5E6AD2]/20 overflow-hidden h-60",
-      "bg-gradient-to-b from-white/[0.08] to-white/[0.02]",
-      "shadow-[0_0_0_1px_rgba(94,106,210,0.15),0_2px_20px_rgba(0,0,0,0.4)]",
-    )}>
+    <div
+      className="rounded-2xl overflow-hidden h-60 bg-card"
+      style={{
+        border: "1px solid rgba(59,130,246,0.2)",
+        boxShadow: "0 0 0 1px rgba(59,130,246,0.12), 0 2px 20px rgba(0,0,0,0.4), 0 0 30px rgba(59,130,246,0.06)",
+      }}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
+      <div
+        className="flex items-center justify-between px-4 py-2.5 border-b border-border"
+        style={{ background: "rgba(59,130,246,0.04)" }}
+      >
         <div className="flex items-center gap-2">
-          <List className="w-3.5 h-3.5 text-[#5E6AD2]" />
-          <h3 className="text-xs font-mono tracking-widest uppercase text-[#8A8F98]">
+          <List className="w-3.5 h-3.5" style={{ color: "#3B82F6" }} />
+          <h3 className="text-xs font-mono tracking-widest uppercase text-muted-foreground">
             Draft Queue
           </h3>
+          {queue.length > 0 && (
+            <span
+              className="text-[9px] h-4 px-1.5 rounded-full inline-flex items-center font-mono font-bold"
+              style={{
+                background: "rgba(59,130,246,0.15)",
+                color: "#3B82F6",
+                border: "1px solid rgba(59,130,246,0.25)",
+              }}
+            >
+              {queue.length}
+            </span>
+          )}
         </div>
         <button
           onClick={onClose}
-          className="flex items-center justify-center w-6 h-6 rounded-lg text-[#8A8F98] hover:text-[#EDEDEF] hover:bg-white/[0.06] transition-all duration-200"
+          className="flex items-center justify-center w-6 h-6 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all duration-200"
         >
           <X className="w-3 h-3" />
         </button>
@@ -61,11 +78,16 @@ export function DraftQueuePanel({
       <div className="overflow-y-auto h-[calc(100%-40px)] p-2">
         {queue.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-6">
-            <p className="text-xs text-[#8A8F98]/60">
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center mb-2 bg-secondary border border-border"
+            >
+              <List className="w-3.5 h-3.5 text-muted-foreground/40" />
+            </div>
+            <p className="text-xs text-muted-foreground/60">
               No teams queued
             </p>
-            <p className="text-[11px] text-[#8A8F98]/40 mt-1">
-              Star teams to add them here
+            <p className="text-[11px] text-muted-foreground/40 mt-1">
+              Star teams to auto-pick in order
             </p>
           </div>
         ) : (
@@ -77,10 +99,10 @@ export function DraftQueuePanel({
               return (
                 <div
                   key={slotId}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.06]"
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-xl transition-all duration-200 bg-secondary border border-border"
                 >
                   {/* Position number */}
-                  <span className="w-4 text-[10px] text-[#8A8F98]/50 tabular-nums text-center font-mono">
+                  <span className="w-4 text-[10px] text-muted-foreground/50 tabular-nums text-center font-mono">
                     {index + 1}
                   </span>
 
@@ -89,21 +111,27 @@ export function DraftQueuePanel({
                     <button
                       onClick={() => onMove(slotId, "up")}
                       disabled={index === 0}
-                      className="text-[#8A8F98]/40 hover:text-[#EDEDEF] disabled:opacity-20 disabled:pointer-events-none transition-colors duration-200"
+                      className="text-muted-foreground/40 hover:text-foreground disabled:opacity-20 disabled:pointer-events-none transition-colors duration-200"
                     >
                       <ChevronUp className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => onMove(slotId, "down")}
                       disabled={index === queue.length - 1}
-                      className="text-[#8A8F98]/40 hover:text-[#EDEDEF] disabled:opacity-20 disabled:pointer-events-none transition-colors duration-200"
+                      className="text-muted-foreground/40 hover:text-foreground disabled:opacity-20 disabled:pointer-events-none transition-colors duration-200"
                     >
                       <ChevronDown className="w-3 h-3" />
                     </button>
                   </div>
 
                   {/* Team logo */}
-                  <div className="w-6 h-6 rounded-lg bg-white/[0.03] border border-white/[0.06] flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <div
+                    className="w-6 h-6 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0"
+                    style={{
+                      background: "rgba(48,54,61,0.5)",
+                      border: "1px solid rgba(48,54,61,0.8)",
+                    }}
+                  >
                     <TeamLogo
                       teamId={slot.logoTeamIds[0]}
                       label={slot.displayName}
@@ -113,10 +141,10 @@ export function DraftQueuePanel({
 
                   {/* Team info */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-[#EDEDEF] truncate">
+                    <p className="text-xs font-medium text-foreground truncate">
                       {slot.displayName}
                     </p>
-                    <p className="text-[10px] text-[#8A8F98]/60 font-mono">
+                    <p className="text-[10px] text-muted-foreground/60 font-mono">
                       {slot.abbreviation ? `${slot.abbreviation} · ` : ""}R{slot.quadrant} &middot; Seed {slot.seed}
                     </p>
                   </div>
@@ -124,7 +152,7 @@ export function DraftQueuePanel({
                   {/* Remove */}
                   <button
                     onClick={() => onRemove(slotId)}
-                    className="text-[#8A8F98]/30 hover:text-red-400 p-0.5 rounded transition-colors duration-200"
+                    className="text-muted-foreground/30 hover:text-red-400 p-0.5 rounded transition-colors duration-200"
                   >
                     <X className="w-3 h-3" />
                   </button>

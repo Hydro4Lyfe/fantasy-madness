@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
 
 @plugin 'tailwindcss-animate';
 
@@ -36,7 +36,7 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
+  --radius: 0.5rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: #030213;
@@ -48,46 +48,46 @@
 }
 
 .dark {
-  /* Base colors - Deep dark theme */
-  --background: #0A0A0F;
-  --foreground: #FAFAFA;
-  --card: #16161D;
-  --card-foreground: #FAFAFA;
-  --popover: #16161D;
-  --popover-foreground: #FAFAFA;
+  /* Base colors - Deep navy sports theme */
+  --background: #0d1117;
+  --foreground: #E6EDF3;
+  --card: #161B22;
+  --card-foreground: #E6EDF3;
+  --popover: #161B22;
+  --popover-foreground: #E6EDF3;
 
-  /* Primary accent - Neon green */
-  --primary: #00FF66;
-  --primary-foreground: #0A0A0F;
+  /* Primary accent - Royal Blue */
+  --primary: #3B82F6;
+  --primary-foreground: #FFFFFF;
 
   /* Secondary colors */
-  --secondary: #1E1E26;
-  --secondary-foreground: #FAFAFA;
+  --secondary: #21262D;
+  --secondary-foreground: #E6EDF3;
 
   /* Muted colors */
-  --muted: #27272F;
-  --muted-foreground: #A1A1AA;
+  --muted: #21262D;
+  --muted-foreground: #8B949E;
 
   /* Accent colors */
-  --accent: #27272F;
-  --accent-foreground: #FAFAFA;
+  --accent: #1C2128;
+  --accent-foreground: #E6EDF3;
 
   /* Destructive/Error */
-  --destructive: #EF4444;
-  --destructive-foreground: #FAFAFA;
+  --destructive: #F85149;
+  --destructive-foreground: #FFFFFF;
 
   /* Success */
-  --success: #00FF66;
-  --success-foreground: #0A0A0F;
+  --success: #10B981;
+  --success-foreground: #FFFFFF;
 
   /* Warning */
-  --warning: #FBBF24;
-  --warning-foreground: #0A0A0F;
+  --warning: #D29922;
+  --warning-foreground: #FFFFFF;
 
   /* Border and input */
-  --border: #27272F;
-  --input: #27272F;
-  --ring: #00FF66;
+  --border: #30363D;
+  --input: #21262D;
+  --ring: #3B82F6;
 
   /* Font weights */
   --font-weight-medium: 500;
@@ -95,32 +95,31 @@
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  /* Chart colors - Vibrant palette */
-  --chart-1: #A855F7; /* Purple */
-  --chart-2: #FBBF24; /* Yellow/Gold */
-  --chart-3: #00FF66; /* Neon green */
-  --chart-4: #64748B; /* Blue-gray */
-  --chart-5: #EC4899; /* Pink */
+  /* Chart colors */
+  --chart-1: #3B82F6;
+  --chart-2: #F59E0B;
+  --chart-3: #10B981;
+  --chart-4: #64748B;
+  --chart-5: #EC4899;
 
   /* Sidebar */
-  --sidebar: #0F0F14;
-  --sidebar-foreground: #FAFAFA;
-  --sidebar-primary: #00FF66;
-  --sidebar-primary-foreground: #0A0A0F;
-  --sidebar-accent: #1E1E26;
-  --sidebar-accent-foreground: #FAFAFA;
-  --sidebar-border: #27272F;
-  --sidebar-ring: #00FF66;
+  --sidebar: #0d1117;
+  --sidebar-foreground: #E6EDF3;
+  --sidebar-primary: #3B82F6;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #21262D;
+  --sidebar-accent-foreground: #E6EDF3;
+  --sidebar-border: #30363D;
+  --sidebar-ring: #3B82F6;
 
   /* Data visualization */
-  --positive: #00FF66;
-  --negative: #EF4444;
+  --positive: #10B981;
+  --negative: #F85149;
 
-  /* Category colors */
-  --category-purple: #A855F7;
-  --category-yellow: #FBBF24;
-  --category-green: #00FF66;
-  --category-gray: #64748B;
+  /* Game mode accents */
+  --mode-global: #3B82F6;
+  --mode-draft: #10B981;
+  --mode-league: #F59E0B;
 }
 
 @theme inline {
@@ -162,16 +161,23 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-mode-global: var(--mode-global);
+  --color-mode-draft: var(--mode-draft);
+  --color-mode-league: var(--mode-league);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --font-family-display: "Barlow Condensed", "Impact", sans-serif;
+  --font-family-sans: "Inter", system-ui, sans-serif;
 }
 
-@keyframes blob-float {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-20px) rotate(1deg); }
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
-@keyframes shimmer {
-  0% { background-position: 0% center; }
-  100% { background-position: 200% center; }
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @layer base {
