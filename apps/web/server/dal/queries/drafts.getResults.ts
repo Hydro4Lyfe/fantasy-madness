@@ -85,7 +85,7 @@ export async function getDraftResults(args: {
               assignedTeamId: true,
               assignedTeam: {
                 select: {
-                  name: true,
+                  fullName: true,
                 },
               },
             },
@@ -130,7 +130,7 @@ export async function getDraftResults(args: {
 
         return {
           slotId: pick.slotId,
-          teamName: pick.slot.assignedTeam?.name ?? null,
+          teamName: pick.slot.assignedTeam?.fullName ?? null,
           seed: pick.slot.seed,
           quadrant: pick.slot.quadrant,
           wins,

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 interface ParticipantPick {
   slotId: string
   displayName: string
+  abbreviation: string | null
   logoTeamIds: number[]
   seed: number
   quadrant: number
@@ -335,7 +336,7 @@ export function DraftBoard({
                         #{pick.seed}
                       </span>
                       <span className="text-[10px] font-medium text-foreground/90 leading-tight mt-0.5 truncate">
-                        {shortName(pick.displayName)}
+                        {pick.abbreviation ?? shortName(pick.displayName)}
                       </span>
                     </div>
                   </div>

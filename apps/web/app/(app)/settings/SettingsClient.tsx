@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { formatMediumDate } from "@/lib/date";
 import { useFormStatus } from "react-dom";
 import {
@@ -16,7 +16,6 @@ import {
   Clock,
   AtSign,
   Trash2,
-  CalendarDays,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -27,6 +26,7 @@ import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { updateProfileAction, type UpdateProfileFormState } from "@/server/actions/users";
 import { signOut } from "@/server/actions/auth";
 import { cn } from "@/lib/utils";
+import { SportCard } from "@/components/shared/SportCard";
 
 interface SettingsClientProps {
   initialProfile: {
@@ -40,96 +40,6 @@ interface SettingsClientProps {
 }
 
 // ---------------------------------------------------------------------------
-// SpotlightCard — mouse-tracking radial gradient on card surface
-// ---------------------------------------------------------------------------
-function SpotlightCard({
-  children,
-  className,
-  accentColor = "rgba(94,106,210,0.15)",
-}: {
-  children: React.ReactNode;
-  className?: string;
-  accentColor?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [opacity, setOpacity] = useState(0);
-
-  function handleMouseMove(e: MouseEvent<HTMLDivElement>) {
-    if (!ref.current) return;
-    const rect = ref.current.getBoundingClientRect();
-    setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  }
-
-  return (
-    <div
-      ref={ref}
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => setOpacity(1)}
-      onMouseLeave={() => setOpacity(0)}
-      className={cn(
-        "relative overflow-hidden rounded-xl border border-border",
-        "bg-card",
-        "shadow-sm",
-        "transition-all duration-300",
-        "hover:border-border/80",
-        className,
-      )}
-    >
-      {/* Spotlight */}
-      <div
-        className="pointer-events-none absolute inset-0 transition-opacity duration-500"
-        style={{
-          opacity,
-          background: `radial-gradient(400px circle at ${position.x}px ${position.y}px, ${accentColor}, transparent 70%)`,
-        }}
-      />
-      {/* Top edge highlight */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
-      {children}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Section header
-// ---------------------------------------------------------------------------
-function SectionHeader({
-  icon: Icon,
-  title,
-  description,
-  iconColorClass = "text-[#5E6AD2]",
-  iconBgClass = "bg-[#5E6AD2]/10",
-}: {
-  icon: React.ElementType;
-  title: string;
-  description: string;
-  iconColorClass?: string;
-  iconBgClass?: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 mb-5">
-      <div
-        className={cn(
-          "w-9 h-9 rounded-lg border border-white/[0.06] flex items-center justify-center flex-shrink-0",
-          iconBgClass,
-        )}
-      >
-        <Icon className={cn("w-[18px] h-[18px]", iconColorClass)} />
-      </div>
-      <div className="min-w-0">
-        <h2 className="font-display text-base font-bold uppercase tracking-wide text-foreground">
-          {title}
-        </h2>
-        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-          {description}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Save button
 // ---------------------------------------------------------------------------
 function SaveButton() {
@@ -140,9 +50,7 @@ function SaveButton() {
       type="submit"
       disabled={pending}
       className={cn(
-        "bg-[#5E6AD2] hover:bg-[#6872D9] text-white font-medium px-6",
-        "shadow-[0_0_0_1px_rgba(94,106,210,0.4),0_2px_8px_rgba(94,106,210,0.25)]",
-        "hover:shadow-[0_0_0_1px_rgba(104,114,217,0.5),0_4px_16px_rgba(94,106,210,0.35)]",
+        "bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-6",
         "active:scale-[0.98]",
         "transition-all duration-200",
         "disabled:opacity-60 disabled:cursor-not-allowed",
@@ -277,43 +185,44 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
   return (
     <div className="max-w-2xl space-y-6">
       {/* ── Page header ── */}
-      <div
-        className="animate-[slide-up_0.35s_ease-out_both]"
-      >
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-10 h-10 rounded-lg border border-[#5E6AD2]/30 bg-[#5E6AD2]/10 flex items-center justify-center flex-shrink-0">
-            <SettingsIcon className="w-5 h-5 text-[#5E6AD2]" />
-          </div>
-          <div>
-            <h1 className="font-display text-2xl sm:text-3xl font-bold uppercase tracking-tight text-foreground">
-              Settings
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              Manage your profile and account preferences
-            </p>
-          </div>
+      <div className="animate-[slide-up_0.35s_ease-out_both]">
+        <div className="flex items-center gap-2.5 mb-1">
+          <SettingsIcon className="w-5 h-5 text-primary" />
+          <h1 className="font-display text-3xl font-extrabold uppercase tracking-tight text-foreground leading-none">
+            Settings
+          </h1>
         </div>
+        <p className="text-sm text-muted-foreground">
+          Manage your profile and account preferences
+        </p>
       </div>
 
       {/* ── Avatar section ── */}
-      <SpotlightCard
+      <SportCard
+        accent="blue"
         className="animate-[slide-up_0.35s_ease-out_0.06s_both]"
-        accentColor="rgba(94,106,210,0.12)"
       >
         <div className="p-5">
-          <SectionHeader
-            icon={Camera}
-            title="Profile Photo"
-            description="JPG, PNG, or WEBP up to 5 MB"
-          />
+          <div className="flex items-center gap-2.5 mb-5">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+              <Camera className="w-[18px] h-[18px] text-primary" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-display text-sm font-bold uppercase tracking-wide text-foreground">
+                Profile Photo
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                JPG, PNG, or WEBP up to 5 MB
+              </p>
+            </div>
+          </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-5">
             {/* Avatar display */}
             <div className="relative group">
-              <div className="absolute -inset-1 rounded-full bg-gradient-to-br from-[#5E6AD2]/40 via-[#5E6AD2]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-sm" />
-              <Avatar className="relative w-20 h-20 border-2 border-border group-hover:border-[#5E6AD2]/40 transition-colors duration-300">
+              <Avatar className="relative w-20 h-20 border-2 border-border group-hover:border-primary/40 transition-colors duration-300">
                 <AvatarImage src={effectiveImageUrl || undefined} alt="Profile photo" />
-                <AvatarFallback className="bg-[#5E6AD2]/15 text-foreground text-lg font-bold font-display">
+                <AvatarFallback className="bg-primary/15 text-foreground text-lg font-bold font-display">
                   {initials}
                 </AvatarFallback>
               </Avatar>
@@ -328,7 +237,7 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
                     "inline-flex items-center gap-2 rounded-lg border border-border",
                     "bg-secondary hover:bg-accent px-3.5 py-2 text-sm text-foreground",
                     "cursor-pointer transition-all duration-200",
-                    "hover:border-[#5E6AD2]/30",
+                    "hover:border-primary/30",
                     isUploading && "opacity-60 pointer-events-none",
                   )}
                 >
@@ -381,19 +290,27 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
             </div>
           </div>
         </div>
-      </SpotlightCard>
+      </SportCard>
 
       {/* ── Profile form section ── */}
-      <SpotlightCard
+      <SportCard
+        accent="blue"
         className="animate-[slide-up_0.35s_ease-out_0.12s_both]"
-        accentColor="rgba(94,106,210,0.12)"
       >
         <div className="p-5">
-          <SectionHeader
-            icon={User}
-            title="Profile Info"
-            description="Your public identity across Fantasy Madness"
-          />
+          <div className="flex items-center gap-2.5 mb-5">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+              <User className="w-[18px] h-[18px] text-primary" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-display text-sm font-bold uppercase tracking-wide text-foreground">
+                Profile Info
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Your public identity across Fantasy Madness
+              </p>
+            </div>
+          </div>
 
           <form action={formAction} className="space-y-4">
             <input type="hidden" name="image" value={effectiveImageUrl ?? ""} />
@@ -410,7 +327,7 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
                 type="text"
                 defaultValue={state.profile?.name ?? initialProfile.name ?? ""}
                 placeholder="Your display name"
-                className="bg-secondary/50 border-border text-foreground placeholder:text-muted-foreground focus-visible:border-[#5E6AD2] focus-visible:ring-[#5E6AD2]/20"
+                className="bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-0"
               />
               {state.fieldErrors?.name && (
                 <FieldError message={state.fieldErrors.name} />
@@ -429,7 +346,7 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
                 type="text"
                 defaultValue={state.profile?.username ?? initialProfile.username ?? ""}
                 placeholder="your_username"
-                className="bg-secondary/50 border-border text-foreground placeholder:text-muted-foreground focus-visible:border-[#5E6AD2] focus-visible:ring-[#5E6AD2]/20 font-mono"
+                className="bg-input border-border text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-0 font-mono"
               />
               {state.fieldErrors?.username ? (
                 <FieldError message={state.fieldErrors.username} />
@@ -467,21 +384,27 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
             </div>
           </form>
         </div>
-      </SpotlightCard>
+      </SportCard>
 
       {/* ── Account section ── */}
-      <SpotlightCard
+      <SportCard
+        accent="slate"
         className="animate-[slide-up_0.35s_ease-out_0.18s_both]"
-        accentColor="rgba(139,148,158,0.08)"
       >
         <div className="p-5">
-          <SectionHeader
-            icon={Shield}
-            title="Account"
-            description="Your login credentials and session"
-            iconColorClass="text-muted-foreground"
-            iconBgClass="bg-muted/50"
-          />
+          <div className="flex items-center gap-2.5 mb-5">
+            <div className="w-9 h-9 rounded-lg bg-[#21262D] border border-border flex items-center justify-center flex-shrink-0">
+              <Shield className="w-[18px] h-[18px] text-muted-foreground" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-display text-sm font-bold uppercase tracking-wide text-foreground">
+                Account
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Your login credentials and session
+              </p>
+            </div>
+          </div>
 
           {/* Email (read-only) */}
           <div className="space-y-1.5 mb-5">
@@ -527,7 +450,7 @@ export function SettingsClient({ initialProfile }: SettingsClientProps) {
             </form>
           </div>
         </div>
-      </SpotlightCard>
+      </SportCard>
 
       {/* Bottom spacing */}
       <div className="h-4" />

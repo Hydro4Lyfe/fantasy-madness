@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
@@ -16,10 +17,14 @@ import {
   Shield,
   Plus,
   Users,
+  User,
+  Clock,
+  CircleDot,
 } from "lucide-react";
 import { toast } from "sonner";
 import { joinDraftByInviteAction } from "@/server/actions/drafts";
 import { cn } from "@/lib/utils";
+import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
 import { SportCard } from "@/components/shared/SportCard";
 import { StatBlock } from "@/components/shared/StatBlock";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -31,15 +36,31 @@ export interface Pick {
   id: string;
   seed: number;
   teamName: string;
+  abbreviation: string | null;
+  logoTeamId: number | null;
   quadrant: string;
   status: "alive" | "eliminated" | "pending";
   wins: number;
   points: number;
 }
 
+export interface DraftUpdate {
+  id: string;
+  name: string;
+  status: "OPEN" | "DRAFTING" | "LOCKED" | "COMPLETE";
+  participantCount: number;
+  rosterSize: number;
+  isPrivate: boolean;
+  picksMade: number;
+  totalExpectedPicks: number;
+  currentPickerName: string | null;
+  isYourTurn: boolean;
+}
+
 interface LeaderboardEntry {
   rank: number;
   name: string;
+  image: string | null;
   points: number;
 }
 
@@ -52,6 +73,7 @@ interface DashboardClientProps {
     activeDrafts: number;
   };
   picks: Pick[];
+  draftUpdates: DraftUpdate[];
   leaderboard: LeaderboardEntry[];
   activeLeagues: number;
   tournamentName: string | null;
@@ -130,12 +152,41 @@ function PickCard({ pick }: { pick: Pick }) {
           {isEliminated && <StatusBadge status="eliminated" />}
         </div>
 
-        {/* Team name + quadrant */}
+        {/* Team logo + name + quadrant */}
         <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            {pick.logoTeamId ? (
+              <Image
+                src={`/team-logos/${pick.logoTeamId}.png`}
+                alt={pick.teamName}
+                width={28}
+                height={28}
+                className={cn(
+                  "rounded-sm object-contain flex-shrink-0",
+                  isEliminated && "grayscale opacity-60",
+                )}
+              />
+            ) : (
+              <div className="w-7 h-7 rounded-sm bg-secondary border border-border flex items-center justify-center flex-shrink-0">
+                <span className="text-[10px] text-muted-foreground">?</span>
+              </div>
+            )}
+            {pick.abbreviation && (
+              <span
+                className={cn(
+                  "text-sm font-bold tracking-wide",
+                  isAlive ? "text-foreground" : "text-muted-foreground",
+                  isEliminated && "line-through",
+                )}
+              >
+                {pick.abbreviation}
+              </span>
+            )}
+          </div>
           <p
             className={cn(
-              "text-sm font-semibold leading-tight",
-              isAlive ? "text-foreground" : "text-muted-foreground",
+              "text-xs leading-tight",
+              isAlive ? "text-muted-foreground" : "text-muted-foreground/70",
               isEliminated && "line-through",
             )}
           >
@@ -166,11 +217,116 @@ function PickCard({ pick }: { pick: Pick }) {
   );
 }
 
+// ─── Draft Status Card ───────────────────────────────────────────────────────
+
+function DraftStatusCard({ draft }: { draft: DraftUpdate }) {
+  const isDrafting = draft.status === "DRAFTING";
+  const isOpen = draft.status === "OPEN";
+  const progressPct =
+    draft.totalExpectedPicks > 0
+      ? Math.round((draft.picksMade / draft.totalExpectedPicks) * 100)
+      : 0;
+  const fillPct = Math.round((draft.participantCount / draft.rosterSize) * 100);
+
+  return (
+    <Link href={isDrafting ? `/drafts/${draft.id}/room` : `/drafts/${draft.id}`} className="block">
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-lg border bg-card transition-all duration-200 hover:bg-accent/50",
+          isDrafting && "border-l-2 border-l-[#10B981] border-t-border border-r-border border-b-border",
+          isOpen && "border-l-2 border-l-[#3B82F6] border-t-border border-r-border border-b-border",
+        )}
+      >
+        <div className="p-4">
+          {/* Header: name + status badge */}
+          <div className="flex items-start justify-between mb-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground truncate">{draft.name}</p>
+              <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground mt-0.5">
+                {draft.isPrivate ? "Private" : "Public"}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+              {isDrafting && <StatusBadge status="live" />}
+              {isOpen && <StatusBadge status="open" />}
+            </div>
+          </div>
+
+          {/* DRAFTING: pick progress + current turn */}
+          {isDrafting && (
+            <>
+              {/* Progress bar */}
+              <div className="mb-3">
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                  <span>{draft.picksMade} / {draft.totalExpectedPicks} picks</span>
+                  <span>{progressPct}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-[#10B981] transition-all duration-500"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Current turn */}
+              <div
+                className={cn(
+                  "flex items-center gap-2 px-2.5 py-2 rounded-md text-xs",
+                  draft.isYourTurn
+                    ? "bg-[#10B981]/10 border border-[#10B981]/30 text-[#10B981] font-semibold"
+                    : "bg-secondary border border-border text-muted-foreground",
+                )}
+              >
+                <CircleDot className="w-3.5 h-3.5 flex-shrink-0" />
+                {draft.isYourTurn ? (
+                  <span>Your turn to pick!</span>
+                ) : (
+                  <span>
+                    Waiting on <span className="text-foreground font-medium">{draft.currentPickerName ?? "..."}</span>
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* OPEN: participant fill */}
+          {isOpen && (
+            <>
+              <div className="mb-3">
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <Users className="w-3 h-3" />
+                    {draft.participantCount} / {draft.rosterSize} joined
+                  </span>
+                  <span>{fillPct}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-[#3B82F6] transition-all duration-500"
+                    style={{ width: `${fillPct}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 px-2.5 py-2 rounded-md bg-secondary border border-border text-xs text-muted-foreground">
+                <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Waiting for players to join</span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function DashboardClient({
   user,
   picks,
+  draftUpdates,
   leaderboard,
   activeLeagues,
   tournamentName,
@@ -329,6 +485,29 @@ export function DashboardClient({
           </div>
         </div>
 
+        {/* ── Your Drafts ── */}
+        {draftUpdates.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-display text-lg font-bold uppercase tracking-wide text-foreground">
+                Your Drafts
+              </h2>
+              <Link
+                href="/drafts"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
+              >
+                View all
+                <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {draftUpdates.map((draft) => (
+                <DraftStatusCard key={draft.id} draft={draft} />
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── Main two-column layout ── */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_288px] gap-6">
           {/* ── Left: Global Contest Picks ── */}
@@ -418,13 +597,24 @@ export function DashboardClient({
                       <div
                         key={player.rank}
                         className={cn(
-                          "flex items-center gap-2.5 px-2 py-1.5 rounded-md transition-colors",
+                          "flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors",
                           player.rank <= 3
                             ? "bg-primary/5 border border-primary/10"
                             : "hover:bg-accent border border-transparent",
                         )}
                       >
                         <RankBadge rank={player.rank} />
+                        {player.image ? (
+                          <ImageWithFallback
+                            src={player.image}
+                            alt={player.name}
+                            className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
+                            <User className="w-3 h-3 text-muted-foreground" />
+                          </div>
+                        )}
                         <span className="text-sm text-foreground truncate flex-1 min-w-0">
                           {player.name}
                         </span>

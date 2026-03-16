@@ -54,7 +54,17 @@ export type BDLTeam = {
   abbreviation: string;
 };
 
-export type BDLBracketTeam = BDLTeam & {
+/**
+ * BallDontLie bracket team — `id` (and other BDLTeam fields) can be null
+ * for TBD placeholder teams in unresolved play-in matchups.
+ */
+export type BDLBracketTeam = {
+  id: number | null;
+  conference_id: number | null;
+  name: string;
+  full_name: string;
+  college: string | null;
+  abbreviation: string | null;
   seed: string;
   score: number | null;
   winner: boolean | null;

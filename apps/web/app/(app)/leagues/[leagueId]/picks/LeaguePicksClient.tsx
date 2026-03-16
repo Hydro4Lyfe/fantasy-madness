@@ -21,6 +21,7 @@ import { saveLeaguePicksDirectAction } from "@/server/actions/leagues";
 type LeagueSlot = {
   slotId: string;
   displayName: string;
+  abbreviation: string | null;
   seed: number;
   quadrant: number;
   isPlayIn: boolean;
@@ -198,7 +199,7 @@ export function LeaguePicksClient({
                   <span className="text-[#F59E0B] font-bold text-xs font-mono">
                     #{index + 1}
                   </span>
-                  <span>{slot.displayName}</span>
+                  <span>{slot.abbreviation ?? slot.displayName}</span>
                 </button>
               ))}
             </div>

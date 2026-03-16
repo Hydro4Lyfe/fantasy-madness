@@ -16,7 +16,7 @@ import {
   SaveLeaguePicksInputSchema,
 } from "@fantasy-madness/domain";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { requireUserId } from "@/server/auth/guards";
 
 // ---------- Create League ----------
@@ -227,6 +227,7 @@ export async function saveLeaguePicksAction(
     });
 
     revalidatePath(`/leagues/${leagueId}`);
+    revalidateTag("leaderboard");
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e?.message ?? "Failed to save picks" };
@@ -256,6 +257,7 @@ export async function saveLeaguePicksDirectAction(
     });
 
     revalidatePath(`/leagues/${leagueId}`);
+    revalidateTag("leaderboard");
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e?.message ?? "Failed to save picks" };

@@ -27,6 +27,49 @@ function seedColor(seed: number): { text: string; bg: string; border: string } {
   return              { text: "#818cf8",   bg: "rgba(59,130,246,0.10)", border: "rgba(59,130,246,0.25)"  }
 }
 
+/** Diagonal-split logo showing both play-in teams */
+function PlayInLogo({ teamIds, names }: { teamIds: number[]; names: string[] }) {
+  return (
+    <div
+      className="relative flex-shrink-0 w-11 h-11 rounded-xl overflow-hidden"
+      style={{
+        background: "rgba(48,54,61,0.4)",
+        border: "1px solid rgba(48,54,61,0.8)",
+      }}
+    >
+      {/* Top-left team (clipped to upper-left triangle) */}
+      <div
+        className="absolute inset-0 flex items-center justify-center"
+        style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
+      >
+        <TeamLogo
+          teamId={teamIds[0]}
+          label={names[0] ?? "TBD"}
+          className="w-7 h-7 -translate-x-0.5 -translate-y-0.5"
+        />
+      </div>
+      {/* Bottom-right team (clipped to lower-right triangle) */}
+      <div
+        className="absolute inset-0 flex items-center justify-center"
+        style={{ clipPath: "polygon(100% 0, 100% 100%, 0 100%)" }}
+      >
+        <TeamLogo
+          teamId={teamIds[1]}
+          label={names[1] ?? "TBD"}
+          className="w-7 h-7 translate-x-0.5 translate-y-0.5"
+        />
+      </div>
+      {/* Diagonal divider line */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: "linear-gradient(135deg, transparent calc(50% - 0.5px), rgba(48,54,61,0.9) calc(50% - 0.5px), rgba(48,54,61,0.9) calc(50% + 0.5px), transparent calc(50% + 0.5px))",
+        }}
+      />
+    </div>
+  )
+}
+
 export function TeamSlotCard({
   slotId,
   displayName,
@@ -42,6 +85,10 @@ export function TeamSlotCard({
   onToggleQueue,
 }: TeamSlotCardProps) {
   const sc = seedColor(seed)
+
+  // Split play-in names for individual display
+  const teamNames = isPlayIn ? displayName.split(" / ") : [displayName]
+  const teamAbbrs = isPlayIn && abbreviation ? abbreviation.split(" / ") : abbreviation ? [abbreviation] : []
 
   return (
     <div
@@ -76,44 +123,75 @@ export function TeamSlotCard({
       }}
     >
       {/* Logo container */}
-      <div
-        className="relative flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center overflow-hidden"
-        style={{
-          background: "rgba(48,54,61,0.4)",
-          border: "1px solid rgba(48,54,61,0.8)",
-        }}
-      >
-        <TeamLogo
-          teamId={logoTeamIds[0]}
-          label={displayName}
-          className="w-9 h-9"
-        />
-      </div>
+      {isPlayIn && logoTeamIds.length >= 2 ? (
+        <PlayInLogo teamIds={logoTeamIds} names={teamNames} />
+      ) : (
+        <div
+          className="relative flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center overflow-hidden"
+          style={{
+            background: "rgba(48,54,61,0.4)",
+            border: "1px solid rgba(48,54,61,0.8)",
+          }}
+        >
+          <TeamLogo
+            teamId={logoTeamIds[0]}
+            label={displayName}
+            className="w-9 h-9"
+          />
+        </div>
+      )}
 
       {/* Team info */}
       <div className="flex-1 min-w-0 relative z-10">
-        <h3 className="text-sm font-semibold text-foreground leading-tight truncate">
-          {displayName}
-        </h3>
-        <div className="flex items-center gap-2 mt-0.5">
-          {abbreviation && (
-            <>
-              <span className="text-[10px] font-semibold tracking-wide text-muted-foreground truncate max-w-[88px]">
-                {abbreviation}
+        {isPlayIn && teamNames.length >= 2 ? (
+          <>
+            {/* Two team names stacked with "vs" divider */}
+            <div className="flex items-center gap-1.5 leading-tight">
+              <span className="text-sm font-semibold text-foreground truncate">
+                {teamAbbrs[0] ?? teamNames[0]}
+              </span>
+              <span
+                className="text-[9px] font-bold tracking-wider uppercase flex-shrink-0 px-1 py-px rounded"
+                style={{
+                  color: "rgba(245,158,11,0.85)",
+                  background: "rgba(245,158,11,0.08)",
+                  border: "1px solid rgba(245,158,11,0.15)",
+                }}
+              >
+                vs
+              </span>
+              <span className="text-sm font-semibold text-foreground truncate">
+                {teamAbbrs[1] ?? teamNames[1]}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-[11px] text-muted-foreground">
+                Region {quadrant}
               </span>
               <span className="text-[11px] text-muted-foreground/40">|</span>
-            </>
-          )}
-          <span className="text-[11px] text-muted-foreground">
-            Region {quadrant}
-          </span>
-          {isPlayIn && (
-            <>
-              <span className="text-[11px] text-muted-foreground/40">|</span>
               <span className="text-[11px] text-amber-400/70">First Four</span>
-            </>
-          )}
-        </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <h3 className="text-sm font-semibold text-foreground leading-tight truncate">
+              {displayName}
+            </h3>
+            <div className="flex items-center gap-2 mt-0.5">
+              {abbreviation && (
+                <>
+                  <span className="text-[10px] font-semibold tracking-wide text-muted-foreground truncate max-w-[88px]">
+                    {abbreviation}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground/40">|</span>
+                </>
+              )}
+              <span className="text-[11px] text-muted-foreground">
+                Region {quadrant}
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Right side: seed + pts/w + queue star */}

@@ -88,9 +88,9 @@ export async function getDraftRoomState(args: {
             select: {
               seed: true,
               quadrant: true,
-              assignedTeam: { select: { id: true, name: true, abbreviation: true } },
+              assignedTeam: { select: { id: true, fullName: true, abbreviation: true } },
               candidates: {
-                select: { team: { select: { id: true, name: true, abbreviation: true } } },
+                select: { team: { select: { id: true, fullName: true, abbreviation: true } } },
                 orderBy: { team: { name: "asc" } },
               },
             },
@@ -113,22 +113,22 @@ export async function getDraftRoomState(args: {
       id: true,
       seed: true,
       quadrant: true,
-      assignedTeam: { select: { id: true, name: true, abbreviation: true } },
+      assignedTeam: { select: { id: true, fullName: true, abbreviation: true } },
       candidates: {
-        select: { team: { select: { id: true, name: true, abbreviation: true } } },
+        select: { team: { select: { id: true, fullName: true, abbreviation: true } } },
         orderBy: { team: { name: "asc" } },
       },
     },
     orderBy: [{ quadrant: "asc" }, { seed: "asc" }],
   });
 
-  // Helper to build display name for a slot
+  // Helper to build display name for a slot (prefer college/school name over mascot)
   const getDisplayName = (slot: any): string => {
     if (slot.assignedTeam) {
-      return slot.assignedTeam.name;
+      return slot.assignedTeam.fullName;
     }
     if (slot.candidates.length > 0) {
-      return slot.candidates.map((c: any) => c.team.name).join(" / ");
+      return slot.candidates.map((c: any) => c.team.fullName).join(" / ");
     }
     return `Slot ${slot.quadrant}-${slot.seed}`;
   };
@@ -168,13 +168,13 @@ export async function getDraftRoomState(args: {
       isPlayIn: s.candidates.length > 1,
     }));
 
-  // Helper to build display name for a pick's slot
+  // Helper to build display name for a pick's slot (prefer college/school name over mascot)
   const getPickDisplayName = (slot: any): string => {
     if (slot.assignedTeam) {
-      return slot.assignedTeam.name;
+      return slot.assignedTeam.fullName;
     }
     if (slot.candidates.length > 0) {
-      return slot.candidates.map((c: any) => c.team.name).join(" / ");
+      return slot.candidates.map((c: any) => c.team.fullName).join(" / ");
     }
     return `Slot ${slot.quadrant}-${slot.seed}`;
   };

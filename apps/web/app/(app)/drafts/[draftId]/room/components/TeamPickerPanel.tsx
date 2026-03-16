@@ -78,7 +78,7 @@ export function TeamPickerPanel({
 
   return (
     <div
-      className="flex-1 min-h-0 rounded-2xl border border-border flex flex-col overflow-hidden bg-card"
+      className="h-full rounded-2xl border border-border flex flex-col overflow-hidden bg-card"
       style={{
         boxShadow: "0 0 0 1px rgba(48,54,61,0.6), 0 2px 20px rgba(0,0,0,0.4), 0 0 40px rgba(0,0,0,0.2)",
       }}

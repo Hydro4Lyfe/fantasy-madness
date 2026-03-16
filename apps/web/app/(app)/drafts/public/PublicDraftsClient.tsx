@@ -150,7 +150,7 @@ function FeaturedDraftCard({ draft }: { draft: PublicDraft }) {
                 {draft.name}
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {draft.tournamentName} &middot; {draft.tournamentYear}
+                {draft.tournamentName}
               </p>
             </div>
           </div>
@@ -256,7 +256,7 @@ function PublicDraftCard({ draft, index }: { draft: PublicDraft; index: number }
               {draft.name}
             </h3>
             <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground">
-              <span>{draft.tournamentName} {draft.tournamentYear}</span>
+              <span>{draft.tournamentName}</span>
             </div>
             {draft.hostName && (
               <p className="text-[11px] text-muted-foreground mt-1">

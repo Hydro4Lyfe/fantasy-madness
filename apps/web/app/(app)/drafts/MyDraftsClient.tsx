@@ -100,7 +100,7 @@ function LiveDraftCard({ draft, index }: { draft: Draft; index: number }) {
                 {draft.name}
               </h3>
               <p className="text-xs text-muted-foreground mt-1">
-                {draft.tournamentName} &middot; {draft.tournamentYear}
+                {draft.tournamentName}
               </p>
             </div>
 
@@ -179,7 +179,7 @@ function OpenDraftCard({ draft, index }: { draft: Draft; index: number }) {
 
           {/* Meta row */}
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span>{draft.tournamentName} {draft.tournamentYear}</span>
+            <span>{draft.tournamentName}</span>
             {draft.pickTimerSec && (
               <>
                 <span className="w-px h-3 bg-border" />
@@ -242,7 +242,7 @@ function CompletedDraftRow({ draft }: { draft: Draft }) {
       <div className="flex-1 min-w-0">
         <p className="text-sm text-foreground truncate">{draft.name}</p>
         <p className="text-[11px] text-muted-foreground">
-          {draft.tournamentName} {draft.tournamentYear}
+          {draft.tournamentName}
         </p>
       </div>
 

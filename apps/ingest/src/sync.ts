@@ -150,6 +150,8 @@ async function upsertTeamFromBracket(
   team: BDLBracketTeam,
   bracketLocation: number,
 ): Promise<void> {
+  if (team.id == null) return; // TBD placeholder — skip
+
   const seed = team.seed ? parseInt(team.seed, 10) : null;
   const quadrant = deriveQuadrantFromBracketLocation(bracketLocation);
 
@@ -293,16 +295,19 @@ export async function runSyncOnce(params: {
   });
 
   // C) Upsert all teams from bracket games
+  // Note: BallDontLie returns TBD placeholder teams with null IDs for
+  // unresolved play-in matchups. Skip these — they'll be filled in once
+  // the play-in games complete.
   const seenTeamIds = new Set<number>();
 
   for (const game of bracketGames) {
-    if (!seenTeamIds.has(game.home_team.id)) {
+    if (game.home_team.id != null && !seenTeamIds.has(game.home_team.id)) {
       await upsertTeamFromBracket(prisma, params.tournamentId, game.home_team, game.bracket_location);
       seenTeamIds.add(game.home_team.id);
       stats.teamsUpserted++;
     }
 
-    if (!seenTeamIds.has(game.away_team.id)) {
+    if (game.away_team.id != null && !seenTeamIds.has(game.away_team.id)) {
       await upsertTeamFromBracket(prisma, params.tournamentId, game.away_team, game.bracket_location);
       seenTeamIds.add(game.away_team.id);
       stats.teamsUpserted++;
@@ -324,7 +329,8 @@ export async function runSyncOnce(params: {
   }
 
   // E) Build lookup of existing games
-  const gameIds = bracketGames.map((g) => g.game_id);
+  // BallDontLie returns game_id as a number, but our DB column is text.
+  const gameIds = bracketGames.map((g) => String(g.game_id));
   const existing = await findExistingGamesLite({ db: prisma, ids: gameIds });
   const existingById = new Map<string, ExistingGameLite>(existing.map((g) => [g.id, g]));
 
@@ -336,7 +342,7 @@ export async function runSyncOnce(params: {
     const isPlayIn = game.round === 0;
     const winnerId = determineWinner(game);
 
-    const prev = existingById.get(game.game_id);
+    const prev = existingById.get(String(game.game_id));
 
     const scoringChanged = didScoringRelevantChange(prev, {
       status,
@@ -354,7 +360,7 @@ export async function runSyncOnce(params: {
 
     await upsertGame({
       db: prisma,
-      gameId: game.game_id,
+      gameId: String(game.game_id),
       tournamentId: params.tournamentId,
       round: game.round,
       bracketLocation: game.bracket_location,

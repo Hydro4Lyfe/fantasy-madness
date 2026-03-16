@@ -2,7 +2,7 @@
 
 import { prisma } from "@fantasy-madness/db";
 import { makePick } from "@/server/dal";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { requireUserId } from "@/server/auth/guards";
 import { getRedisPubSub } from "@/lib/redis/pubsub";
 
@@ -55,6 +55,7 @@ export async function makePickAction(
     }
 
     revalidatePath(`/drafts/${draftId}/room`);
+    revalidateTag("leaderboard");
 
     return { success: true, pickId: result.pickId };
   } catch (e: any) {

@@ -16,5 +16,8 @@ export async function POST(req: Request) {
   if (year) revalidateTag(`tournament:${year}`);
   if (draftId) revalidateTag(`draft:${draftId}`);
 
+  // Always bust leaderboard cache when scores/data change
+  if (year || draftId) revalidateTag("leaderboard");
+
   return NextResponse.json({ ok: true, revalidated: { year: year || null, draftId: draftId || null } });
 }

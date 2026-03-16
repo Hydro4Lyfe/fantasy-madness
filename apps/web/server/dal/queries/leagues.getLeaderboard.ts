@@ -78,7 +78,7 @@ export async function getLeagueLeaderboard(args: {
                   assignedTeamId: true,
                   assignedTeam: {
                     select: {
-                      name: true,
+                      fullName: true,
                     },
                   },
                 },
@@ -129,7 +129,7 @@ export async function getLeagueLeaderboard(args: {
 
       return {
         slotId: p.slotId,
-        teamName: p.slot.assignedTeam?.name ?? null,
+        teamName: p.slot.assignedTeam?.fullName ?? null,
         seed: p.slot.seed,
         quadrant: p.slot.quadrant,
         wins,

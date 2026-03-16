@@ -4,6 +4,7 @@ import { prisma } from "@fantasy-madness/db";
 type LeaderRow = {
   rank: number;
   name: string;
+  image: string | null;
   points: number;
 };
 
@@ -48,7 +49,7 @@ export async function getGlobalContestOverview(args: {
         select: {
           userId: true,
           createdAt: true,
-          user: { select: { username: true, name: true } },
+          user: { select: { username: true, name: true, image: true } },
           score: { select: { score: true } },
         },
       },
@@ -73,6 +74,7 @@ export async function getGlobalContestOverview(args: {
     .map((entry: any) => ({
       userId: entry.userId,
       name: entry.user?.username ?? entry.user?.name ?? "Anonymous",
+      image: (entry.user?.image as string | null) ?? null,
       points: Number(entry.score?.score ?? 0),
       createdAt: entry.createdAt as Date,
     }))
@@ -104,6 +106,7 @@ export async function getGlobalContestOverview(args: {
     topPlayers: leaderboard.slice(0, 10).map((row: any) => ({
       rank: row.rank,
       name: row.name,
+      image: row.image,
       points: row.points,
     })),
   };

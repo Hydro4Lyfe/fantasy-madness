@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Trophy,
-  Crown,
   Users,
+  User,
   Target,
   Globe,
   ChevronRight,
@@ -13,24 +13,66 @@ import {
   BarChart3,
   Plus,
   Zap,
+  Crown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatBlock } from "@/components/shared/StatBlock";
+import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type LeaderboardType = "global" | "drafts" | "leagues";
 
+export interface DraftLeaderboardParticipant {
+  userId: string;
+  userName: string | null;
+  userImage: string | null;
+  totalScore: number;
+  rank: number;
+}
+
 export interface DraftLeaderboard {
   id: string;
   name: string;
-  participants: number;
+  participantCount: number;
   yourRank: number | null;
   status: "active" | "draft" | "completed";
+  participants: DraftLeaderboardParticipant[];
+}
+
+export interface GlobalLeaderboard {
+  contestId: string;
+  tournamentName: string;
+  seasonYear: number;
+  totalEntries: number;
+  hasEntered: boolean;
+  yourRank: number | null;
+  yourPoints: number;
+  topPlayers: { rank: number; name: string; image: string | null; points: number }[];
+}
+
+export interface LeagueLeaderboardParticipant {
+  userId: string;
+  userName: string | null;
+  userImage: string | null;
+  totalScore: number;
+  rank: number;
+}
+
+export interface LeagueLeaderboard {
+  id: string;
+  name: string;
+  participantCount: number;
+  yourRank: number | null;
+  status: "active" | "open" | "completed";
+  isHost: boolean;
+  participants: LeagueLeaderboardParticipant[];
 }
 
 interface LeaderboardsClientProps {
   draftLeaderboards?: DraftLeaderboard[];
+  globalLeaderboard?: GlobalLeaderboard | null;
+  leagueLeaderboards?: LeagueLeaderboard[];
 }
 
 // ─── Tab Config ──────────────────────────────────────────────────────────────
@@ -110,7 +152,7 @@ function RankBadge({ rank }: { rank: number }) {
   );
 }
 
-// ─── Status Badge ────────────────────────────────────────────────────────────
+// ─── Status Badges ──────────────────────────────────────────────────────────
 
 function DraftStatusBadge({ status }: { status: DraftLeaderboard["status"] }) {
   const config = {
@@ -163,6 +205,89 @@ function DraftStatusBadge({ status }: { status: DraftLeaderboard["status"] }) {
   );
 }
 
+function LeagueStatusBadge({ status }: { status: LeagueLeaderboard["status"] }) {
+  const config = {
+    active: {
+      label: "LOCKED",
+      classes: "bg-[#F59E0B]/15 text-[#F59E0B] border-[#F59E0B]/30",
+      pulse: true,
+      dotColor: "bg-[#F59E0B]",
+    },
+    open: {
+      label: "OPEN",
+      classes: "bg-[#10B981]/15 text-[#10B981] border-[#10B981]/30",
+      pulse: false,
+      dotColor: "",
+    },
+    completed: {
+      label: "ENDED",
+      classes: "bg-[#8B949E]/15 text-[#8B949E] border-[#8B949E]/30",
+      pulse: false,
+      dotColor: "",
+    },
+  }[status];
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border",
+        config.classes
+      )}
+    >
+      {config.pulse && (
+        <span className="relative flex h-1.5 w-1.5">
+          <span
+            className={cn(
+              "absolute inline-flex h-full w-full rounded-full opacity-75",
+              config.dotColor
+            )}
+            style={{ animation: "pulse-live 2s ease-in-out infinite" }}
+          />
+          <span
+            className={cn(
+              "relative inline-flex rounded-full h-1.5 w-1.5",
+              config.dotColor
+            )}
+          />
+        </span>
+      )}
+      {config.label}
+    </span>
+  );
+}
+
+// ─── Participant Avatar ──────────────────────────────────────────────────────
+
+function ParticipantAvatar({
+  image,
+  name,
+  size = 28,
+}: {
+  image: string | null;
+  name: string | null;
+  size?: number;
+}) {
+  if (image) {
+    return (
+      <ImageWithFallback
+        src={image}
+        alt={name ?? "User"}
+        className="rounded-full object-cover flex-shrink-0"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="rounded-full bg-secondary flex items-center justify-center flex-shrink-0"
+      style={{ width: size, height: size }}
+    >
+      <User className="w-3.5 h-3.5 text-muted-foreground" />
+    </div>
+  );
+}
+
 // ─── Draft Card ──────────────────────────────────────────────────────────────
 
 function DraftCard({ draft }: { draft: DraftLeaderboard }) {
@@ -184,14 +309,35 @@ function DraftCard({ draft }: { draft: DraftLeaderboard }) {
           </div>
 
           {/* Participants */}
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
             <Users className="w-3.5 h-3.5" />
             <span>
-              {draft.participants} player{draft.participants !== 1 ? "s" : ""}
+              {draft.participantCount} player{draft.participantCount !== 1 ? "s" : ""}
             </span>
           </div>
 
-          {/* Rank + View Details */}
+          {/* Participant Rankings */}
+          {draft.participants.length > 0 && (
+            <div className="space-y-1.5 mb-3">
+              {draft.participants.map((p) => (
+                <div
+                  key={p.userId}
+                  className="flex items-center gap-2 py-1"
+                >
+                  <RankBadge rank={p.rank} />
+                  <ParticipantAvatar image={p.userImage} name={p.userName} />
+                  <span className="text-xs font-medium text-foreground truncate flex-1">
+                    {p.userName ?? "Anonymous"}
+                  </span>
+                  <span className="text-xs font-mono font-semibold text-muted-foreground tabular-nums">
+                    {p.totalScore} pts
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Your Rank + View Details */}
           <div className="pt-3 border-t border-border flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               {draft.yourRank !== null ? (
@@ -231,69 +377,228 @@ function DraftCard({ draft }: { draft: DraftLeaderboard }) {
   );
 }
 
-// ─── Coming Soon Placeholder ─────────────────────────────────────────────────
+// ─── League Card ─────────────────────────────────────────────────────────────
 
-function ComingSoonCard({
-  icon: Icon,
-  title,
-  description,
-  color,
+function LeagueCard({ league }: { league: LeagueLeaderboard }) {
+  return (
+    <Link href={`/leagues/${league.id}`} className="block group">
+      <div
+        className={cn(
+          "bg-card border border-border rounded-lg border-l-2 border-l-[#F59E0B]",
+          "hover:border-border/60 transition-all duration-200"
+        )}
+      >
+        <div className="p-4">
+          {/* Header: name + status */}
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <h3 className="text-sm font-semibold text-foreground leading-tight line-clamp-2 group-hover:text-[#F59E0B] transition-colors duration-200">
+                {league.name}
+              </h3>
+              {league.isHost && (
+                <Crown className="w-3.5 h-3.5 text-[#F59E0B] flex-shrink-0" />
+              )}
+            </div>
+            <LeagueStatusBadge status={league.status} />
+          </div>
+
+          {/* Participants */}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
+            <Users className="w-3.5 h-3.5" />
+            <span>
+              {league.participantCount} player{league.participantCount !== 1 ? "s" : ""}
+            </span>
+          </div>
+
+          {/* Participant Rankings */}
+          {league.participants.length > 0 && (
+            <div className="space-y-1.5 mb-3">
+              {league.participants.map((p) => (
+                <div
+                  key={p.userId}
+                  className="flex items-center gap-2 py-1"
+                >
+                  <RankBadge rank={p.rank} />
+                  <ParticipantAvatar image={p.userImage} name={p.userName} />
+                  <span className="text-xs font-medium text-foreground truncate flex-1">
+                    {p.userName ?? "Anonymous"}
+                  </span>
+                  <span className="text-xs font-mono font-semibold text-muted-foreground tabular-nums">
+                    {p.totalScore} pts
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Your Rank + View Details */}
+          <div className="pt-3 border-t border-border flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              {league.yourRank !== null ? (
+                <>
+                  <RankBadge rank={league.yourRank} />
+                  <div>
+                    <div
+                      className={cn(
+                        "font-display text-lg font-bold uppercase tracking-tight leading-none",
+                        league.yourRank === 1 && "text-yellow-400",
+                        league.yourRank === 2 && "text-slate-300",
+                        league.yourRank === 3 && "text-amber-500",
+                        league.yourRank > 3 && "text-foreground"
+                      )}
+                    >
+                      #{league.yourRank}
+                    </div>
+                    <span className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">
+                      Your Rank
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Rank not available
+                </span>
+              )}
+            </div>
+
+            <div className="w-8 h-8 rounded-md flex items-center justify-center bg-[#F59E0B]/10 border border-[#F59E0B]/20 group-hover:bg-[#F59E0B]/20 transition-colors duration-200">
+              <ChevronRight className="w-4 h-4 text-[#F59E0B]" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+// ─── Global Leaderboard Table ────────────────────────────────────────────────
+
+function GlobalLeaderboardContent({
+  leaderboard,
 }: {
-  icon: React.ElementType;
-  title: string;
-  description: string;
-  color: string;
+  leaderboard: GlobalLeaderboard;
 }) {
-  const colorMap: Record<string, { bg: string; border: string; text: string; badgeBg: string; badgeBorder: string; badgeText: string }> = {
-    blue: {
-      bg: "bg-[#3B82F6]/10",
-      border: "border-[#3B82F6]/20",
-      text: "text-[#3B82F6]",
-      badgeBg: "bg-[#3B82F6]/15",
-      badgeBorder: "border-[#3B82F6]/30",
-      badgeText: "text-[#3B82F6]",
-    },
-    amber: {
-      bg: "bg-[#F59E0B]/10",
-      border: "border-[#F59E0B]/20",
-      text: "text-[#F59E0B]",
-      badgeBg: "bg-[#F59E0B]/15",
-      badgeBorder: "border-[#F59E0B]/30",
-      badgeText: "text-[#F59E0B]",
-    },
-  };
-  const c = colorMap[color] ?? colorMap.blue;
+  return (
+    <div className="space-y-4">
+      {/* Contest Info Header */}
+      <div className="bg-card border border-border rounded-lg p-4">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-[#3B82F6]/10 border border-[#3B82F6]/20 flex items-center justify-center">
+              <Globe className="w-5 h-5 text-[#3B82F6]" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-foreground font-display uppercase tracking-wide">
+                {leaderboard.tournamentName}
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {leaderboard.seasonYear} Season
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-5">
+            <StatBlock
+              value={leaderboard.totalEntries}
+              label="Entries"
+            />
+            <div className="w-px h-8 bg-border" />
+            <StatBlock
+              value={leaderboard.yourRank !== null ? `#${leaderboard.yourRank}` : "—"}
+              label="Your Rank"
+              valueClassName={
+                leaderboard.yourRank === 1
+                  ? "text-yellow-400"
+                  : leaderboard.yourRank !== null && leaderboard.yourRank <= 3
+                    ? "text-[#3B82F6]"
+                    : undefined
+              }
+            />
+            <div className="w-px h-8 bg-border" />
+            <StatBlock
+              value={leaderboard.yourPoints}
+              label="Your Points"
+              valueClassName="text-[#3B82F6]"
+            />
+          </div>
+        </div>
+      </div>
 
+      {/* Top Players Table */}
+      {leaderboard.topPlayers.length > 0 ? (
+        <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <h3 className="text-sm font-semibold text-foreground font-display uppercase tracking-wide flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-[#3B82F6]" />
+              Top Players
+            </h3>
+          </div>
+          <div className="divide-y divide-border">
+            {leaderboard.topPlayers.map((player, i) => (
+              <div
+                key={`${player.rank}-${player.name}-${i}`}
+                className="flex items-center gap-3 px-4 py-3"
+              >
+                <RankBadge rank={player.rank} />
+                <ParticipantAvatar image={player.image} name={player.name} />
+                <span className="text-sm font-medium text-foreground truncate flex-1">
+                  {player.name}
+                </span>
+                <span className="text-sm font-mono font-semibold text-muted-foreground tabular-nums">
+                  {player.points} pts
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-card border border-border rounded-lg">
+          <div className="py-16 px-8 flex flex-col items-center text-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-[#3B82F6]/10 border border-[#3B82F6]/20 flex items-center justify-center">
+              <Trophy className="w-6 h-6 text-[#3B82F6]" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-foreground mb-1">
+                No Scores Yet
+              </h3>
+              <p className="text-sm text-muted-foreground max-w-xs">
+                Scores will appear once the tournament begins
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Enter CTA if not entered */}
+      {!leaderboard.hasEntered && (
+        <Link
+          href="/global-contest/picks"
+          className="flex items-center justify-center gap-2 w-full h-11 rounded-lg text-sm font-medium text-white bg-[#3B82F6] hover:bg-[#3B82F6]/90 active:scale-[0.98] transition-all duration-200"
+        >
+          <Plus className="w-4 h-4" />
+          Enter Global Contest
+        </Link>
+      )}
+    </div>
+  );
+}
+
+// ─── No Contest Placeholder ──────────────────────────────────────────────────
+
+function NoGlobalContestCard() {
   return (
     <div className="bg-card border border-border rounded-lg">
       <div className="py-16 px-8 flex flex-col items-center text-center gap-4">
-        <div
-          className={cn(
-            "w-12 h-12 rounded-2xl flex items-center justify-center border",
-            c.bg,
-            c.border
-          )}
-        >
-          <Icon className={cn("w-6 h-6", c.text)} />
+        <div className="w-12 h-12 rounded-2xl bg-[#3B82F6]/10 border border-[#3B82F6]/20 flex items-center justify-center">
+          <Globe className="w-6 h-6 text-[#3B82F6]" />
         </div>
         <div>
-          <h3 className="font-display text-lg font-bold uppercase tracking-wide text-foreground mb-1">
-            {title}
+          <h3 className="text-base font-semibold text-foreground mb-1">
+            No Active Contest
           </h3>
           <p className="text-sm text-muted-foreground max-w-xs">
-            {description}
+            The global championship will be available once a tournament is active
           </p>
         </div>
-        <span
-          className={cn(
-            "inline-flex items-center px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider border",
-            c.badgeBg,
-            c.badgeBorder,
-            c.badgeText
-          )}
-        >
-          Coming Soon
-        </span>
       </div>
     </div>
   );
@@ -303,18 +608,32 @@ function ComingSoonCard({
 
 export function LeaderboardsClient({
   draftLeaderboards = [],
+  globalLeaderboard = null,
+  leagueLeaderboards = [],
 }: LeaderboardsClientProps) {
-  const [activeTab, setActiveTab] = useState<LeaderboardType>("drafts");
+  const [activeTab, setActiveTab] = useState<LeaderboardType>("global");
 
-  // Compute summary stats
+  // Compute summary stats across all contest types
+  const totalContests =
+    draftLeaderboards.length +
+    leagueLeaderboards.length +
+    (globalLeaderboard?.hasEntered ? 1 : 0);
+
   const activeDrafts = draftLeaderboards.filter(
     (d) => d.status === "active"
   ).length;
-  const bestRank = draftLeaderboards.reduce<number | null>((best, d) => {
-    if (d.yourRank === null) return best;
-    if (best === null) return d.yourRank;
-    return d.yourRank < best ? d.yourRank : best;
-  }, null);
+  const activeLeagues = leagueLeaderboards.filter(
+    (l) => l.status === "active"
+  ).length;
+  const activeCount = activeDrafts + activeLeagues;
+
+  const allRanks = [
+    ...draftLeaderboards.map((d) => d.yourRank),
+    ...leagueLeaderboards.map((l) => l.yourRank),
+    globalLeaderboard?.yourRank ?? null,
+  ].filter((r): r is number => r !== null);
+
+  const bestRank = allRanks.length > 0 ? Math.min(...allRanks) : null;
 
   return (
     <div className="space-y-6">
@@ -337,14 +656,14 @@ export function LeaderboardsClient({
 
           <div className="flex items-center gap-5">
             <StatBlock
-              value={draftLeaderboards.length}
+              value={totalContests}
               label="Contests"
             />
             <div className="w-px h-8 bg-border" />
             <StatBlock
-              value={activeDrafts}
+              value={activeCount}
               label="Active"
-              valueClassName={activeDrafts > 0 ? "text-[#10B981]" : undefined}
+              valueClassName={activeCount > 0 ? "text-[#10B981]" : undefined}
             />
             <div className="w-px h-8 bg-border" />
             <StatBlock
@@ -399,12 +718,11 @@ export function LeaderboardsClient({
 
       {/* Global Tab */}
       {activeTab === "global" && (
-        <ComingSoonCard
-          icon={Globe}
-          title="Global Championship"
-          description="The global leaderboard will be available once the tournament begins. Compete against all players for the top spot."
-          color="blue"
-        />
+        globalLeaderboard ? (
+          <GlobalLeaderboardContent leaderboard={globalLeaderboard} />
+        ) : (
+          <NoGlobalContestCard />
+        )
       )}
 
       {/* Drafts Tab */}
@@ -458,12 +776,51 @@ export function LeaderboardsClient({
 
       {/* Leagues Tab */}
       {activeTab === "leagues" && (
-        <ComingSoonCard
-          icon={Shield}
-          title="My Leagues"
-          description="League standings will appear here once you join or create a league. Compete with friends in private competitions."
-          color="amber"
-        />
+        <div className="space-y-4">
+          {/* Section Header */}
+          <div className="flex items-center gap-2.5">
+            <Shield className="w-4 h-4 text-[#F59E0B]" />
+            <h2 className="text-sm font-semibold text-foreground font-display uppercase tracking-wide">
+              My League Standings
+            </h2>
+            <span className="bg-secondary/50 text-muted-foreground rounded-full px-2 py-0.5 text-xs font-mono">
+              {leagueLeaderboards.length}
+            </span>
+          </div>
+
+          {leagueLeaderboards.length === 0 ? (
+            /* Empty State */
+            <div className="bg-card border border-border rounded-lg">
+              <div className="py-16 px-8 flex flex-col items-center text-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-[#F59E0B]/10 border border-[#F59E0B]/20 flex items-center justify-center">
+                  <Shield className="w-6 h-6 text-[#F59E0B]" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-foreground mb-1">
+                    No Leagues Yet
+                  </h3>
+                  <p className="text-sm text-muted-foreground max-w-xs">
+                    Join or create a league to see your standings here
+                  </p>
+                </div>
+                <Link
+                  href="/leagues/new"
+                  className="inline-flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium text-white bg-[#F59E0B] hover:bg-[#F59E0B]/90 active:scale-[0.98] transition-all duration-200"
+                >
+                  <Plus className="w-4 h-4" />
+                  Create a League
+                </Link>
+              </div>
+            </div>
+          ) : (
+            /* League Cards Grid */
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {leagueLeaderboards.map((league) => (
+                <LeagueCard key={league.id} league={league} />
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { prisma } from "@fantasy-madness/db";
 import { requireUserId } from "@/server/auth/guards";
 import { saveGlobalContestPicks } from "@/server/dal";
@@ -31,6 +31,7 @@ export async function saveGlobalContestPicksAction(
 
     revalidatePath("/global-contest");
     revalidatePath("/global-contest/picks");
+    revalidateTag("leaderboard");
     return { success: true };
   } catch (e: any) {
     return {

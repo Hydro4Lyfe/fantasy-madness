@@ -20,6 +20,7 @@ export type LeagueParticipantDTO = {
 export type LeagueAvailableSlotDTO = {
   slotId: string;
   displayName: string;
+  abbreviation: string | null;
   seed: number;
   quadrant: number;
   isPlayIn: boolean;
@@ -73,9 +74,9 @@ export async function getLeagueRoomState(args: {
                 select: {
                   seed: true,
                   quadrant: true,
-                  assignedTeam: { select: { name: true } },
+                  assignedTeam: { select: { fullName: true, abbreviation: true } },
                   candidates: {
-                    select: { team: { select: { name: true } } },
+                    select: { team: { select: { fullName: true, abbreviation: true } } },
                     orderBy: { team: { name: "asc" } },
                   },
                 },
@@ -110,29 +111,43 @@ export async function getLeagueRoomState(args: {
       id: true,
       seed: true,
       quadrant: true,
-      assignedTeam: { select: { name: true } },
+      assignedTeam: { select: { fullName: true, abbreviation: true } },
       candidates: {
-        select: { team: { select: { name: true } } },
+        select: { team: { select: { fullName: true, abbreviation: true } } },
         orderBy: { team: { name: "asc" } },
       },
     },
     orderBy: [{ quadrant: "asc" }, { seed: "asc" }],
   });
 
-  // Helper to build display name for a slot
+  // Helper to build display name for a slot (prefer college/school name over mascot)
   const getDisplayName = (slot: any): string => {
     if (slot.assignedTeam) {
-      return slot.assignedTeam.name;
+      return slot.assignedTeam.fullName;
     }
     if (slot.candidates.length > 0) {
-      return slot.candidates.map((c: any) => c.team.name).join(" / ");
+      return slot.candidates.map((c: any) => c.team.fullName).join(" / ");
     }
     return `Slot ${slot.quadrant}-${slot.seed}`;
+  };
+
+  const getAbbreviation = (slot: any): string | null => {
+    if (slot.assignedTeam?.abbreviation) {
+      return slot.assignedTeam.abbreviation;
+    }
+    if (slot.candidates.length > 0) {
+      const abbreviations = slot.candidates
+        .map((c: any) => c.team.abbreviation)
+        .filter((abbr: string | null) => Boolean(abbr));
+      return abbreviations.length > 0 ? abbreviations.join(" / ") : null;
+    }
+    return null;
   };
 
   const allSlots: LeagueAvailableSlotDTO[] = bracketSlots.map((s: any) => ({
     slotId: s.id,
     displayName: getDisplayName(s),
+    abbreviation: getAbbreviation(s),
     seed: s.seed,
     quadrant: s.quadrant,
     isPlayIn: s.candidates.length > 1,

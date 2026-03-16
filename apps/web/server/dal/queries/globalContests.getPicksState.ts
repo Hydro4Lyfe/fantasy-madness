@@ -6,6 +6,7 @@ type Region = "East" | "West" | "South" | "Midwest";
 export type GlobalContestSlotOptionDTO = {
   slotId: string;
   displayName: string;
+  abbreviation: string | null;
   logoTeamIds: number[];
   seed: number;
   quadrant: number;
@@ -83,9 +84,9 @@ export async function getGlobalContestPicksState(args: {
       id: true,
       seed: true,
       quadrant: true,
-      assignedTeam: { select: { id: true, name: true } },
+      assignedTeam: { select: { id: true, fullName: true, abbreviation: true } },
       candidates: {
-        select: { team: { select: { id: true, name: true } } },
+        select: { team: { select: { id: true, fullName: true, abbreviation: true } } },
         orderBy: { team: { name: "asc" } },
       },
     },
@@ -94,10 +95,10 @@ export async function getGlobalContestPicksState(args: {
 
   const getDisplayName = (slot: any): string => {
     if (slot.assignedTeam) {
-      return slot.assignedTeam.name;
+      return slot.assignedTeam.fullName;
     }
     if (slot.candidates.length > 0) {
-      return slot.candidates.map((c: any) => c.team.name).join(" / ");
+      return slot.candidates.map((c: any) => c.team.fullName).join(" / ");
     }
     return `Slot ${slot.quadrant}-${slot.seed}`;
   };
@@ -112,9 +113,23 @@ export async function getGlobalContestPicksState(args: {
     return [];
   };
 
+  const getAbbreviation = (slot: any): string | null => {
+    if (slot.assignedTeam?.abbreviation) {
+      return slot.assignedTeam.abbreviation;
+    }
+    if (slot.candidates.length > 0) {
+      const abbreviations = slot.candidates
+        .map((c: any) => c.team.abbreviation)
+        .filter((abbr: string | null) => Boolean(abbr));
+      return abbreviations.length > 0 ? abbreviations.join(" / ") : null;
+    }
+    return null;
+  };
+
   const slotOptions = bracketSlots.map((slot: any) => ({
     slotId: slot.id,
     displayName: getDisplayName(slot),
+    abbreviation: getAbbreviation(slot),
     logoTeamIds: getLogoTeamIds(slot),
     seed: slot.seed,
     quadrant: slot.quadrant,

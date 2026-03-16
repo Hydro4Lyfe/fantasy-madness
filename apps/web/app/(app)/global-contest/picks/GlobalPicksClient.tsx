@@ -22,6 +22,7 @@ import {
 type SlotOption = {
   slotId: string;
   displayName: string;
+  abbreviation: string | null;
   logoTeamIds: number[];
   seed: number;
   quadrant: number;
@@ -199,28 +200,70 @@ export function GlobalPicksClient({ picksState }: GlobalPicksClientProps) {
             </div>
           ) : (
             <div className="flex flex-wrap gap-2 mb-4">
-              {selectedSlots.map((slot) => (
-                <div
-                  key={slot.slotId}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#5E6AD2]/10 border border-[#5E6AD2]/30"
-                >
-                  <TeamLogo
-                    teamId={slot.logoTeamIds[0]}
-                    label={slot.displayName}
-                    className="w-7 h-7 border border-white/[0.10] bg-white/[0.04]"
-                  />
-                  <span className="text-xs font-mono text-[#8A8F98]">#{slot.seed}</span>
-                  <span className="text-sm font-medium text-[#EDEDEF]">{slot.displayName}</span>
-                  {picksState.isOpen && (
-                    <button
-                      onClick={() => toggleSlotSelection(slot.slotId)}
-                      className="ml-1 text-[#8A8F98] hover:text-[#EDEDEF] transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              ))}
+              {selectedSlots.map((slot) => {
+                const isPlayInPick = slot.isPlayIn && slot.logoTeamIds.length >= 2;
+                const pickNames = isPlayInPick ? slot.displayName.split(" / ") : [];
+                const pickAbbrs = isPlayInPick && slot.abbreviation ? slot.abbreviation.split(" / ") : [];
+
+                return (
+                  <div
+                    key={slot.slotId}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#5E6AD2]/10 border border-[#5E6AD2]/30"
+                  >
+                    {isPlayInPick ? (
+                      <div className="relative w-7 h-7 rounded overflow-hidden border border-white/[0.10] bg-white/[0.04] flex-shrink-0">
+                        <div
+                          className="absolute inset-0 flex items-center justify-center"
+                          style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
+                        >
+                          <TeamLogo
+                            teamId={slot.logoTeamIds[0]}
+                            label={pickNames[0] ?? "TBD"}
+                            className="w-5 h-5 -translate-x-px -translate-y-px"
+                          />
+                        </div>
+                        <div
+                          className="absolute inset-0 flex items-center justify-center"
+                          style={{ clipPath: "polygon(100% 0, 100% 100%, 0 100%)" }}
+                        >
+                          <TeamLogo
+                            teamId={slot.logoTeamIds[1]}
+                            label={pickNames[1] ?? "TBD"}
+                            className="w-5 h-5 translate-x-px translate-y-px"
+                          />
+                        </div>
+                        <div
+                          className="absolute inset-0 pointer-events-none"
+                          style={{
+                            background: "linear-gradient(135deg, transparent calc(50% - 0.5px), rgba(255,255,255,0.15) calc(50% - 0.5px), rgba(255,255,255,0.15) calc(50% + 0.5px), transparent calc(50% + 0.5px))",
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <TeamLogo
+                        teamId={slot.logoTeamIds[0]}
+                        label={slot.displayName}
+                        className="w-7 h-7 border border-white/[0.10] bg-white/[0.04]"
+                      />
+                    )}
+                    <span className="text-xs font-mono text-[#8A8F98]">#{slot.seed}</span>
+                    <span className="text-sm font-medium text-[#EDEDEF]">
+                      {isPlayInPick
+                        ? `${pickAbbrs[0] ?? pickNames[0]} / ${pickAbbrs[1] ?? pickNames[1]}`
+                        : (slot.abbreviation ?? slot.displayName)
+                      }
+                    </span>
+                    {picksState.isOpen && (
+                      <button
+                        onClick={() => toggleSlotSelection(slot.slotId)}
+                        className="ml-1 text-[#8A8F98] hover:text-[#EDEDEF] transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -306,6 +349,8 @@ export function GlobalPicksClient({ picksState }: GlobalPicksClientProps) {
         {filteredSlots.map((slot) => {
           const isSelected = selectedSlotIds.includes(slot.slotId);
           const canSelect = picksState.isOpen && (selectedSlotIds.length < 8 || isSelected);
+          const isPlayInWithTeams = slot.isPlayIn && slot.logoTeamIds.length >= 2;
+          const teamNames = isPlayInWithTeams ? slot.displayName.split(" / ") : [slot.displayName];
 
           return (
             <div
@@ -322,17 +367,77 @@ export function GlobalPicksClient({ picksState }: GlobalPicksClientProps) {
               )}
             >
               <div className="flex items-start justify-between mb-3 gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <TeamLogo
-                    teamId={slot.logoTeamIds[0]}
-                    label={slot.displayName}
-                    className="w-10 h-10 border border-white/[0.10] bg-white/[0.04]"
-                  />
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {isPlayInWithTeams ? (
+                    /* Diagonal-split logo for play-in slots */
+                    <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-white/[0.10] bg-white/[0.04] flex-shrink-0">
+                      <div
+                        className="absolute inset-0 flex items-center justify-center"
+                        style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
+                      >
+                        <TeamLogo
+                          teamId={slot.logoTeamIds[0]}
+                          label={teamNames[0] ?? "TBD"}
+                          className="w-7 h-7 -translate-x-0.5 -translate-y-0.5"
+                        />
+                      </div>
+                      <div
+                        className="absolute inset-0 flex items-center justify-center"
+                        style={{ clipPath: "polygon(100% 0, 100% 100%, 0 100%)" }}
+                      >
+                        <TeamLogo
+                          teamId={slot.logoTeamIds[1]}
+                          label={teamNames[1] ?? "TBD"}
+                          className="w-7 h-7 translate-x-0.5 translate-y-0.5"
+                        />
+                      </div>
+                      {/* Diagonal divider */}
+                      <div
+                        className="absolute inset-0 pointer-events-none"
+                        style={{
+                          background: "linear-gradient(135deg, transparent calc(50% - 0.5px), rgba(255,255,255,0.15) calc(50% - 0.5px), rgba(255,255,255,0.15) calc(50% + 0.5px), transparent calc(50% + 0.5px))",
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <TeamLogo
+                      teamId={slot.logoTeamIds[0]}
+                      label={slot.displayName}
+                      className="w-10 h-10 border border-white/[0.10] bg-white/[0.04]"
+                    />
+                  )}
                   <div className="min-w-0">
-                    <h3 className="font-bold text-base leading-tight line-clamp-1 text-[#EDEDEF]">
-                      {slot.displayName}
-                    </h3>
-                    <p className="text-xs text-[#8A8F98]">{slot.region} Region</p>
+                    {isPlayInWithTeams ? (
+                      <>
+                        <div className="flex items-center gap-1.5 leading-tight">
+                          <span className="font-bold text-sm text-[#EDEDEF] truncate">
+                            {teamNames[0]}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span
+                            className="text-[9px] font-bold tracking-wider uppercase flex-shrink-0 px-1 py-px rounded"
+                            style={{
+                              color: "rgba(245,158,11,0.85)",
+                              background: "rgba(245,158,11,0.08)",
+                              border: "1px solid rgba(245,158,11,0.15)",
+                            }}
+                          >
+                            vs
+                          </span>
+                          <span className="font-bold text-sm text-[#EDEDEF] truncate">
+                            {teamNames[1]}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <h3 className="font-bold text-base leading-tight line-clamp-1 text-[#EDEDEF]">
+                          {slot.displayName}
+                        </h3>
+                        <p className="text-xs text-[#8A8F98]">{slot.region} Region</p>
+                      </>
+                    )}
                   </div>
                 </div>
                 {isSelected && (

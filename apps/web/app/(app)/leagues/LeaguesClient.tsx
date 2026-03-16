@@ -124,7 +124,7 @@ function MyLeagueCard({ league, index }: { league: MyLeague; index: number }) {
               {league.name}
             </h3>
             <p className="text-xs text-muted-foreground mt-1">
-              {league.tournamentName} &middot; {league.tournamentYear}
+              {league.tournamentName}
             </p>
           </div>
 
@@ -209,7 +209,7 @@ function PublicLeagueRow({ league }: { league: PublicLeagueRow }) {
         <p className="text-sm font-semibold text-foreground truncate">{league.name}</p>
         <p className="text-[11px] text-muted-foreground mt-0.5">
           {league.hostName && <>by {league.hostName} &middot; </>}
-          {league.tournamentName} {league.tournamentYear}
+          {league.tournamentName}
         </p>
       </div>
 
@@ -460,7 +460,7 @@ export function LeaguesClient({ myLeagues, publicLeagues }: LeaguesClientProps) 
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-foreground truncate">{league.name}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    {league.tournamentName} {league.tournamentYear}
+                    {league.tournamentName}
                     {league.isHost && <> &middot; <span className="text-[#F59E0B]">Host</span></>}
                   </p>
                 </div>
