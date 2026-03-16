@@ -20,7 +20,6 @@ import {
   CalendarIcon,
   Lock,
   Globe,
-  Repeat,
 } from "lucide-react";
 import {
   createDraftAction,
@@ -29,7 +28,6 @@ import {
 
 interface CreateDraftPageProps {
   tournamentId: string;
-  tournamentLabel: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -190,7 +188,7 @@ function StyledInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
 // ---------------------------------------------------------------------------
 // Main page component
 // ---------------------------------------------------------------------------
-export function CreateDraftPage({ tournamentId, tournamentLabel }: CreateDraftPageProps) {
+export function CreateDraftPage({ tournamentId }: CreateDraftPageProps) {
   const initialState: CreateDraftFormState = { success: false };
   const [state, formAction] = useActionState(createDraftAction, initialState);
 
@@ -284,51 +282,7 @@ export function CreateDraftPage({ tournamentId, tournamentLabel }: CreateDraftPa
               <FieldError error={state.fieldErrors?.name} />
             </div>
 
-            {/* Tournament (auto-selected) */}
-            <div>
-              <label
-                className="block text-xs font-medium text-muted-foreground mb-1.5"
-              >
-                Tournament
-              </label>
-              <input type="hidden" name="tournamentId" value={tournamentId} />
-              <div
-                className={cn(
-                  "w-full h-10 px-3 rounded-lg text-sm",
-                  "bg-input border border-border",
-                  "text-foreground",
-                  "flex items-center",
-                )}
-              >
-                {tournamentLabel}
-              </div>
-            </div>
-
-            {/* Static Snake Draft row */}
-            <div
-              className={cn(
-                "flex items-center gap-3 px-4 py-3.5 rounded-xl",
-                "border border-primary/20 bg-primary/[0.04]",
-              )}
-            >
-              <div className="w-8 h-8 rounded-lg bg-primary/15 border border-primary/30 flex items-center justify-center flex-shrink-0">
-                <Repeat className="w-4 h-4 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground leading-tight">
-                  Snake Draft
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Pick order reverses each round (1–8, 8–1, …)
-                </p>
-              </div>
-              <div className="ml-auto flex-shrink-0">
-                <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-mono text-primary">
-                  <CheckCircle className="w-3 h-3" />
-                  Selected
-                </span>
-              </div>
-            </div>
+            <input type="hidden" name="tournamentId" value={tournamentId} />
           </section>
 
           {/* -- SETTINGS ------------------------------------------------ */}

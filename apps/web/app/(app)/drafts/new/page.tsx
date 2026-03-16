@@ -45,9 +45,6 @@ export default async function NewDraftPage() {
   }
 
   return (
-    <CreateDraftPage
-      tournamentId={openTournament.id}
-      tournamentLabel={openTournament.name}
-    />
+    <CreateDraftPage tournamentId={openTournament.id} />
   );
 }

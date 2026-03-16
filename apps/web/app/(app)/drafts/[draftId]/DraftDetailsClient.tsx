@@ -175,6 +175,7 @@ export function DraftDetailsClient({
 }: DraftDetailsClientProps) {
   const [isEditingSettings, setIsEditingSettings] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState<string | null>(null);
   const [settings, setSettings] = useState(initialDraft);
   const [participants, setParticipants] = useState(initialParticipants);
@@ -188,6 +189,13 @@ export function DraftDetailsClient({
     navigator.clipboard.writeText(settings.inviteCode);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleCopyLink = () => {
+    const link = `${window.location.origin}/join/${settings.inviteCode}`;
+    navigator.clipboard.writeText(link);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const handleKickParticipant = (participantId: string) => {
@@ -502,22 +510,22 @@ export function DraftDetailsClient({
                   code to fill them
                 </p>
                 <button
-                  onClick={handleCopyCode}
+                  onClick={handleCopyLink}
                   className={cn(
                     "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm",
                     "bg-secondary/50 hover:bg-accent border border-border",
                     "text-muted-foreground hover:text-foreground transition-all duration-200",
                   )}
                 >
-                  {copiedCode ? (
+                  {copiedLink ? (
                     <>
                       <Check className="w-4 h-4 text-emerald-400" />
-                      Copied!
+                      Link Copied!
                     </>
                   ) : (
                     <>
                       <Copy className="w-4 h-4" />
-                      Copy Invite Code
+                      Copy Invite Link
                     </>
                   )}
                 </button>
@@ -678,7 +686,27 @@ export function DraftDetailsClient({
                 </button>
               </div>
 
-              <p className="text-xs text-muted-foreground">Share with friends to join this draft</p>
+              <button
+                onClick={handleCopyLink}
+                className={cn(
+                  "w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm",
+                  "bg-secondary/50 hover:bg-accent border border-border",
+                  "text-muted-foreground hover:text-foreground transition-all duration-200",
+                )}
+              >
+                {copiedLink ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    Link Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    Copy Invite Link
+                  </>
+                )}
+              </button>
+              <p className="text-xs text-muted-foreground mt-3">Share with friends to join this draft</p>
             </div>
           </div>}
 
