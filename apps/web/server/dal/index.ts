@@ -19,6 +19,7 @@ export * from "./queries/drafts.getRoomState";
 export * from "./queries/drafts.getForEdit";
 export * from "./queries/drafts.selectOptimalSlot";
 export * from "./queries/drafts.getResults";
+export * from "./queries/drafts.getPickQueue";
 
 // Web + shared queries - Leagues
 export * from "./queries/leagues.getById";
@@ -36,6 +37,7 @@ export * from "./mutations/drafts.makePick";
 export * from "./mutations/drafts.update";
 export * from "./mutations/drafts.removeParticipant";
 export * from "./mutations/drafts.start";
+export * from "./mutations/drafts.savePickQueue";
 
 // Web mutations - Leagues
 export * from "./mutations/leagues.create";
@@ -50,3 +52,6 @@ export * from "./mutations/leagues.unbanParticipant";
 // Web mutations - Global Contests
 export * from "./mutations/globalContests.savePicks";
 export * from "./mutations/users.updateProfile";
+
+// Web mutations - Feedback
+export * from "./mutations/feedback.submit";

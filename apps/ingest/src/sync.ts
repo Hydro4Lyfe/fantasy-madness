@@ -298,17 +298,59 @@ export async function runSyncOnce(params: {
   // Note: BallDontLie returns TBD placeholder teams with null IDs for
   // unresolved play-in matchups. Skip these — they'll be filled in once
   // the play-in games complete.
+  //
+  // Play-in fix: BallDontLie bracket_location for round-0 (First Four) games
+  // uses 1..4, which naively maps to quadrant 1. But play-in winners feed into
+  // round-1 games across different quadrants. We build a lookup from the
+  // round-1 games that have a null/TBD team slot (the play-in destination)
+  // to derive the correct bracket_location for quadrant assignment.
+  const playInSeedToR1Location = new Map<string, number>();
+  for (const game of bracketGames) {
+    if (game.round !== 1) continue;
+    // A round-1 game with a null-id team is waiting for a play-in winner.
+    // The TBD placeholder still carries the seed value we can match on.
+    if (game.home_team.id == null && game.home_team.seed) {
+      playInSeedToR1Location.set(`${game.bracket_location}:${game.home_team.seed}`, game.bracket_location);
+    }
+    if (game.away_team.id == null && game.away_team.seed) {
+      playInSeedToR1Location.set(`${game.bracket_location}:${game.away_team.seed}`, game.bracket_location);
+    }
+  }
+
+  // Build a mapping from play-in game bracket_location to the correct round-1
+  // bracket_location by matching the seed of the play-in teams.
+  const playInLocationOverride = new Map<number, number>();
+  for (const game of bracketGames) {
+    if (game.round !== 0) continue;
+    const seed = game.home_team.seed ?? game.away_team.seed;
+    if (!seed) continue;
+    // Find the round-1 game that has a TBD slot with the same seed
+    for (const [key, r1Location] of playInSeedToR1Location) {
+      if (key.endsWith(`:${seed}`) && !playInLocationOverride.has(game.bracket_location)) {
+        playInLocationOverride.set(game.bracket_location, r1Location);
+        // Remove from candidates so next play-in with same seed picks a different R1 game
+        playInSeedToR1Location.delete(key);
+        break;
+      }
+    }
+  }
+
   const seenTeamIds = new Set<number>();
 
   for (const game of bracketGames) {
+    // For play-in games, use the round-1 destination bracket_location for quadrant derivation
+    const effectiveLocation = game.round === 0
+      ? (playInLocationOverride.get(game.bracket_location) ?? game.bracket_location)
+      : game.bracket_location;
+
     if (game.home_team.id != null && !seenTeamIds.has(game.home_team.id)) {
-      await upsertTeamFromBracket(prisma, params.tournamentId, game.home_team, game.bracket_location);
+      await upsertTeamFromBracket(prisma, params.tournamentId, game.home_team, effectiveLocation);
       seenTeamIds.add(game.home_team.id);
       stats.teamsUpserted++;
     }
 
     if (game.away_team.id != null && !seenTeamIds.has(game.away_team.id)) {
-      await upsertTeamFromBracket(prisma, params.tournamentId, game.away_team, game.bracket_location);
+      await upsertTeamFromBracket(prisma, params.tournamentId, game.away_team, effectiveLocation);
       seenTeamIds.add(game.away_team.id);
       stats.teamsUpserted++;
     }

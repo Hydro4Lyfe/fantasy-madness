@@ -42,7 +42,12 @@ interface TeamPickerPanelProps {
   onToggleShowQueue: () => void
 }
 
-type QuadrantFilter = "all" | 1 | 2 | 3 | 4
+const REGIONS = [
+  { quadrant: 1, name: "East", color: "#3B82F6" },
+  { quadrant: 2, name: "West", color: "#10B981" },
+  { quadrant: 3, name: "South", color: "#F59E0B" },
+  { quadrant: 4, name: "Midwest", color: "#F43F5E" },
+] as const
 
 export function TeamPickerPanel({
   slots,
@@ -57,7 +62,7 @@ export function TeamPickerPanel({
   onToggleShowQueue,
 }: TeamPickerPanelProps) {
   const [searchQuery, setSearchQuery] = useState("")
-  const [quadrantFilter, setQuadrantFilter] = useState<QuadrantFilter>("all")
+  const [activeRegion, setActiveRegion] = useState<"all" | number>("all")
 
   const filteredSlots = useMemo(() => {
     const query = searchQuery.toLowerCase()
@@ -65,16 +70,33 @@ export function TeamPickerPanel({
       const matchesSearch =
         slot.displayName.toLowerCase().includes(query) ||
         slot.abbreviation?.toLowerCase().includes(query)
-      const matchesQuadrant =
-        quadrantFilter === "all" || slot.quadrant === quadrantFilter
-      return matchesSearch && matchesQuadrant
+      return matchesSearch
     })
-  }, [slots, searchQuery, quadrantFilter])
+  }, [slots, searchQuery])
+
+  /* Group filtered slots by region, sorted by seed */
+  const slotsByRegion = useMemo(() => {
+    const grouped = new Map<number, AvailableSlot[]>()
+    for (const r of REGIONS) grouped.set(r.quadrant, [])
+    for (const slot of filteredSlots) {
+      grouped.get(slot.quadrant)?.push(slot)
+    }
+    for (const [, group] of grouped) {
+      group.sort((a, b) => a.seed - b.seed)
+    }
+    return grouped
+  }, [filteredSlots])
 
   const sortedPicks = useMemo(
     () => [...picks].sort((a, b) => a.overallPickNo - b.overallPickNo),
     [picks]
   )
+
+  /* Determine which regions to show */
+  const visibleRegions =
+    activeRegion === "all"
+      ? REGIONS
+      : REGIONS.filter((r) => r.quadrant === activeRegion)
 
   return (
     <div
@@ -98,26 +120,6 @@ export function TeamPickerPanel({
               "focus-visible:border-[#3B82F6] focus-visible:ring-0",
             )}
           />
-        </div>
-
-        {/* Quadrant filter */}
-        <div
-          className="flex items-center gap-0.5 p-0.5 rounded-lg bg-secondary/30 border border-border"
-        >
-          {(["all", 1, 2, 3, 4] as const).map((q) => (
-            <button
-              key={q}
-              onClick={() => setQuadrantFilter(q)}
-              className="px-2.5 py-1 rounded-md text-xs font-medium transition-all duration-200"
-              style={
-                quadrantFilter === q
-                  ? { background: "rgba(59,130,246,0.15)", color: "#3B82F6" }
-                  : { color: "#8A8F98" }
-              }
-            >
-              {q === "all" ? "All" : `R${q}`}
-            </button>
-          ))}
         </div>
 
         {/* Queue toggle — desktop only */}
@@ -149,38 +151,107 @@ export function TeamPickerPanel({
         </button>
       </div>
 
-      {/* Slot grid */}
+      {/* Region tabs */}
+      <div className="flex gap-0.5 p-2 border-b border-border">
+        <button
+          onClick={() => setActiveRegion("all")}
+          className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold tracking-wider uppercase transition-all duration-200"
+          style={
+            activeRegion === "all"
+              ? { background: "rgba(59,130,246,0.15)", color: "#3B82F6" }
+              : { color: "#8A8F98" }
+          }
+        >
+          All
+        </button>
+        {REGIONS.map((r) => {
+          const count = slotsByRegion.get(r.quadrant)?.length ?? 0
+          return (
+            <button
+              key={r.quadrant}
+              onClick={() => setActiveRegion(r.quadrant)}
+              className="flex-1 py-1.5 rounded-lg text-[11px] font-bold tracking-wider uppercase transition-all duration-200 relative"
+              style={
+                activeRegion === r.quadrant
+                  ? { background: `${r.color}18`, color: r.color }
+                  : { color: "#8A8F98" }
+              }
+            >
+              {r.name}
+              {count > 0 && (
+                <span className="ml-1 text-[9px] opacity-60">
+                  {count}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Slot grid — organized by region */}
       <div className="relative z-10 flex-1 overflow-y-auto p-3">
         {filteredSlots.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-            No teams match your filters
+            No teams match your search
           </div>
         ) : (
-          <div className="grid grid-cols-2 xl:grid-cols-3 gap-2">
-            {filteredSlots.map((slot, i) => (
-              <div
-                key={slot.slotId}
-                style={{
-                  animation: "dr-fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both",
-                  animationDelay: `${Math.min(i * 20, 200)}ms`,
-                }}
-              >
-                <TeamSlotCard
-                  slotId={slot.slotId}
-                  displayName={slot.displayName}
-                  abbreviation={slot.abbreviation}
-                  logoTeamIds={slot.logoTeamIds}
-                  seed={slot.seed}
-                  quadrant={slot.quadrant}
-                  isPlayIn={slot.isPlayIn}
-                  isSelected={selectedSlot === slot.slotId}
-                  isQueued={draftQueue.includes(slot.slotId)}
-                  isMyTurn={isMyTurn}
-                  onSelect={onSelectSlot}
-                  onToggleQueue={onToggleQueue}
-                />
-              </div>
-            ))}
+          <div className="space-y-4">
+            {visibleRegions.map((r) => {
+              const regionSlots = slotsByRegion.get(r.quadrant) ?? []
+              if (regionSlots.length === 0) return null
+
+              return (
+                <div key={r.quadrant}>
+                  {/* Region section header (hidden when viewing single region) */}
+                  {activeRegion === "all" && (
+                    <div
+                      className="flex items-center gap-2 px-2 py-1.5 mb-1.5 rounded-lg"
+                      style={{
+                        background: `${r.color}0A`,
+                        borderLeft: `2px solid ${r.color}`,
+                      }}
+                    >
+                      <span
+                        className="text-[11px] font-bold tracking-wider uppercase"
+                        style={{ color: r.color }}
+                      >
+                        {r.name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground ml-auto font-mono">
+                        {regionSlots.length} avail
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    {regionSlots.map((slot, i) => (
+                      <div
+                        key={slot.slotId}
+                        style={{
+                          animation: "dr-fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both",
+                          animationDelay: `${Math.min(i * 20, 200)}ms`,
+                        }}
+                      >
+                        <TeamSlotCard
+                          slotId={slot.slotId}
+                          displayName={slot.displayName}
+                          abbreviation={slot.abbreviation}
+                          logoTeamIds={slot.logoTeamIds}
+                          seed={slot.seed}
+                          quadrant={slot.quadrant}
+                          isPlayIn={slot.isPlayIn}
+                          isSelected={selectedSlot === slot.slotId}
+                          isQueued={draftQueue.includes(slot.slotId)}
+                          isMyTurn={isMyTurn}
+                          onSelect={onSelectSlot}
+                          onToggleQueue={onToggleQueue}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
@@ -211,8 +282,8 @@ export function TeamPickerPanel({
               <div
                 className="w-6 h-6 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0"
                 style={{
-                  background: "rgba(48,54,61,0.5)",
-                  border: "1px solid rgba(48,54,61,0.8)",
+                  background: "rgba(255,255,255,0.12)",
+                  border: "1px solid rgba(255,255,255,0.10)",
                 }}
               >
                 <TeamLogo

@@ -180,6 +180,39 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ---- Custom scrollbar (Chrome / Edge / Safari) ---- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 148, 158, 0.25);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 148, 158, 0.45);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 148, 158, 0.25) transparent;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

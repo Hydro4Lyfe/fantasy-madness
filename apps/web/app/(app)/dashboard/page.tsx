@@ -61,7 +61,7 @@ export default async function DashboardPage() {
         participantCount: d.participantCount,
         rosterSize: d.rosterSize,
         isPrivate: d.isPrivate,
-        picksMade: room.totalPicks,
+        picksMade: room.currentPickNumber - 1,
         totalExpectedPicks: totalExpected,
         currentPickerName: currentPicker?.userName ?? null,
         isYourTurn: room.currentPickerUserId === userId,

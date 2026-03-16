@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatShortDate as _formatShortDate } from "@/lib/date";
 import { TeamLogo } from "@/components/team/TeamLogo";
+import { RegionPickerGrid } from "@/components/picks/RegionPickerGrid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { saveGlobalContestPicksAction } from "@/server/actions/globalContests";
@@ -56,8 +57,6 @@ export function GlobalPicksClient({ picksState }: GlobalPicksClientProps) {
     picksState.selectedSlotIds
   );
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedRegion, setSelectedRegion] = useState<string>("all");
-  const [selectedSeed, setSelectedSeed] = useState<string>("all");
 
   const optionsById = useMemo(
     () => new Map(picksState.slotOptions.map((slot) => [slot.slotId, slot])),
@@ -86,15 +85,6 @@ export function GlobalPicksClient({ picksState }: GlobalPicksClientProps) {
     if (!picksState.isOpen) return;
     setSelectedSlotIds([]);
   };
-
-  const filteredSlots = picksState.slotOptions.filter((slot) => {
-    const matchesSearch = slot.displayName
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    const matchesRegion = selectedRegion === "all" || slot.region === selectedRegion;
-    const matchesSeed = selectedSeed === "all" || slot.seed.toString() === selectedSeed;
-    return matchesSearch && matchesRegion && matchesSeed;
-  });
 
   const handleSubmit = () => {
     if (!picksState.isOpen) {
@@ -211,7 +201,7 @@ export function GlobalPicksClient({ picksState }: GlobalPicksClientProps) {
                     className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#5E6AD2]/10 border border-[#5E6AD2]/30"
                   >
                     {isPlayInPick ? (
-                      <div className="relative w-7 h-7 rounded overflow-hidden border border-white/[0.10] bg-white/[0.04] flex-shrink-0">
+                      <div className="relative w-7 h-7 rounded overflow-hidden border border-white/[0.10] bg-white/[0.12] flex-shrink-0">
                         <div
                           className="absolute inset-0 flex items-center justify-center"
                           style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
@@ -243,7 +233,7 @@ export function GlobalPicksClient({ picksState }: GlobalPicksClientProps) {
                       <TeamLogo
                         teamId={slot.logoTeamIds[0]}
                         label={slot.displayName}
-                        className="w-7 h-7 border border-white/[0.10] bg-white/[0.04]"
+                        className="w-7 h-7 border border-white/[0.10] bg-white/[0.12]"
                       />
                     )}
                     <span className="text-xs font-mono text-[#8A8F98]">#{slot.seed}</span>
@@ -291,7 +281,7 @@ export function GlobalPicksClient({ picksState }: GlobalPicksClientProps) {
         </div>
       </div>
 
-      {/* Filter bar */}
+      {/* Search bar */}
       <div
         className={cn(
           "rounded-2xl border border-white/[0.06] p-4",
@@ -299,205 +289,31 @@ export function GlobalPicksClient({ picksState }: GlobalPicksClientProps) {
           "shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_2px_20px_rgba(0,0,0,0.4),0_0_40px_rgba(0,0,0,0.2)]",
         )}
       >
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#8A8F98]" />
-            <Input
-              placeholder="Search teams..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className={cn(
-                "pl-10",
-                "bg-[#0a0a0c] border-white/[0.10]",
-                "focus-visible:border-[#5E6AD2] focus-visible:ring-0",
-                "text-[#EDEDEF] placeholder:text-[#8A8F98]",
-              )}
-            />
-          </div>
-
-          <select
-            value={selectedRegion}
-            onChange={(e) => setSelectedRegion(e.target.value)}
-            className="bg-[#0a0a0c] border border-white/[0.10] text-[#EDEDEF] rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5E6AD2]/50"
-          >
-            <option value="all">All Regions</option>
-            <option value="East">East</option>
-            <option value="West">West</option>
-            <option value="South">South</option>
-            <option value="Midwest">Midwest</option>
-          </select>
-
-          <select
-            value={selectedSeed}
-            onChange={(e) => setSelectedSeed(e.target.value)}
-            className="bg-[#0a0a0c] border border-white/[0.10] text-[#EDEDEF] rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#5E6AD2]/50"
-          >
-            <option value="all">All Seeds</option>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].map(
-              (seed) => (
-                <option key={seed} value={seed.toString()}>
-                  #{seed} Seed
-                </option>
-              )
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#8A8F98]" />
+          <Input
+            placeholder="Search teams..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className={cn(
+              "pl-10",
+              "bg-[#0a0a0c] border-white/[0.10]",
+              "focus-visible:border-[#5E6AD2] focus-visible:ring-0",
+              "text-[#EDEDEF] placeholder:text-[#8A8F98]",
             )}
-          </select>
+          />
         </div>
       </div>
 
-      {/* Team selection grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {filteredSlots.map((slot) => {
-          const isSelected = selectedSlotIds.includes(slot.slotId);
-          const canSelect = picksState.isOpen && (selectedSlotIds.length < 8 || isSelected);
-          const isPlayInWithTeams = slot.isPlayIn && slot.logoTeamIds.length >= 2;
-          const teamNames = isPlayInWithTeams ? slot.displayName.split(" / ") : [slot.displayName];
-
-          return (
-            <div
-              key={slot.slotId}
-              onClick={() => canSelect && toggleSlotSelection(slot.slotId)}
-              className={cn(
-                "relative overflow-hidden rounded-2xl border p-4 transition-all duration-200",
-                "bg-gradient-to-b from-white/[0.08] to-white/[0.02]",
-                isSelected
-                  ? "bg-[#5E6AD2]/10 border-[#5E6AD2]/50 ring-1 ring-[#5E6AD2]/40 shadow-[0_0_20px_rgba(94,106,210,0.15)]"
-                  : canSelect
-                    ? "border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.10] cursor-pointer shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_2px_20px_rgba(0,0,0,0.4)]"
-                    : "border-white/[0.06] opacity-50 cursor-not-allowed shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_2px_20px_rgba(0,0,0,0.4)]",
-              )}
-            >
-              <div className="flex items-start justify-between mb-3 gap-2">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  {isPlayInWithTeams ? (
-                    /* Diagonal-split logo for play-in slots */
-                    <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-white/[0.10] bg-white/[0.04] flex-shrink-0">
-                      <div
-                        className="absolute inset-0 flex items-center justify-center"
-                        style={{ clipPath: "polygon(0 0, 100% 0, 0 100%)" }}
-                      >
-                        <TeamLogo
-                          teamId={slot.logoTeamIds[0]}
-                          label={teamNames[0] ?? "TBD"}
-                          className="w-7 h-7 -translate-x-0.5 -translate-y-0.5"
-                        />
-                      </div>
-                      <div
-                        className="absolute inset-0 flex items-center justify-center"
-                        style={{ clipPath: "polygon(100% 0, 100% 100%, 0 100%)" }}
-                      >
-                        <TeamLogo
-                          teamId={slot.logoTeamIds[1]}
-                          label={teamNames[1] ?? "TBD"}
-                          className="w-7 h-7 translate-x-0.5 translate-y-0.5"
-                        />
-                      </div>
-                      {/* Diagonal divider */}
-                      <div
-                        className="absolute inset-0 pointer-events-none"
-                        style={{
-                          background: "linear-gradient(135deg, transparent calc(50% - 0.5px), rgba(255,255,255,0.15) calc(50% - 0.5px), rgba(255,255,255,0.15) calc(50% + 0.5px), transparent calc(50% + 0.5px))",
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <TeamLogo
-                      teamId={slot.logoTeamIds[0]}
-                      label={slot.displayName}
-                      className="w-10 h-10 border border-white/[0.10] bg-white/[0.04]"
-                    />
-                  )}
-                  <div className="min-w-0">
-                    {isPlayInWithTeams ? (
-                      <>
-                        <div className="flex items-center gap-1.5 leading-tight">
-                          <span className="font-bold text-sm text-[#EDEDEF] truncate">
-                            {teamNames[0]}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span
-                            className="text-[9px] font-bold tracking-wider uppercase flex-shrink-0 px-1 py-px rounded"
-                            style={{
-                              color: "rgba(245,158,11,0.85)",
-                              background: "rgba(245,158,11,0.08)",
-                              border: "1px solid rgba(245,158,11,0.15)",
-                            }}
-                          >
-                            vs
-                          </span>
-                          <span className="font-bold text-sm text-[#EDEDEF] truncate">
-                            {teamNames[1]}
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <h3 className="font-bold text-base leading-tight line-clamp-1 text-[#EDEDEF]">
-                          {slot.displayName}
-                        </h3>
-                        <p className="text-xs text-[#8A8F98]">{slot.region} Region</p>
-                      </>
-                    )}
-                  </div>
-                </div>
-                {isSelected && (
-                  <div className="w-6 h-6 rounded-full bg-[#5E6AD2] flex items-center justify-center shrink-0">
-                    <CheckCircle className="w-4 h-4 text-white" />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 mb-2">
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium",
-                    slot.seed <= 4
-                      ? "border-[#5E6AD2]/50 text-[#5E6AD2]"
-                      : slot.seed <= 8
-                        ? "border-white/[0.20] text-[#8A8F98]"
-                        : "border-white/[0.10] text-[#8A8F98]",
-                  )}
-                >
-                  #{slot.seed}
-                </span>
-                <span className="inline-flex items-center rounded-md border border-white/[0.10] px-2 py-0.5 text-xs text-[#8A8F98]">
-                  Q{slot.quadrant}
-                </span>
-                {slot.isPlayIn && (
-                  <span className="inline-flex items-center rounded-md border border-amber-500/30 px-2 py-0.5 text-xs text-amber-300">
-                    First Four
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between text-xs text-[#8A8F98]">
-                <span>Seed value: {slot.seed}</span>
-                {canSelect && !isSelected && (
-                  <span className="text-[#5E6AD2]">Click to select</span>
-                )}
-                {!canSelect && !isSelected && (
-                  <span className="text-[#8A8F98]">Max reached</span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Empty state */}
-      {filteredSlots.length === 0 && (
-        <div
-          className={cn(
-            "rounded-2xl border border-white/[0.06] p-12 text-center",
-            "bg-gradient-to-b from-white/[0.08] to-white/[0.02]",
-            "shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_2px_20px_rgba(0,0,0,0.4)]",
-          )}
-        >
-          <AlertCircle className="w-12 h-12 mx-auto mb-4 text-[#8A8F98] opacity-50" />
-          <h3 className="font-semibold text-[#EDEDEF] mb-2">No teams found</h3>
-          <p className="text-sm text-[#8A8F98]">Try adjusting your search or filters</p>
-        </div>
-      )}
+      {/* Region grid */}
+      <RegionPickerGrid
+        slots={picksState.slotOptions}
+        selectedSlotIds={selectedSlotIds}
+        onToggle={toggleSlotSelection}
+        disabled={!picksState.isOpen}
+        maxPicks={8}
+        searchQuery={searchQuery}
+      />
     </div>
   );
 }

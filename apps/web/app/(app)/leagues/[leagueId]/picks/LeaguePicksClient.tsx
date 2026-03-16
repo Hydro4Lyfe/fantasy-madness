@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   ArrowLeft,
-  ArrowRight,
   CheckCircle2,
   Search,
   Shield,
@@ -15,13 +14,17 @@ import {
 
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/date";
 import { SportCard } from "@/components/shared/SportCard";
+import { RegionPickerGrid } from "@/components/picks/RegionPickerGrid";
+import { TeamLogo } from "@/components/team/TeamLogo";
 import { saveLeaguePicksDirectAction } from "@/server/actions/leagues";
 
 type LeagueSlot = {
   slotId: string;
   displayName: string;
   abbreviation: string | null;
+  logoTeamIds: number[];
   seed: number;
   quadrant: number;
   isPlayIn: boolean;
@@ -32,6 +35,8 @@ type LeaguePicksClientProps = {
   leagueName: string;
   tournamentName: string;
   leagueStatus: string;
+  picksLockAt: string | null;
+  isPicksOpen: boolean;
   allSlots: LeagueSlot[];
   selectedSlotIds: string[];
 };
@@ -41,6 +46,8 @@ export function LeaguePicksClient({
   leagueName,
   tournamentName,
   leagueStatus,
+  picksLockAt,
+  isPicksOpen: initialIsPicksOpen,
   allSlots,
   selectedSlotIds,
 }: LeaguePicksClientProps) {
@@ -49,7 +56,12 @@ export function LeaguePicksClient({
   const [selectedIds, setSelectedIds] = useState<string[]>(selectedSlotIds);
   const [search, setSearch] = useState("");
 
-  const isOpen = leagueStatus === "OPEN";
+  // Re-check time lock on the client in case server-rendered state is stale
+  const isOpen = useMemo(() => {
+    if (!initialIsPicksOpen) return false;
+    if (picksLockAt && new Date(picksLockAt).getTime() <= Date.now()) return false;
+    return true;
+  }, [initialIsPicksOpen, picksLockAt]);
 
   const slotMap = useMemo(
     () => new Map(allSlots.map((slot) => [slot.slotId, slot])),
@@ -63,14 +75,6 @@ export function LeaguePicksClient({
         .filter(Boolean) as LeagueSlot[],
     [selectedIds, slotMap]
   );
-
-  const filteredSlots = useMemo(() => {
-    const normalized = search.trim().toLowerCase();
-    if (!normalized) return allSlots;
-    return allSlots.filter((slot) =>
-      slot.displayName.toLowerCase().includes(normalized)
-    );
-  }, [allSlots, search]);
 
   const toggleSlot = (slotId: string) => {
     if (!isOpen) return;
@@ -142,6 +146,11 @@ export function LeaguePicksClient({
               <p className="text-xs font-semibold tracking-widest uppercase text-muted-foreground">
                 {leagueName} · {tournamentName}
               </p>
+              {isOpen && picksLockAt && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Picks lock at {formatDateTime(picksLockAt)}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -162,7 +171,9 @@ export function LeaguePicksClient({
       {/* Locked warning */}
       {!isOpen && (
         <div className="rounded-lg border border-[#D29922]/30 bg-[#D29922]/10 px-4 py-3 flex items-center gap-2 text-sm text-[#D29922]">
-          This league is locked. Picks can no longer be edited.
+          {picksLockAt && new Date(picksLockAt).getTime() <= Date.now()
+            ? "The first round has started. Picks can no longer be edited."
+            : "This league is locked. Picks can no longer be edited."}
         </div>
       )}
 
@@ -196,6 +207,13 @@ export function LeaguePicksClient({
                   disabled={!isOpen}
                   className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-[#F59E0B]/30 bg-[#F59E0B]/10 text-sm text-foreground hover:bg-[#F59E0B]/15 transition-colors disabled:cursor-not-allowed"
                 >
+                  {slot.logoTeamIds.length > 0 && (
+                    <TeamLogo
+                      teamId={slot.logoTeamIds[0]}
+                      label={slot.displayName}
+                      className="w-5 h-5 rounded border border-white/[0.10] bg-white/[0.12] flex-shrink-0"
+                    />
+                  )}
                   <span className="text-[#F59E0B] font-bold text-xs font-mono">
                     #{index + 1}
                   </span>
@@ -237,67 +255,21 @@ export function LeaguePicksClient({
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search teams or slots"
+            placeholder="Search teams..."
             className="pl-9 bg-input border-border h-10 focus-visible:border-[#F59E0B] focus-visible:ring-[#F59E0B]/30"
           />
         </div>
       </div>
 
-      {/* Slot grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-        {filteredSlots.map((slot) => {
-          const isSelected = selectedIds.includes(slot.slotId);
-          const isAtLimit = selectedIds.length >= 8 && !isSelected;
-
-          return (
-            <button
-              key={slot.slotId}
-              onClick={() => toggleSlot(slot.slotId)}
-              disabled={!isOpen || isAtLimit}
-              className={cn(
-                "text-left rounded-lg border p-4 transition-all duration-200",
-                isSelected
-                  ? "border-[#F59E0B] bg-[#F59E0B]/10"
-                  : "border-border bg-card hover:border-[#F59E0B]/40",
-                (!isOpen || isAtLimit) &&
-                  !isSelected &&
-                  "opacity-50 cursor-not-allowed"
-              )}
-            >
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <p className="font-semibold text-foreground line-clamp-2 text-sm">
-                  {slot.displayName}
-                </p>
-                {isSelected && (
-                  <CheckCircle2 className="w-4 h-4 text-[#F59E0B] shrink-0" />
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 text-xs">
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-border text-muted-foreground font-mono">
-                  #{slot.seed}
-                </span>
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-border text-muted-foreground font-mono">
-                  Q{slot.quadrant}
-                </span>
-                {slot.isPlayIn && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded border border-[#D29922]/30 bg-[#D29922]/15 text-[#D29922] text-[10px] font-semibold uppercase tracking-wider">
-                    Play-In
-                  </span>
-                )}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {filteredSlots.length === 0 && (
-        <div className="bg-card border border-border rounded-lg py-12 px-8 text-center">
-          <p className="text-sm text-muted-foreground">
-            No teams matched your search.
-          </p>
-        </div>
-      )}
+      {/* Region grid */}
+      <RegionPickerGrid
+        slots={allSlots}
+        selectedSlotIds={selectedIds}
+        onToggle={toggleSlot}
+        disabled={!isOpen}
+        maxPicks={8}
+        searchQuery={search}
+      />
     </div>
   );
 }

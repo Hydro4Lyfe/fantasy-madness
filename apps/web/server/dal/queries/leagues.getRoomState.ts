@@ -21,6 +21,7 @@ export type LeagueAvailableSlotDTO = {
   slotId: string;
   displayName: string;
   abbreviation: string | null;
+  logoTeamIds: number[];
   seed: number;
   quadrant: number;
   isPlayIn: boolean;
@@ -35,6 +36,8 @@ export type LeagueRoomStateDTO = {
   maxParticipants: number | null;
   tournamentId: string;
   tournamentName: string;
+  picksLockAt: string | null;
+  isPicksOpen: boolean;
   participants: LeagueParticipantDTO[];
   allSlots: LeagueAvailableSlotDTO[];
   currentUserPicks: string[]; // slotIds for current user
@@ -59,7 +62,7 @@ export async function getLeagueRoomState(args: {
       inviteCode: true,
       maxParticipants: true,
       tournamentId: true,
-      tournament: { select: { name: true } },
+      tournament: { select: { name: true, picksLockAt: true } },
       entries: {
         select: {
           id: true,
@@ -111,9 +114,13 @@ export async function getLeagueRoomState(args: {
       id: true,
       seed: true,
       quadrant: true,
+      assignedTeamId: true,
       assignedTeam: { select: { fullName: true, abbreviation: true } },
       candidates: {
-        select: { team: { select: { fullName: true, abbreviation: true } } },
+        select: {
+          teamId: true,
+          team: { select: { fullName: true, abbreviation: true } },
+        },
         orderBy: { team: { name: "asc" } },
       },
     },
@@ -144,10 +151,19 @@ export async function getLeagueRoomState(args: {
     return null;
   };
 
+  const getLogoTeamIds = (slot: any): number[] => {
+    if (slot.assignedTeamId != null) return [slot.assignedTeamId];
+    if (slot.candidates.length > 0) {
+      return slot.candidates.map((c: any) => c.teamId);
+    }
+    return [];
+  };
+
   const allSlots: LeagueAvailableSlotDTO[] = bracketSlots.map((s: any) => ({
     slotId: s.id,
     displayName: getDisplayName(s),
     abbreviation: getAbbreviation(s),
+    logoTeamIds: getLogoTeamIds(s),
     seed: s.seed,
     quadrant: s.quadrant,
     isPlayIn: s.candidates.length > 1,
@@ -176,6 +192,12 @@ export async function getLeagueRoomState(args: {
   // Get current user's pick slot IDs
   const currentUserPicks = currentUserEntry.picks.map((p: any) => p.slotId);
 
+  const picksLockAt = league.tournament?.picksLockAt ?? null;
+  const lockAtMs = picksLockAt?.getTime() ?? null;
+  const isPicksOpen =
+    String(league.status) === "OPEN" &&
+    (lockAtMs === null || lockAtMs > Date.now());
+
   return {
     id: league.id,
     name: league.name,
@@ -185,6 +207,8 @@ export async function getLeagueRoomState(args: {
     maxParticipants: league.maxParticipants,
     tournamentId: league.tournamentId,
     tournamentName: league.tournament?.name ?? "Tournament",
+    picksLockAt: picksLockAt?.toISOString() ?? null,
+    isPicksOpen,
     participants,
     allSlots,
     currentUserPicks,

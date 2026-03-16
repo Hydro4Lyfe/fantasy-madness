@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, Trophy, Users, Crown, Globe } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,6 +40,8 @@ function GoogleIcon() {
 // Signup page
 // ---------------------------------------------------------------------------
 export default function SignupPage() {
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect') ?? '/dashboard';
   const [formData, setFormData] = useState({
     name: '',
     username: '',
@@ -136,7 +139,7 @@ export default function SignupPage() {
     setError('');
     setIsLoading(true);
     try {
-      const result = await signInWithGoogle('/dashboard');
+      const result = await signInWithGoogle(redirectTo);
       if (result?.error) {
         setError(result.error);
         setIsLoading(false);

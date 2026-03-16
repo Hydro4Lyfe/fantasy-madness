@@ -307,6 +307,8 @@ model User {
   leagueEntries        LeagueEntry[]
   leagueBansReceived   LeagueBan[]   @relation("LeagueBanBannedUser")
   leagueBansIssued     LeagueBan[]   @relation("LeagueBanBannedBy")
+  feedback             Feedback[]
+  draftPickQueues      DraftPickQueue[]
 
   @@map("users")
   @@index([email], map: "ix_users_email")
@@ -456,6 +458,7 @@ model Draft {
   scores       DraftScore[]
   invites      DraftInvite[]
   timer        DraftTurnTimer?
+  pickQueues   DraftPickQueue[]
 
   @@map("drafts")
   @@index([tournamentId, status], map: "ix_drafts_tournament_status")
@@ -475,6 +478,22 @@ model DraftTurnTimer {
 
   @@map("draft_turn_timers")
   @@index([deadlineAt], map: "ix_draft_turn_timers_deadline")
+}
+
+model DraftPickQueue {
+  draftId         String   @db.Uuid @map("draft_id")
+  userId          String   @db.Text @map("user_id")
+  slotIds         String[] @db.Uuid @map("slot_ids")
+  autoPickEnabled Boolean  @default(false) @map("auto_pick_enabled")
+
+  createdAt       DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6) @map("updated_at")
+
+  draft Draft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([draftId, userId])
+  @@map("draft_pick_queues")
 }
 
 model DraftParticipant {
@@ -681,4 +700,26 @@ model SchedulerLease {
   lockedAt  DateTime?
   expiresAt DateTime?
   updatedAt DateTime @updatedAt
+}
+
+enum FeedbackCategory {
+  BUG
+  FEATURE
+  OTHER
+}
+
+model Feedback {
+  id         String   @id @default(uuid()) @db.Uuid @map("feedback_id")
+  userId     String   @db.Text @map("user_id")
+
+  category   FeedbackCategory @map("category")
+  title      String   @db.VarChar(100) @map("title")
+  message    String   @db.VarChar(1000) @map("message")
+
+  createdAt  DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("feedback")
+  @@index([userId, createdAt], map: "ix_feedback_user_created")
 }

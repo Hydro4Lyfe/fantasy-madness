@@ -39,6 +39,13 @@ export type ServerEvent =
   | {
       type: 'pong';
       payload: Record<string, never>;
+    }
+  | {
+      type: 'queue:state';
+      payload: {
+        slotIds: string[];
+        autoPickEnabled: boolean;
+      };
     };
 
 /**
@@ -54,6 +61,13 @@ export type ClientEvent =
   | {
       type: 'ping';
       payload?: Record<string, never>;
+    }
+  | {
+      type: 'queue:update';
+      payload: {
+        slotIds: string[];
+        autoPickEnabled: boolean;
+      };
     };
 
 /**
@@ -62,5 +76,5 @@ export type ClientEvent =
 export function isClientEvent(data: unknown): data is ClientEvent {
   if (!data || typeof data !== 'object') return false;
   const event = data as Record<string, unknown>;
-  return typeof event.type === 'string' && ['pick:submit', 'ping'].includes(event.type);
+  return typeof event.type === 'string' && ['pick:submit', 'ping', 'queue:update'].includes(event.type);
 }

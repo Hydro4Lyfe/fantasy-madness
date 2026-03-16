@@ -33,8 +33,8 @@ function PlayInLogo({ teamIds, names }: { teamIds: number[]; names: string[] }) 
     <div
       className="relative flex-shrink-0 w-11 h-11 rounded-xl overflow-hidden"
       style={{
-        background: "rgba(48,54,61,0.4)",
-        border: "1px solid rgba(48,54,61,0.8)",
+        background: "rgba(255,255,255,0.12)",
+        border: "1px solid rgba(255,255,255,0.10)",
       }}
     >
       {/* Top-left team (clipped to upper-left triangle) */}
@@ -63,7 +63,7 @@ function PlayInLogo({ teamIds, names }: { teamIds: number[]; names: string[] }) 
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: "linear-gradient(135deg, transparent calc(50% - 0.5px), rgba(48,54,61,0.9) calc(50% - 0.5px), rgba(48,54,61,0.9) calc(50% + 0.5px), transparent calc(50% + 0.5px))",
+          background: "linear-gradient(135deg, transparent calc(50% - 0.5px), rgba(255,255,255,0.2) calc(50% - 0.5px), rgba(255,255,255,0.2) calc(50% + 0.5px), transparent calc(50% + 0.5px))",
         }}
       />
     </div>
@@ -129,8 +129,8 @@ export function TeamSlotCard({
         <div
           className="relative flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center overflow-hidden"
           style={{
-            background: "rgba(48,54,61,0.4)",
-            border: "1px solid rgba(48,54,61,0.8)",
+            background: "rgba(255,255,255,0.12)",
+            border: "1px solid rgba(255,255,255,0.10)",
           }}
         >
           <TeamLogo

@@ -1,6 +1,6 @@
 import type { WebSocket } from 'ws';
 import { prisma } from '@fantasy-madness/db';
-import { getDraftRoomState, makePick } from '@/server/dal';
+import { getDraftRoomState, makePick, savePickQueue, getPickQueue } from '@/server/dal';
 import { DomainError } from '@fantasy-madness/domain';
 import { getRedisPubSub } from '../redis/pubsub';
 import type { ClientEvent, ServerEvent } from './events';
@@ -95,6 +95,21 @@ export class DraftWebSocketHandler {
         payload: state,
       };
       ws.send(JSON.stringify(stateEvent));
+
+      // 4. Send user's saved queue (if any)
+      try {
+        const queue = await getPickQueue({ db: prisma, draftId, userId });
+        if (queue) {
+          const queueEvent: ServerEvent = {
+            type: 'queue:state',
+            payload: queue,
+          };
+          ws.send(JSON.stringify(queueEvent));
+        }
+      } catch (err) {
+        console.error('[WebSocket] Failed to load queue:', err);
+      }
+
       console.log(`[WebSocket] Connection setup complete for user ${userId}`);
     } catch (err) {
       console.error('[WebSocket] Connection setup error:', err);
@@ -139,6 +154,10 @@ export class DraftWebSocketHandler {
       switch (event.type) {
         case 'pick:submit':
           await this.handlePickSubmit(ws, userId, draftId, event.payload.slotId);
+          break;
+
+        case 'queue:update':
+          await this.handleQueueUpdate(ws, userId, draftId, event.payload);
           break;
 
         case 'ping':
@@ -240,6 +259,31 @@ export class DraftWebSocketHandler {
       } else {
         this.sendError(ws, 'Failed to make pick');
       }
+    }
+  }
+
+  /**
+   * Handle queue update from client
+   */
+  private async handleQueueUpdate(
+    ws: WebSocket,
+    userId: string,
+    draftId: string,
+    payload: { slotIds: string[]; autoPickEnabled: boolean }
+  ): Promise<void> {
+    try {
+      await savePickQueue({
+        db: prisma,
+        input: {
+          draftId,
+          userId,
+          slotIds: payload.slotIds,
+          autoPickEnabled: payload.autoPickEnabled,
+        },
+      });
+    } catch (err) {
+      console.error('[WebSocket] Queue update error:', err);
+      this.sendError(ws, 'Failed to save queue');
     }
   }
 

@@ -7,7 +7,8 @@ export type DomainErrorCode =
   | "INVALID_STATE"
   | "CONFLICT"
   | "LEAGUE_FULL"
-  | "BANNED_FROM_LEAGUE";
+  | "BANNED_FROM_LEAGUE"
+  | "RATE_LIMITED";
 
 export class DomainError extends Error {
   constructor(

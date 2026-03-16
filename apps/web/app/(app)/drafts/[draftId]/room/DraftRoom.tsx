@@ -37,12 +37,15 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
     connectionState,
     error: wsError,
     submitPick,
+    updateQueue,
+    savedQueue,
     reconnect,
   } = useDraftWebSocket({ draftId, initialState, enabled: true })
 
   // Local UI state
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const [draftQueue, setDraftQueue] = useState<string[]>([])
+  const [autoPickFromQueue, setAutoPickFromQueue] = useState(false)
   const [showQueue, setShowQueue] = useState(false)
   const [timeLeft, setTimeLeft] = useState<number | null>(null)
   // Mobile drawer state
@@ -65,6 +68,40 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
       ? Math.floor(((draft?.currentPickNumber ?? 1) - 1) / numParticipants) + 1
       : 1
   const seedWeight = myParticipant?.picks.reduce((sum, p) => sum + p.seed, 0) ?? 0
+
+  // --- Reset queue restore flag on disconnect so reconnect re-syncs ---
+  const queueRestoredRef = useRef(false)
+  useEffect(() => {
+    if (connectionState === "disconnected" || connectionState === "connecting") {
+      queueRestoredRef.current = false
+    }
+  }, [connectionState])
+
+  // --- Restore queue from server on connect ---
+  useEffect(() => {
+    if (savedQueue && !queueRestoredRef.current) {
+      queueRestoredRef.current = true
+      setDraftQueue(savedQueue.slotIds)
+      setAutoPickFromQueue(savedQueue.autoPickEnabled)
+    }
+  }, [savedQueue])
+
+  // --- Sync queue to server when it changes ---
+  const isInitialSyncRef = useRef(true)
+  useEffect(() => {
+    // Skip the initial render and the restore-from-server render
+    if (isInitialSyncRef.current) {
+      isInitialSyncRef.current = false
+      return
+    }
+    // Don't sync until we've restored from server (or confirmed no saved queue)
+    if (!queueRestoredRef.current && savedQueue === null) {
+      queueRestoredRef.current = true // no saved queue to restore
+    }
+    if (queueRestoredRef.current) {
+      updateQueue({ slotIds: draftQueue, autoPickEnabled: autoPickFromQueue })
+    }
+  }, [draftQueue, autoPickFromQueue, updateQueue, savedQueue])
 
   // --- Timer effect ---
   useEffect(() => {
@@ -109,7 +146,7 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
     })
   }, [draft])
 
-  // --- Auto-pick from queue on your turn ---
+  // --- Queue assist on your turn: auto-select or auto-pick ---
   useEffect(() => {
     if (!draft || draft.status !== "DRAFTING" || !isMyTurn || draftQueue.length === 0) {
       return
@@ -120,12 +157,17 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
 
     if (!nextQueuedSlotId) return
 
-    const attemptKey = `${draft.currentPickNumber}:${nextQueuedSlotId}`
-    if (autoPickAttemptRef.current === attemptKey) return
-
-    autoPickAttemptRef.current = attemptKey
-    submitPick(nextQueuedSlotId)
-  }, [draft, draftQueue, isMyTurn, submitPick])
+    if (autoPickFromQueue) {
+      // Auto-submit the pick
+      const attemptKey = `${draft.currentPickNumber}:${nextQueuedSlotId}`
+      if (autoPickAttemptRef.current === attemptKey) return
+      autoPickAttemptRef.current = attemptKey
+      submitPick(nextQueuedSlotId)
+    } else {
+      // Just pre-select so the user can confirm
+      setSelectedSlot(nextQueuedSlotId)
+    }
+  }, [draft, draftQueue, isMyTurn, autoPickFromQueue, submitPick])
 
   // Reset auto-pick dedupe lock when the pick advances.
   useEffect(() => {
@@ -169,19 +211,14 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
     setDraftQueue((prev) => prev.filter((id) => id !== slotId))
   }, [])
 
-  const handleMoveInQueue = useCallback(
-    (slotId: string, direction: "up" | "down") => {
+  const handleReorderQueue = useCallback(
+    (fromIndex: number, toIndex: number) => {
       setDraftQueue((prev) => {
-        const currentIndex = prev.indexOf(slotId)
-        if (currentIndex === -1) return prev
-        const newIndex =
-          direction === "up" ? currentIndex - 1 : currentIndex + 1
-        if (newIndex < 0 || newIndex >= prev.length) return prev
+        if (fromIndex < 0 || fromIndex >= prev.length) return prev
+        if (toIndex < 0 || toIndex >= prev.length) return prev
         const newQueue = [...prev]
-        ;[newQueue[currentIndex], newQueue[newIndex]] = [
-          newQueue[newIndex],
-          newQueue[currentIndex],
-        ]
+        const [moved] = newQueue.splice(fromIndex, 1)
+        newQueue.splice(toIndex, 0, moved)
         return newQueue
       })
     },
@@ -252,8 +289,10 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
   const queueProps = {
     queue: draftQueue,
     availableSlots: draft.availableSlots,
+    autoPickEnabled: autoPickFromQueue,
+    onToggleAutoPick: () => setAutoPickFromQueue((v) => !v),
     onRemove: handleRemoveFromQueue,
-    onMove: handleMoveInQueue,
+    onReorder: handleReorderQueue,
     onClose: () => setShowQueue(false),
   }
 
@@ -298,7 +337,7 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
       {/* ─────────────────────────────────────────────────────────────────────
           MOBILE LAYOUT  (hidden md+)
       ───────────────────────────────────────────────────────────────────── */}
-      <div className="relative flex md:hidden flex-col gap-2 h-[calc(100dvh-80px)] overflow-hidden">
+      <div className="relative flex md:hidden flex-col gap-2 h-[calc(100dvh-80px)] overflow-hidden px-2 pt-2">
 
         <div className="relative z-10 flex flex-col gap-2 h-full">
           <div className="dr-fade-up dr-fade-up-1">
@@ -457,7 +496,7 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
       {/* ─────────────────────────────────────────────────────────────────────
           DESKTOP LAYOUT  (hidden below md)
       ───────────────────────────────────────────────────────────────────── */}
-      <div className="relative hidden md:flex flex-col gap-3 h-[calc(100vh-140px)] overflow-hidden">
+      <div className="relative hidden md:flex flex-col gap-3 h-[calc(100vh-140px)] overflow-hidden p-3">
 
         {/* Content */}
         <div className="relative z-10 flex flex-col gap-3 h-full">

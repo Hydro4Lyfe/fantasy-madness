@@ -204,15 +204,16 @@ export async function getDraftRoomState(args: {
   });
 
   // Calculate current pick
-  const totalPicks = draft.picks.length;
-  const currentPickNumber = totalPicks + 1;
+  const picksMade = draft.picks.length;
+  const currentPickNumber = picksMade + 1;
   const numParticipants = participants.length;
+  const totalPicks = draft.rosterSize * numParticipants;
 
   // Snake draft logic for determining current picker
   let currentPickerUserId: string | null = null;
   if (numParticipants > 0 && draft.status === "DRAFTING") {
-    const round = Math.floor(totalPicks / numParticipants);
-    const positionInRound = totalPicks % numParticipants;
+    const round = Math.floor(picksMade / numParticipants);
+    const positionInRound = picksMade % numParticipants;
 
     // Snake: odd rounds go in reverse order
     const isReverseRound = round % 2 === 1;

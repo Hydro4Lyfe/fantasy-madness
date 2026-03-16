@@ -51,7 +51,12 @@ export async function saveLeaguePicks(args: {
       // 1) Verify league exists and is OPEN
       const league = await tx.league.findUnique({
         where: { id: input.leagueId },
-        select: { id: true, status: true, tournamentId: true },
+        select: {
+          id: true,
+          status: true,
+          tournamentId: true,
+          tournament: { select: { picksLockAt: true } },
+        },
       });
 
       if (!league) {
@@ -61,6 +66,15 @@ export async function saveLeaguePicks(args: {
         throw new DomainError(
           "INVALID_STATE",
           "Cannot modify picks after league has locked"
+        );
+      }
+
+      // Check tournament time-based lock (Round 1 start)
+      const picksLockAt = league.tournament?.picksLockAt;
+      if (picksLockAt && picksLockAt.getTime() <= Date.now()) {
+        throw new DomainError(
+          "INVALID_STATE",
+          "Cannot modify picks after the first round has started"
         );
       }
 

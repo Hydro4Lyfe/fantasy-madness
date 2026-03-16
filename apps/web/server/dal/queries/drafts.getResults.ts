@@ -4,6 +4,7 @@ import { DomainError } from "@fantasy-madness/domain";
 
 export type DraftPickResultDTO = {
   slotId: string;
+  teamId: number | null;
   teamName: string | null;
   seed: number;
   quadrant: number;
@@ -130,6 +131,7 @@ export async function getDraftResults(args: {
 
         return {
           slotId: pick.slotId,
+          teamId: teamId ?? null,
           teamName: pick.slot.assignedTeam?.fullName ?? null,
           seed: pick.slot.seed,
           quadrant: pick.slot.quadrant,

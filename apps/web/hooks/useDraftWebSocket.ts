@@ -7,11 +7,18 @@ import type { ServerEvent, ClientEvent } from "@/lib/websocket/events";
 
 export type ConnectionState = "connecting" | "connected" | "disconnected" | "error";
 
+export type QueueState = {
+  slotIds: string[];
+  autoPickEnabled: boolean;
+};
+
 export interface UseDraftWebSocketReturn {
   state: DraftRoomStateDTO | null;
   connectionState: ConnectionState;
   error: string | null;
   submitPick: (slotId: string) => void;
+  updateQueue: (queue: QueueState) => void;
+  savedQueue: QueueState | null;
   reconnect: () => void;
 }
 
@@ -36,6 +43,7 @@ export function useDraftWebSocket({
   const [state, setState] = useState<DraftRoomStateDTO | null>(initialState);
   const [connectionState, setConnectionState] = useState<ConnectionState>("disconnected");
   const [error, setError] = useState<string | null>(null);
+  const [savedQueue, setSavedQueue] = useState<QueueState | null>(null);
 
   // Use refs to avoid stale closures and prevent duplicate connections
   const wsRef = useRef<WebSocket | null>(null);
@@ -44,6 +52,7 @@ export function useDraftWebSocket({
   const reconnectAttemptsRef = useRef(0);
   const isConnectingRef = useRef(false);
   const mountedRef = useRef(true);
+  const pendingQueueRef = useRef<QueueState | null>(null);
 
   // Cleanup function - no useCallback to avoid dependency issues
   const cleanup = () => {
@@ -62,6 +71,21 @@ export function useDraftWebSocket({
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const event: ClientEvent = { type: "pick:submit", payload: { slotId } };
       wsRef.current.send(JSON.stringify(event));
+    }
+  }, []);
+
+  // Update queue on server (buffers if WS is not open, flushed on reconnect)
+  const updateQueue = useCallback((queue: QueueState) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      pendingQueueRef.current = null;
+      const event: ClientEvent = {
+        type: "queue:update",
+        payload: { slotIds: queue.slotIds, autoPickEnabled: queue.autoPickEnabled },
+      };
+      wsRef.current.send(JSON.stringify(event));
+    } else {
+      // Buffer the update so it can be flushed on reconnect
+      pendingQueueRef.current = queue;
     }
   }, []);
 
@@ -129,6 +153,19 @@ export function useDraftWebSocket({
             case "draft:state":
               console.log("[WS] Received state update");
               setState(serverEvent.payload);
+              // Flush any pending queue update that was buffered while disconnected
+              // (handles case where user had no saved queue, so queue:state isn't sent)
+              if (pendingQueueRef.current && ws.readyState === WebSocket.OPEN) {
+                const pending = pendingQueueRef.current;
+                pendingQueueRef.current = null;
+                console.log("[WS] Flushing pending queue update on draft:state");
+                const flushEvent: ClientEvent = {
+                  type: "queue:update",
+                  payload: { slotIds: pending.slotIds, autoPickEnabled: pending.autoPickEnabled },
+                };
+                ws.send(JSON.stringify(flushEvent));
+                setSavedQueue(pending);
+              }
               break;
 
             case "pick:made":
@@ -158,6 +195,25 @@ export function useDraftWebSocket({
             case "error":
               console.error("[WS] Server error:", serverEvent.payload.message);
               setError(serverEvent.payload.message);
+              break;
+
+            case "queue:state":
+              console.log("[WS] Received queue state");
+              // If we have buffered queue changes from while disconnected, flush them
+              if (pendingQueueRef.current) {
+                const pending = pendingQueueRef.current;
+                pendingQueueRef.current = null;
+                console.log("[WS] Flushing pending queue update");
+                const flushEvent: ClientEvent = {
+                  type: "queue:update",
+                  payload: { slotIds: pending.slotIds, autoPickEnabled: pending.autoPickEnabled },
+                };
+                ws.send(JSON.stringify(flushEvent));
+                // Use the pending (more recent) state as the saved queue
+                setSavedQueue(pending);
+              } else {
+                setSavedQueue(serverEvent.payload);
+              }
               break;
 
             case "pong":
@@ -247,6 +303,8 @@ export function useDraftWebSocket({
     connectionState,
     error,
     submitPick,
+    updateQueue,
+    savedQueue,
     reconnect,
   };
 }

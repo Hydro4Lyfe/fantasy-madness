@@ -303,23 +303,23 @@ export function DraftBoard({
                 ) : null}
               </div>
 
-              {/* Pick chips */}
-              <div className="flex gap-1 overflow-x-auto pb-0.5 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+              {/* Pick chips — 4-col grid so all 8 are visible */}
+              <div className="grid grid-cols-4 gap-1">
                 {sortedPicks.map((pick) => (
                   <div
                     key={pick.slotId}
-                    className="flex-shrink-0 flex items-center gap-1.5 px-2 h-11 w-[70px] rounded-xl"
+                    className="group relative flex items-center gap-1.5 px-1.5 py-1.5 rounded-lg transition-all duration-200 hover:brightness-125"
                     style={{
                       border: `1px solid ${seedTierBorderColor(pick.seed)}`,
                       background: "rgba(22,27,34,0.6)",
                     }}
-                    title={`${pick.displayName} · Seed ${pick.seed}`}
+                    title={`${pick.displayName} · Seed ${pick.seed} · Pick #${pick.overallPickNo}`}
                   >
                     <div
                       className="w-5 h-5 rounded-md flex items-center justify-center overflow-hidden flex-shrink-0"
                       style={{
-                        background: "rgba(48,54,61,0.5)",
-                        border: "1px solid rgba(48,54,61,0.8)",
+                        background: "rgba(255,255,255,0.12)",
+                        border: "1px solid rgba(255,255,255,0.10)",
                       }}
                     >
                       <TeamLogo
@@ -335,7 +335,7 @@ export function DraftBoard({
                       >
                         #{pick.seed}
                       </span>
-                      <span className="text-[10px] font-medium text-foreground/90 leading-tight mt-0.5 truncate">
+                      <span className="text-[8px] font-medium text-foreground/70 leading-tight mt-0.5 truncate">
                         {pick.abbreviation ?? shortName(pick.displayName)}
                       </span>
                     </div>
@@ -346,9 +346,10 @@ export function DraftBoard({
                 {Array.from({ length: emptySlots }).map((_, i) => (
                   <div
                     key={`empty-${i}`}
-                    className="flex-shrink-0 w-[70px] h-11 rounded-xl flex items-center justify-center"
+                    className="rounded-lg flex items-center justify-center py-1.5"
                     style={{
-                      border: "1px dashed rgba(48,54,61,0.6)",
+                      border: "1px dashed rgba(48,54,61,0.5)",
+                      minHeight: 32,
                     }}
                   >
                     <div className="w-1 h-1 rounded-full bg-border" />

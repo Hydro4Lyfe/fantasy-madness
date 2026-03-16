@@ -25,6 +25,8 @@ export default async function LeaguePicksPage({
         leagueName={roomState.name}
         tournamentName={roomState.tournamentName}
         leagueStatus={roomState.status}
+        picksLockAt={roomState.picksLockAt}
+        isPicksOpen={roomState.isPicksOpen}
         allSlots={roomState.allSlots}
         selectedSlotIds={roomState.currentUserPicks}
       />

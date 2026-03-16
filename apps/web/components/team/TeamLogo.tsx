@@ -7,6 +7,7 @@ import { getTeamLogoCandidates } from "@/lib/team-logos";
 
 type TeamLogoProps = {
   teamId?: number | null;
+  /** The team's full name (e.g. "Duke Blue Devils") — used for ESPN CDN lookup and fallback initials */
   label: string;
   className?: string;
 };
@@ -24,13 +25,13 @@ function getInitials(label: string): string {
 
 export function TeamLogo({ teamId, label, className }: TeamLogoProps) {
   const [attempt, setAttempt] = useState(0);
-  const sources = useMemo(() => getTeamLogoCandidates(teamId), [teamId]);
+  const sources = useMemo(() => getTeamLogoCandidates(teamId, label), [teamId, label]);
   const src = sources[attempt] ?? null;
   const fallbackText = useMemo(() => getInitials(label), [label]);
 
   useEffect(() => {
     setAttempt(0);
-  }, [teamId]);
+  }, [teamId, label]);
 
   if (!src) {
     return (
@@ -50,7 +51,7 @@ export function TeamLogo({ teamId, label, className }: TeamLogoProps) {
     <img
       src={src}
       alt={`${label} logo`}
-      className={cn("rounded object-contain", className)}
+      className={cn("rounded object-contain bg-gradient-to-b from-white/10 to-white/[0.04] ring-1 ring-white/10", className)}
       loading="lazy"
       decoding="async"
       onError={() => setAttempt((v) => v + 1)}

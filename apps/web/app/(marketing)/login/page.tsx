@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,6 +40,8 @@ function GoogleIcon() {
 // ---------------------------------------------------------------------------
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect') ?? '/dashboard';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -55,7 +57,7 @@ export default function LoginPage() {
         setError(result.error);
         setIsLoading(false);
       } else {
-        router.push('/dashboard');
+        router.push(redirectTo);
       }
     } catch {
       setError('An unexpected error occurred. Please try again.');
@@ -67,7 +69,7 @@ export default function LoginPage() {
     setError('');
     setIsLoading(true);
     try {
-      const result = await signInWithGoogle('/dashboard');
+      const result = await signInWithGoogle(redirectTo);
       if (result?.error) {
         setError(result.error);
         setIsLoading(false);

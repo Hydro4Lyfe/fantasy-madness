@@ -27,8 +27,10 @@ import {
   ChevronDown,
   Home,
   BookOpen,
+  MessageSquareWarning,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FeedbackDialog } from "./FeedbackDialog";
 
 interface NavBarProps {
   user: {
@@ -66,6 +68,7 @@ const playModes = [
 export function NavBar({ user }: NavBarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const playRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
@@ -313,6 +316,14 @@ export function NavBar({ user }: NavBarProps) {
                 </DropdownMenuItem>
 
                 <DropdownMenuItem
+                  onSelect={() => setFeedbackOpen(true)}
+                  className="h-9 rounded-md px-3 gap-2.5 text-sm cursor-pointer text-muted-foreground focus:text-foreground focus:bg-accent transition-colors duration-150"
+                >
+                  <MessageSquareWarning className="w-4 h-4" />
+                  Send Feedback
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
                   asChild
                   className="h-9 rounded-md px-3 gap-2.5 text-sm cursor-pointer text-red-400/70 focus:text-red-400 focus:bg-red-500/[0.08] transition-colors duration-150"
                 >
@@ -427,8 +438,22 @@ export function NavBar({ user }: NavBarProps) {
             <BookOpen className="w-4 h-4" />
             How to Play
           </Link>
+
+          {/* Send Feedback */}
+          <button
+            onClick={() => {
+              setMobileOpen(false);
+              setFeedbackOpen(true);
+            }}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-muted-foreground hover:text-foreground hover:bg-accent w-full text-left"
+          >
+            <MessageSquareWarning className="w-4 h-4" />
+            Send Feedback
+          </button>
         </div>
       </div>
+
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </nav>
   );
 }

@@ -355,31 +355,41 @@ function pickLogoUrl(urls: string[]): string | null {
 }
 
 function getRecordKeys(record: Record<string, unknown>): string[] {
-  const keys = new Set<string>();
+  // Keys are ordered from most-specific to least-specific so that the first
+  // single-candidate match in the consumer is the most reliable one.
+  // Without this ordering, a bare mascot name like "Huskies" can match the
+  // wrong team when multiple schools share the same mascot.
+  const keys: string[] = [];
+  const seen = new Set<string>();
 
   const addName = (v: unknown) => {
     if (typeof v !== "string") return;
     const n = normalizeName(v);
-    if (n) keys.add(`name:${n}`);
+    if (n && !seen.has(`name:${n}`)) { seen.add(`name:${n}`); keys.push(`name:${n}`); }
   };
   const addAlias = (v: unknown) => {
     if (typeof v !== "string") return;
     const n = normalizeAlias(v);
-    if (n) keys.add(`alias:${n}`);
+    if (n && !seen.has(`alias:${n}`)) { seen.add(`alias:${n}`); keys.push(`alias:${n}`); }
   };
 
+  // 1) Most specific: alias/abbreviation (e.g. "CONN", "WASH")
   addAlias(record.alias);
   addAlias(record.abbreviation);
 
-  addName(record.name);
-  addName(record.full_name);
-  addName(record.fullName);
-
+  // 2) Combined market+name (e.g. "Washington Huskies", "UConn Huskies")
   const market = typeof record.market === "string" ? record.market : null;
   const name = typeof record.name === "string" ? record.name : null;
   if (market && name) addName(`${market} ${name}`);
 
-  return Array.from(keys);
+  // 3) Full name fields (e.g. "UConn Huskies")
+  addName(record.full_name);
+  addName(record.fullName);
+
+  // 4) Least specific: bare mascot name (e.g. "Huskies") — last resort
+  addName(record.name);
+
+  return keys;
 }
 
 function buildTeamKeyMap(teams: TeamRow[]): Map<string, TeamRow[]> {

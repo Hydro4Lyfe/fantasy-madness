@@ -1,5 +1,5 @@
 import { prisma } from '@fantasy-madness/db';
-import { makePick, selectOptimalSlot, getDraftRoomState, withAdvisoryLock } from '@/server/dal';
+import { makePick, selectOptimalSlot, getDraftRoomState, getPickQueue, withAdvisoryLock } from '@/server/dal';
 import { getRedisPubSub } from '../redis/pubsub';
 
 const redis = getRedisPubSub();
@@ -58,36 +58,63 @@ async function executeAutoPick(draftId: string, expectedPickNumber: number): Pro
     return;
   }
 
-  // 3. Select optimal slot
-  const optimalSlotId = await selectOptimalSlot({ db: prisma, draftId });
+  const userId = state.currentPickerUserId;
 
-  // 4. Make auto-pick
+  // 3. Check user's queue for a preferred slot
+  let slotId: string | null = null;
+
+  try {
+    const queue = await getPickQueue({ db: prisma, draftId, userId });
+    if (queue && queue.slotIds.length > 0) {
+      const availableIds = new Set(state.availableSlots.map((s) => s.slotId));
+      slotId = queue.slotIds.find((id) => availableIds.has(id)) ?? null;
+      if (slotId) {
+        console.log(`[Auto-Pick] Using queued slot ${slotId} for user ${userId}`);
+      }
+    }
+  } catch (err) {
+    console.error('[Auto-Pick] Failed to check queue, falling back to optimal:', err);
+  }
+
+  // 4. Fall back to optimal slot if no queue pick available
+  if (!slotId) {
+    slotId = await selectOptimalSlot({ db: prisma, draftId });
+  }
+
+  // 5. Make auto-pick
   try {
     const result = await makePick({
       db: prisma,
       input: {
         draftId,
-        userId: state.currentPickerUserId,
-        slotId: optimalSlotId,
+        userId,
+        slotId,
         isAutoPick: true,
       },
     });
 
-    console.log(`[Auto-Pick] Success - pick ${result.overallPickNo} for user ${state.currentPickerUserId}`);
+    console.log(`[Auto-Pick] Success - pick ${result.overallPickNo} for user ${userId}`);
 
-    // 5. Broadcast via Redis
+    // 6. Broadcast via Redis
     await redis.publish(`draft:${draftId}`, {
       type: 'pick:made',
       payload: {
         pickId: result.pickId,
-        userId: state.currentPickerUserId,
-        slotId: optimalSlotId,
+        userId,
+        slotId,
         overallPickNo: result.overallPickNo,
         isAutoPick: true,
       },
     });
 
-    // 6. If draft not complete, send turn change event
+    // Fetch and broadcast updated full state
+    const updatedState = await getDraftRoomState({ db: prisma, draftId });
+    await redis.publish(`draft:${draftId}`, {
+      type: 'draft:state',
+      payload: updatedState,
+    });
+
+    // 7. If draft not complete, send turn change event
     if (!result.isDraftComplete && result.nextPickerUserId) {
       await redis.publish(`draft:${draftId}`, {
         type: 'turn:changed',

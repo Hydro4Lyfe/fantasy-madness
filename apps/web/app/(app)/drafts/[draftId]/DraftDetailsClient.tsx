@@ -218,7 +218,7 @@ export function DraftDetailsClient({
     setStartError(null);
     const result = await startDraftAction(settings.id);
     if (result.success) {
-      router.refresh();
+      router.push(`/drafts/${settings.id}/room`);
     } else {
       setStartError(result.error ?? "Failed to start draft");
       setIsStarting(false);
