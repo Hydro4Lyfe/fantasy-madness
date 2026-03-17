@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, Trophy, Users, Crown, Globe } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { AlertCircle, ArrowLeft, Loader2, Trophy, Users, Crown, Globe } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -40,6 +40,7 @@ function GoogleIcon() {
 // Signup page
 // ---------------------------------------------------------------------------
 export default function SignupPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') ?? '/dashboard';
   const [formData, setFormData] = useState({
@@ -58,7 +59,6 @@ export default function SignupPage() {
     confirmPassword: '',
   });
   const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,7 +108,6 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccessMessage('');
     if (!validateForm()) return;
     if (!acceptTerms) {
       setError('You must accept the terms and conditions');
@@ -122,15 +121,17 @@ export default function SignupPage() {
         formData.password,
         formData.name.trim(),
         formData.username.trim(),
+        redirectTo,
       );
       if (result?.error) {
         setError(result.error);
+        setIsLoading(false);
       } else if (result?.success) {
-        setSuccessMessage(result.message ?? 'Account created! Check your email to confirm.');
+        // Account created and signed in — redirect immediately
+        router.push(redirectTo);
       }
     } catch {
       setError('An unexpected error occurred. Please try again.');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -266,16 +267,9 @@ export default function SignupPage() {
                 {error}
               </div>
             )}
-            {successMessage && (
-              <div className="mb-5 flex items-start gap-2 p-3 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
-                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-                {successMessage}
-              </div>
-            )}
-
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Name + Username side by side */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="name" className="text-sm font-medium text-foreground">
                     Full Name
@@ -349,7 +343,7 @@ export default function SignupPage() {
               </div>
 
               {/* Password side by side */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="password" className="text-sm font-medium text-foreground">
                     Password
@@ -443,7 +437,7 @@ export default function SignupPage() {
             <p className="text-center text-sm text-muted-foreground mt-6">
               Already have an account?{' '}
               <Link
-                href="/login"
+                href={redirectTo !== '/dashboard' ? `/login?redirect=${encodeURIComponent(redirectTo)}` : '/login'}
                 className="text-primary hover:text-primary/80 font-medium transition-colors"
               >
                 Sign in

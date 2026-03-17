@@ -1,6 +1,6 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { prisma } from "@fantasy-madness/db";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
@@ -47,14 +47,9 @@ export async function signUpWithEmailPassword(
   email: string,
   password: string,
   name: string,
-  username: string
+  username: string,
+  redirectTo?: string
 ) {
-  const supabase = await createClient();
-  const headersList = await headers();
-  const host = headersList.get("host") ?? "localhost:3000";
-  const protocol = host.includes("localhost") ? "http" : "https";
-  const baseUrl = `${protocol}://${host}`;
-
   const sanitizedUsername = username.trim();
   const usernameValid = /^[A-Za-z0-9][A-Za-z0-9_]{4,19}$/.test(sanitizedUsername);
 
@@ -74,24 +69,46 @@ export async function signUpWithEmailPassword(
     return { error: "Username is already taken" };
   }
 
-  const { error } = await supabase.auth.signUp({
+  // Use admin API to create the user as pre-confirmed (no confirmation email).
+  // This lets the user sign in immediately; email verification can happen later.
+  const admin = createAdminClient();
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
     email,
     password,
-    options: {
-      data: {
-        name,
-        full_name: name,
-        username: sanitizedUsername,
-      },
-      emailRedirectTo: `${baseUrl}/auth/callback`,
+    email_confirm: true,
+    user_metadata: {
+      name,
+      full_name: name,
+      username: sanitizedUsername,
     },
   });
 
-  if (error) {
-    return { error: error.message };
+  if (createError) {
+    // Supabase returns "A user with this email address has already been registered"
+    if (createError.message?.toLowerCase().includes("already been registered")) {
+      return { error: "An account with this email already exists. Try signing in instead." };
+    }
+    return { error: createError.message };
   }
 
-  return { success: true, message: "Check your email to confirm your account!" };
+  // Immediately sign the user in so they get a session cookie
+  const supabase = await createClient();
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (signInError) {
+    return { error: signInError.message };
+  }
+
+  // Sync the new user to our database
+  if (created.user) {
+    const { syncUserToDatabase } = await import("@/server/auth/syncUser");
+    await syncUserToDatabase(created.user);
+  }
+
+  return { success: true, autoConfirmed: true };
 }
 
 export async function signOut() {

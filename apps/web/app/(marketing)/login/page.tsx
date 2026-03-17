@@ -207,7 +207,7 @@ export default function LoginPage() {
           <p className="text-center text-sm text-muted-foreground mt-6">
             Don&apos;t have an account?{' '}
             <Link
-              href="/signup"
+              href={redirectTo !== '/dashboard' ? `/signup?redirect=${encodeURIComponent(redirectTo)}` : '/signup'}
               className="text-primary hover:text-primary/80 font-medium transition-colors"
             >
               Sign up free
