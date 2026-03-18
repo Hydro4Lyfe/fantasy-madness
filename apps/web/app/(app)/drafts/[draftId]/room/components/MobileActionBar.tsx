@@ -76,15 +76,6 @@ export function MobileActionBar({
     <div ref={overlayRef} className="relative">
       {/* Button row */}
       <div className="flex items-center justify-between gap-2 px-2">
-        {/* Search toggle */}
-        <button
-          onClick={handleToggleSearch}
-          className={cn(buttonBase, searchOpen && "bg-[#3B82F6]/15 border-[#3B82F6]/25 text-[#3B82F6]")}
-          aria-label={searchOpen ? "Close search" : "Search teams"}
-        >
-          {searchOpen ? <X className="w-4 h-4" /> : <Search className="w-4 h-4" />}
-        </button>
-
         {/* My Picks */}
         <button
           onClick={onOpenMyPicks}
@@ -133,6 +124,15 @@ export function MobileActionBar({
               {queueCount}
             </span>
           )}
+        </button>
+
+        {/* Search toggle — far right */}
+        <button
+          onClick={handleToggleSearch}
+          className={cn(buttonBase, searchOpen && "bg-[#3B82F6]/15 border-[#3B82F6]/25 text-[#3B82F6]")}
+          aria-label={searchOpen ? "Close search" : "Search teams"}
+        >
+          {searchOpen ? <X className="w-4 h-4" /> : <Search className="w-4 h-4" />}
         </button>
       </div>
 

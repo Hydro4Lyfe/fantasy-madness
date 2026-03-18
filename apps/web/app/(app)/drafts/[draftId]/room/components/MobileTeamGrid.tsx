@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, useCallback } from "react"
+import { useMemo } from "react"
 import { TeamLogo } from "@/components/team/TeamLogo"
 import { Star } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -53,51 +53,17 @@ function MobileTeamCard({
   onToggleQueue,
 }: MobileTeamCardProps) {
   const sc = seedColor(slot.seed)
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const didLongPress = useRef(false)
 
-  const handlePointerDown = useCallback(() => {
-    didLongPress.current = false
-    longPressTimer.current = setTimeout(() => {
-      didLongPress.current = true
-      onToggleQueue(slot.slotId)
-    }, 500)
-  }, [slot.slotId, onToggleQueue])
-
-  const handlePointerUp = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
-    }
-  }, [])
-
-  const handlePointerMove = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
-    }
-  }, [])
-
-  const handleClick = useCallback(() => {
-    // Skip if long-press already fired
-    if (didLongPress.current) return
-    if (isMyTurn) onSelect(slot.slotId)
-  }, [slot.slotId, isMyTurn, onSelect])
-
-  // Play-in: show both abbreviations
-  const label = slot.isPlayIn && slot.abbreviation
-    ? slot.abbreviation.split(" / ").join("/")
-    : slot.abbreviation ?? slot.displayName.split(" ")[0]
+  // Play-in: show both names
+  const teamNames = slot.isPlayIn ? slot.displayName.split(" / ") : [slot.displayName]
+  const teamAbbrs = slot.isPlayIn && slot.abbreviation ? slot.abbreviation.split(" / ") : slot.abbreviation ? [slot.abbreviation] : []
 
   return (
     <div
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-      onPointerMove={handlePointerMove}
-      onClick={handleClick}
+      onClick={() => { if (isMyTurn) onSelect(slot.slotId) }}
       className={cn(
-        "relative flex flex-col items-center gap-1 p-2 rounded-xl border transition-all duration-200",
-        isMyTurn ? "cursor-pointer active:scale-[0.96]" : "cursor-default opacity-60",
+        "relative flex items-center gap-2.5 p-2 rounded-xl border transition-all duration-200",
+        isMyTurn ? "cursor-pointer active:scale-[0.98]" : "cursor-default opacity-60",
       )}
       style={
         isSelected
@@ -117,52 +83,77 @@ function MobileTeamCard({
             }
       }
     >
-      {/* Queue indicator */}
-      {isQueued && (
-        <Star
-          className="absolute top-1 right-1 w-2.5 h-2.5"
-          style={{ fill: "#3B82F6", color: "#3B82F6" }}
-        />
-      )}
-
       {/* Team logo */}
       {slot.isPlayIn && slot.logoTeamIds.length >= 2 ? (
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-0.5 flex-shrink-0">
           <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center overflow-hidden"
+            className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden"
             style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.10)" }}
           >
-            <TeamLogo teamId={slot.logoTeamIds[0]} label={slot.displayName.split(" / ")[0] ?? "TBD"} className="w-5 h-5" />
+            <TeamLogo teamId={slot.logoTeamIds[0]} label={teamNames[0] ?? "TBD"} className="w-6 h-6" />
           </div>
-          <span className="text-[8px] text-amber-400/70 font-bold">vs</span>
+          <span className="text-[7px] text-amber-400/70 font-bold">vs</span>
           <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center overflow-hidden"
+            className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden"
             style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.10)" }}
           >
-            <TeamLogo teamId={slot.logoTeamIds[1]} label={slot.displayName.split(" / ")[1] ?? "TBD"} className="w-5 h-5" />
+            <TeamLogo teamId={slot.logoTeamIds[1]} label={teamNames[1] ?? "TBD"} className="w-6 h-6" />
           </div>
         </div>
       ) : (
         <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden"
+          className="w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0"
           style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.10)" }}
         >
-          <TeamLogo teamId={slot.logoTeamIds[0]} label={slot.displayName} className="w-8 h-8" />
+          <TeamLogo teamId={slot.logoTeamIds[0]} label={slot.displayName} className="w-7 h-7" />
         </div>
       )}
 
+      {/* Team info */}
+      <div className="flex-1 min-w-0">
+        {slot.isPlayIn && teamAbbrs.length >= 2 ? (
+          <div className="flex items-center gap-1 leading-tight">
+            <span className="text-xs font-semibold text-foreground truncate">{teamAbbrs[0]}</span>
+            <span className="text-[8px] text-amber-400/70 font-bold flex-shrink-0">vs</span>
+            <span className="text-xs font-semibold text-foreground truncate">{teamAbbrs[1]}</span>
+          </div>
+        ) : (
+          <p className="text-xs font-semibold text-foreground truncate leading-tight">
+            {slot.abbreviation ?? slot.displayName}
+          </p>
+        )}
+        <p className="text-[10px] text-muted-foreground mt-0.5">
+          Seed {slot.seed} · {slot.seed}pts/w
+        </p>
+      </div>
+
       {/* Seed badge */}
       <span
-        className="inline-flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold tabular-nums"
+        className="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[10px] font-bold tabular-nums flex-shrink-0"
         style={{ background: sc.bg, border: `1px solid ${sc.border}`, color: sc.text }}
       >
         {slot.seed}
       </span>
 
-      {/* Team abbreviation */}
-      <span className="text-[10px] font-medium text-foreground/80 truncate max-w-full leading-tight">
-        {label}
-      </span>
+      {/* Queue star button — easy tap target */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggleQueue(slot.slotId)
+        }}
+        className="p-1.5 rounded-lg transition-all duration-200 flex-shrink-0 active:scale-[0.9]"
+        style={
+          isQueued
+            ? { color: "#3B82F6", background: "rgba(59,130,246,0.12)" }
+            : { color: "rgba(138,143,152,0.4)" }
+        }
+        aria-label={isQueued ? "Remove from queue" : "Add to queue"}
+      >
+        <Star
+          className="w-4 h-4"
+          style={isQueued ? { fill: "#3B82F6" } : {}}
+        />
+      </button>
     </div>
   )
 }
@@ -201,7 +192,7 @@ export function MobileTeamGrid({
   }
 
   return (
-    <div className="grid grid-cols-3 gap-1.5 p-2">
+    <div className="grid grid-cols-2 gap-1.5 p-2">
       {sortedAndFiltered.map((slot) => (
         <MobileTeamCard
           key={slot.slotId}
