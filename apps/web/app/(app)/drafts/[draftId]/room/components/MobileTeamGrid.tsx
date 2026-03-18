@@ -25,12 +25,12 @@ interface MobileTeamGridProps {
   onToggleQueue: (slotId: string) => void
 }
 
-/** Seed-tier accent color */
-function seedColor(seed: number): { text: string; bg: string; border: string } {
-  if (seed <= 4)  return { text: "#8A8F98",   bg: "rgba(138,143,152,0.06)", border: "rgba(138,143,152,0.12)" }
-  if (seed <= 8)  return { text: "#EDEDEF",   bg: "rgba(237,237,239,0.06)", border: "rgba(237,237,239,0.12)" }
-  if (seed <= 12) return { text: "#f59e0b",   bg: "rgba(245,158,11,0.08)",  border: "rgba(245,158,11,0.2)"   }
-  return              { text: "#818cf8",   bg: "rgba(59,130,246,0.10)", border: "rgba(59,130,246,0.25)"  }
+/** Seed-tier badge color — solid enough to read over a logo */
+function seedBadge(seed: number): { text: string; bg: string; shadow: string } {
+  if (seed <= 4)  return { text: "#d1d5db", bg: "rgba(30,34,42,0.92)",  shadow: "0 0 0 1px rgba(138,143,152,0.3)" }
+  if (seed <= 8)  return { text: "#f3f4f6", bg: "rgba(30,34,42,0.92)",  shadow: "0 0 0 1px rgba(237,237,239,0.25)" }
+  if (seed <= 12) return { text: "#fbbf24", bg: "rgba(30,34,42,0.92)",  shadow: "0 0 0 1px rgba(245,158,11,0.4)" }
+  return              { text: "#a5b4fc", bg: "rgba(30,34,42,0.92)",  shadow: "0 0 0 1px rgba(129,140,248,0.4)" }
 }
 
 /* ── MobileTeamCard (inline) ─────────────────────────────────────────────── */
@@ -52,7 +52,7 @@ function MobileTeamCard({
   onSelect,
   onToggleQueue,
 }: MobileTeamCardProps) {
-  const sc = seedColor(slot.seed)
+  const sb = seedBadge(slot.seed)
 
   // Play-in: show both names
   const teamNames = slot.isPlayIn ? slot.displayName.split(" / ") : [slot.displayName]
@@ -83,9 +83,9 @@ function MobileTeamCard({
             }
       }
     >
-      {/* Team logo */}
+      {/* Team logo with seed badge overlay */}
       {slot.isPlayIn && slot.logoTeamIds.length >= 2 ? (
-        <div className="flex items-center gap-0.5 flex-shrink-0">
+        <div className="relative flex items-center gap-0.5 flex-shrink-0">
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden"
             style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.10)" }}
@@ -99,17 +99,33 @@ function MobileTeamCard({
           >
             <TeamLogo teamId={slot.logoTeamIds[1]} label={teamNames[1] ?? "TBD"} className="w-6 h-6" />
           </div>
+          {/* Seed badge — centered below the vs */}
+          <span
+            className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 inline-flex items-center justify-center w-5 h-4 rounded-full text-[9px] font-bold tabular-nums"
+            style={{ background: sb.bg, color: sb.text, boxShadow: sb.shadow }}
+          >
+            {slot.seed}
+          </span>
         </div>
       ) : (
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0"
-          style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.10)" }}
-        >
-          <TeamLogo teamId={slot.logoTeamIds[0]} label={slot.displayName} className="w-7 h-7" />
+        <div className="relative flex-shrink-0">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden"
+            style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.10)" }}
+          >
+            <TeamLogo teamId={slot.logoTeamIds[0]} label={slot.displayName} className="w-8 h-8" />
+          </div>
+          {/* Seed badge — bottom-right corner of logo */}
+          <span
+            className="absolute -bottom-1 -right-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-0.5 rounded-full text-[9px] font-bold tabular-nums"
+            style={{ background: sb.bg, color: sb.text, boxShadow: sb.shadow }}
+          >
+            {slot.seed}
+          </span>
         </div>
       )}
 
-      {/* Team info */}
+      {/* Team info — more room now without the seed column */}
       <div className="flex-1 min-w-0">
         {slot.isPlayIn && teamAbbrs.length >= 2 ? (
           <>
@@ -136,15 +152,7 @@ function MobileTeamCard({
         )}
       </div>
 
-      {/* Seed badge */}
-      <span
-        className="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[10px] font-bold tabular-nums flex-shrink-0"
-        style={{ background: sc.bg, border: `1px solid ${sc.border}`, color: sc.text }}
-      >
-        {slot.seed}
-      </span>
-
-      {/* Queue star button — easy tap target */}
+      {/* Queue star button */}
       <button
         onClick={(e) => {
           e.stopPropagation()
