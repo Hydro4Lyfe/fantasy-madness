@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { TimePicker } from "@/components/ui/time-picker";
 import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
-import { startDraftAction } from "@/server/actions/drafts";
+import { startDraftAction, updateDraftAction } from "@/server/actions/drafts";
 import { cn } from "@/lib/utils";
 import { formatDateTime, formatLongDate } from "@/lib/date";
 import { buildLocalISOString } from "@/lib/time-utils";
@@ -185,7 +185,9 @@ export function DraftDetailsClient({
   const [settings, setSettings] = useState(initialDraft);
   const [participants, setParticipants] = useState(initialParticipants);
   const [isStarting, setIsStarting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const router = useRouter();
 
@@ -382,11 +384,17 @@ export function DraftDetailsClient({
         </div>
       </div>
 
-      {/* Error alert */}
+      {/* Error alerts */}
       {startError && (
         <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.08] p-4">
           <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-400" />
           <p className="text-sm text-red-400">{startError}</p>
+        </div>
+      )}
+      {saveError && (
+        <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.08] p-4">
+          <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-400" />
+          <p className="text-sm text-red-400">{saveError}</p>
         </div>
       )}
 
@@ -717,15 +725,45 @@ export function DraftDetailsClient({
                     Cancel
                   </button>
                   <button
-                    onClick={() => setIsEditingSettings(false)}
+                    onClick={async () => {
+                      setIsSaving(true);
+                      setSaveError(null);
+                      try {
+                        const result = await updateDraftAction(settings.id, {
+                          startAt: settings.startAt,
+                          pickTimerSec: settings.pickTimeLimit > 0 ? settings.pickTimeLimit : null,
+                        });
+                        if (result.success) {
+                          setIsEditingSettings(false);
+                          router.refresh();
+                        } else {
+                          setSaveError(result.error ?? "Failed to save changes");
+                        }
+                      } catch {
+                        setSaveError("Failed to save changes");
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }}
+                    disabled={isSaving}
                     className={cn(
                       "inline-flex items-center gap-1.5 text-xs rounded-lg px-3 py-1.5",
                       "bg-primary hover:bg-primary/90 text-white",
                       "active:scale-[0.98] transition-all duration-200",
+                      "disabled:opacity-50 disabled:cursor-not-allowed",
                     )}
                   >
-                    <Save className="w-3.5 h-3.5" />
-                    Save
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5" />
+                        Save
+                      </>
+                    )}
                   </button>
                 </div>
               )}
