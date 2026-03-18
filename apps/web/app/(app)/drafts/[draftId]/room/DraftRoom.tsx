@@ -417,27 +417,24 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
       `}</style>
 
       {/* ── MOBILE LAYOUT (hidden md+) ── */}
-      <div className="relative flex md:hidden flex-col h-[calc(100dvh-80px)] overflow-hidden">
+      <div className="flex md:hidden flex-col h-[calc(100dvh-80px)] overflow-hidden">
 
-        <div className="relative z-10 flex flex-col h-full">
-          {/* Connection banner */}
+        {/* Fixed header section — never scrolls */}
+        <div className="flex-shrink-0">
           <ConnectionBanner
             connectionState={connectionState}
             error={wsError}
             onReconnect={reconnect}
           />
 
-          {/* Draft complete banner */}
           {draft.status === "COMPLETE" && (
             <div className="px-2 pt-2">
               <DraftCompleteBanner />
             </div>
           )}
 
-          {/* Floating timer */}
           <MobileFloatingTimer timeLeft={timeLeft} />
 
-          {/* Status banner */}
           <div className="px-2 pt-2">
             <MobileStatusBanner
               isMyTurn={!!isMyTurn}
@@ -448,7 +445,6 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
             />
           </div>
 
-          {/* Action bar */}
           <div className="py-2">
             <MobileActionBar
               pickCount={myParticipant?.picks.length ?? 0}
@@ -460,19 +456,19 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
               onOpenQueue={() => setShowQueueDrawer(true)}
             />
           </div>
+        </div>
 
-          {/* Team grid — fills remaining space */}
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <MobileTeamGrid
-              slots={draft.availableSlots}
-              selectedSlot={selectedSlot}
-              draftQueue={draftQueue}
-              isMyTurn={!!isMyTurn}
-              searchQuery={mobileSearchQuery}
-              onSelectSlot={handleSelectSlot}
-              onToggleQueue={handleToggleQueue}
-            />
-          </div>
+        {/* Team grid — only this scrolls */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+          <MobileTeamGrid
+            slots={draft.availableSlots}
+            selectedSlot={selectedSlot}
+            draftQueue={draftQueue}
+            isMyTurn={!!isMyTurn}
+            searchQuery={mobileSearchQuery}
+            onSelectSlot={handleSelectSlot}
+            onToggleQueue={handleToggleQueue}
+          />
         </div>
       </div>
 
