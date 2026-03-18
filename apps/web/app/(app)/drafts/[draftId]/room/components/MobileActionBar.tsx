@@ -27,7 +27,6 @@ export function MobileActionBar({
   const [searchOpen, setSearchOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Focus input when search opens
   useEffect(() => {
     if (searchOpen) {
       const t = setTimeout(() => inputRef.current?.focus(), 100)
@@ -44,28 +43,28 @@ export function MobileActionBar({
     }
   }
 
-  const buttonBase = cn(
-    "relative flex items-center justify-center h-9 w-9 rounded-xl flex-shrink-0",
-    "text-xs font-medium transition-all duration-200",
-    "bg-secondary border border-border text-muted-foreground",
-    "active:scale-[0.95]",
-  )
-
   return (
-    <div>
-      {/* Button row */}
-      <div className="flex items-center justify-center gap-1.5 px-2">
+    <div className="px-2 space-y-2">
+      {/* ── Control strip ── */}
+      <div
+        className="flex items-stretch h-10 rounded-xl overflow-hidden"
+        style={{
+          background: "rgba(22,27,34,0.7)",
+          border: "1px solid rgba(48,54,61,0.8)",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03)",
+        }}
+      >
         {/* My Picks */}
         <button
           onClick={onOpenMyPicks}
-          className={cn(buttonBase, "w-auto px-3 gap-1.5")}
+          className="relative flex-1 flex items-center justify-center gap-1.5 transition-colors duration-150 active:bg-white/[0.06]"
           aria-label="My picks"
         >
-          <User className="w-3.5 h-3.5" />
-          <span className="text-[11px]">Picks</span>
+          <User className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-[11px] font-medium text-muted-foreground">Picks</span>
           {pickCount > 0 && (
             <span
-              className="w-4 h-4 text-white text-[10px] rounded-full flex items-center justify-center font-bold"
+              className="absolute top-1 right-1.5 w-4 h-4 text-white text-[9px] rounded-full flex items-center justify-center font-bold"
               style={{ background: "#3B82F6" }}
             >
               {pickCount}
@@ -73,31 +72,36 @@ export function MobileActionBar({
           )}
         </button>
 
+        {/* Divider */}
+        <div className="w-px self-center h-5" style={{ background: "rgba(48,54,61,0.8)" }} />
+
         {/* Board */}
         <button
           onClick={onOpenBoard}
-          className={cn(buttonBase, "w-auto px-3 gap-1.5")}
+          className="flex-1 flex items-center justify-center gap-1.5 transition-colors duration-150 active:bg-white/[0.06]"
           aria-label="Draft board"
         >
-          <LayoutGrid className="w-3.5 h-3.5" />
-          <span className="text-[11px]">Board</span>
+          <LayoutGrid className="w-3.5 h-3.5 text-muted-foreground" />
+          <span className="text-[11px] font-medium text-muted-foreground">Board</span>
         </button>
+
+        {/* Divider */}
+        <div className="w-px self-center h-5" style={{ background: "rgba(48,54,61,0.8)" }} />
 
         {/* Queue */}
         <button
           onClick={onOpenQueue}
           className={cn(
-            buttonBase,
-            "w-auto px-3 gap-1.5",
-            queueCount > 0 && "bg-[#3B82F6]/15 border-[#3B82F6]/25 text-[#3B82F6]",
+            "relative flex-1 flex items-center justify-center gap-1.5 transition-colors duration-150 active:bg-white/[0.06]",
+            queueCount > 0 && "text-[#3B82F6]",
           )}
           aria-label="Draft queue"
         >
-          <List className="w-3.5 h-3.5" />
-          <span className="text-[11px]">Queue</span>
+          <List className={cn("w-3.5 h-3.5", queueCount > 0 ? "text-[#3B82F6]" : "text-muted-foreground")} />
+          <span className={cn("text-[11px] font-medium", queueCount > 0 ? "text-[#3B82F6]" : "text-muted-foreground")}>Queue</span>
           {queueCount > 0 && (
             <span
-              className="w-4 h-4 text-white text-[10px] rounded-full flex items-center justify-center font-bold"
+              className="absolute top-1 right-1.5 w-4 h-4 text-white text-[9px] rounded-full flex items-center justify-center font-bold"
               style={{ background: "#3B82F6" }}
             >
               {queueCount}
@@ -105,43 +109,51 @@ export function MobileActionBar({
           )}
         </button>
 
-        {/* Search toggle — far right */}
+        {/* Divider */}
+        <div className="w-px self-center h-5" style={{ background: "rgba(48,54,61,0.8)" }} />
+
+        {/* Search */}
         <button
           onClick={handleToggleSearch}
-          className={cn(buttonBase, searchOpen && "bg-[#3B82F6]/15 border-[#3B82F6]/25 text-[#3B82F6]")}
+          className={cn(
+            "w-11 flex items-center justify-center flex-shrink-0 transition-colors duration-150 active:bg-white/[0.06]",
+            searchOpen && "bg-[#3B82F6]/10",
+          )}
           aria-label={searchOpen ? "Close search" : "Search teams"}
         >
-          {searchOpen ? <X className="w-4 h-4" /> : <Search className="w-4 h-4" />}
+          {searchOpen ? (
+            <X className="w-4 h-4 text-[#3B82F6]" />
+          ) : (
+            <Search className="w-4 h-4 text-muted-foreground" />
+          )}
         </button>
       </div>
 
-      {/* Search input — own row below buttons */}
+      {/* ── Search input row ── */}
       {searchOpen && (
-        <div className="px-2 pt-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
-            <Input
-              ref={inputRef}
-              placeholder="Search teams..."
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              className={cn(
-                "pl-9 pr-9 h-9 text-sm rounded-xl",
-                "bg-background border-border",
-                "text-foreground placeholder:text-muted-foreground",
-                "focus-visible:border-[#3B82F6] focus-visible:ring-0",
-              )}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => onSearchChange("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                aria-label="Clear search"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+          <Input
+            ref={inputRef}
+            placeholder="Search teams..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className={cn(
+              "pl-9 pr-9 h-9 text-sm rounded-xl",
+              "bg-background border-border",
+              "text-foreground placeholder:text-muted-foreground",
+              "focus-visible:border-[#3B82F6] focus-visible:ring-0",
             )}
-          </div>
+          />
+          {searchQuery && (
+            <button
+              onClick={() => onSearchChange("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       )}
     </div>
