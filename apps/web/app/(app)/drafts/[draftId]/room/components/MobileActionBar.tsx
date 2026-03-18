@@ -52,9 +52,9 @@ export function MobileActionBar({
   )
 
   return (
-    <div className="relative">
+    <div>
       {/* Button row */}
-      <div className="flex items-center justify-between gap-2 px-2">
+      <div className="flex items-center justify-center gap-1.5 px-2">
         {/* My Picks */}
         <button
           onClick={onOpenMyPicks}
@@ -115,16 +115,9 @@ export function MobileActionBar({
         </button>
       </div>
 
-      {/* Search overlay — slides down */}
+      {/* Search input — own row below buttons */}
       {searchOpen && (
-        <div
-          className="absolute left-0 right-0 top-full mt-1 mx-2 z-20 rounded-xl border border-border bg-card p-2"
-          style={{
-            boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
-            animation: "dr-fade-up 0.2s cubic-bezier(0.16, 1, 0.3, 1) both",
-            transformOrigin: "top center",
-          }}
-        >
+        <div className="px-2 pt-2">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
             <Input
@@ -133,7 +126,7 @@ export function MobileActionBar({
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               className={cn(
-                "pl-9 pr-9 h-9 text-sm",
+                "pl-9 pr-9 h-9 text-sm rounded-xl",
                 "bg-background border-border",
                 "text-foreground placeholder:text-muted-foreground",
                 "focus-visible:border-[#3B82F6] focus-visible:ring-0",
