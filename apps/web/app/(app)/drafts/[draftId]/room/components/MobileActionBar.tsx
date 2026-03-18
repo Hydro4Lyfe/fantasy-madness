@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Search, X, User, LayoutGrid, List } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -25,36 +25,15 @@ export function MobileActionBar({
   onOpenQueue,
 }: MobileActionBarProps) {
   const [searchOpen, setSearchOpen] = useState(false)
-  const overlayRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Focus input when search opens
   useEffect(() => {
     if (searchOpen) {
-      // Small delay to wait for animation
       const t = setTimeout(() => inputRef.current?.focus(), 100)
       return () => clearTimeout(t)
     }
   }, [searchOpen])
-
-  // Click-away dismissal
-  const handleClickOutside = useCallback((e: MouseEvent) => {
-    if (overlayRef.current && !overlayRef.current.contains(e.target as Node)) {
-      setSearchOpen(false)
-      onSearchChange("")
-    }
-  }, [onSearchChange])
-
-  useEffect(() => {
-    if (searchOpen) {
-      document.addEventListener("mousedown", handleClickOutside)
-      document.addEventListener("touchstart", handleClickOutside as EventListener)
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside)
-        document.removeEventListener("touchstart", handleClickOutside as EventListener)
-      }
-    }
-  }, [searchOpen, handleClickOutside])
 
   const handleToggleSearch = () => {
     if (searchOpen) {
@@ -73,7 +52,7 @@ export function MobileActionBar({
   )
 
   return (
-    <div ref={overlayRef} className="relative">
+    <div className="relative">
       {/* Button row */}
       <div className="flex items-center justify-between gap-2 px-2">
         {/* My Picks */}
