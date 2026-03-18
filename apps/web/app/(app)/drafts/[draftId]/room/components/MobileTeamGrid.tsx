@@ -88,14 +88,22 @@ function MobileTeamCard({
         <div className="relative flex items-center gap-0.5 flex-shrink-0">
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden"
-            style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.10)" }}
+            style={{
+              background: "radial-gradient(circle at 50% 40%, rgba(255,255,255,0.14) 0%, rgba(15,18,25,0.8) 100%)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 4px rgba(0,0,0,0.3)",
+            }}
           >
             <TeamLogo teamId={slot.logoTeamIds[0]} label={teamNames[0] ?? "TBD"} className="w-6 h-6" />
           </div>
           <span className="text-[7px] text-amber-400/70 font-bold">vs</span>
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden"
-            style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.10)" }}
+            style={{
+              background: "radial-gradient(circle at 50% 40%, rgba(255,255,255,0.14) 0%, rgba(15,18,25,0.8) 100%)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 4px rgba(0,0,0,0.3)",
+            }}
           >
             <TeamLogo teamId={slot.logoTeamIds[1]} label={teamNames[1] ?? "TBD"} className="w-6 h-6" />
           </div>
@@ -111,7 +119,11 @@ function MobileTeamCard({
         <div className="relative flex-shrink-0">
           <div
             className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden"
-            style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.10)" }}
+            style={{
+              background: "radial-gradient(circle at 50% 38%, rgba(255,255,255,0.15) 0%, rgba(15,18,25,0.85) 100%)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.07), 0 2px 6px rgba(0,0,0,0.35)",
+            }}
           >
             <TeamLogo teamId={slot.logoTeamIds[0]} label={slot.displayName} className="w-8 h-8" />
           </div>
