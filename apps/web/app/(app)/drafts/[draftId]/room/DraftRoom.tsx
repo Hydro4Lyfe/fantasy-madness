@@ -417,7 +417,7 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
       `}</style>
 
       {/* ── MOBILE LAYOUT (hidden md+) ── */}
-      <div className="flex md:hidden flex-col h-[calc(100dvh-80px)] overflow-hidden">
+      <div className="fixed md:hidden inset-0 top-20 flex flex-col overflow-hidden z-10">
 
         {/* Fixed header section — never scrolls */}
         <div className="flex-shrink-0">
