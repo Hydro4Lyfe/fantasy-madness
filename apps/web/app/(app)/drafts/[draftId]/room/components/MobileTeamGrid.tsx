@@ -112,19 +112,28 @@ function MobileTeamCard({
       {/* Team info */}
       <div className="flex-1 min-w-0">
         {slot.isPlayIn && teamAbbrs.length >= 2 ? (
-          <div className="flex items-center gap-1 leading-tight">
-            <span className="text-xs font-semibold text-foreground truncate">{teamAbbrs[0]}</span>
-            <span className="text-[8px] text-amber-400/70 font-bold flex-shrink-0">vs</span>
-            <span className="text-xs font-semibold text-foreground truncate">{teamAbbrs[1]}</span>
-          </div>
+          <>
+            <div className="flex items-center gap-1 leading-tight">
+              <span className="text-xs font-semibold text-foreground truncate">{teamAbbrs[0]}</span>
+              <span className="text-[8px] text-amber-400/70 font-bold flex-shrink-0">vs</span>
+              <span className="text-xs font-semibold text-foreground truncate">{teamAbbrs[1]}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground/60 mt-0.5 truncate">
+              First Four
+            </p>
+          </>
         ) : (
-          <p className="text-xs font-semibold text-foreground truncate leading-tight">
-            {slot.abbreviation ?? slot.displayName}
-          </p>
+          <>
+            <p className="text-xs font-semibold text-foreground truncate leading-tight">
+              {slot.displayName}
+            </p>
+            {slot.abbreviation && (
+              <p className="text-[10px] text-muted-foreground/60 mt-0.5 truncate">
+                {slot.abbreviation}
+              </p>
+            )}
+          </>
         )}
-        <p className="text-[10px] text-muted-foreground mt-0.5">
-          Seed {slot.seed} · {slot.seed}pts/w
-        </p>
       </div>
 
       {/* Seed badge */}
