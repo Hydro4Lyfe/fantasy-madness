@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { parseDeadlineMs } from "@/lib/date"
 import { useRouter } from "next/navigation"
 import { useDraftWebSocket } from "@/hooks/useDraftWebSocket"
-import { Loader2, LayoutGrid, List } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import type { DraftRoomStateDTO } from "@/server/dal"
 
 import { ConnectionBanner } from "./components/ConnectionBanner"
@@ -17,6 +17,11 @@ import { DraftBoard } from "./components/DraftBoard"
 import { DraftQueuePanel } from "./components/DraftQueuePanel"
 import { DraftLobby } from "./components/DraftLobby"
 import { DraftCountdown } from "./components/DraftCountdown"
+import { MobileFloatingTimer } from "./components/MobileFloatingTimer"
+import { MobileStatusBanner } from "./components/MobileStatusBanner"
+import { MobileActionBar } from "./components/MobileActionBar"
+import { MobileTeamGrid } from "./components/MobileTeamGrid"
+import { MobileMyPicksDrawer } from "./components/MobileMyPicksDrawer"
 import {
   Drawer,
   DrawerContent,
@@ -54,6 +59,8 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
   // Mobile drawer state
   const [showBoardDrawer, setShowBoardDrawer] = useState(false)
   const [showQueueDrawer, setShowQueueDrawer] = useState(false)
+  const [showMyPicksDrawer, setShowMyPicksDrawer] = useState(false)
+  const [mobileSearchQuery, setMobileSearchQuery] = useState("")
 
   const draft = state
 
@@ -108,6 +115,10 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
       ? Math.floor(((draft?.currentPickNumber ?? 1) - 1) / numParticipants) + 1
       : 1
   const seedWeight = myParticipant?.picks.reduce((sum, p) => sum + p.seed, 0) ?? 0
+
+  const selectedSlotData = selectedSlot && draft
+    ? draft.availableSlots.find((s) => s.slotId === selectedSlot) ?? null
+    : null
 
   // --- Reset queue restore flag on disconnect so reconnect re-syncs ---
   const queueRestoredRef = useRef(false)
@@ -405,116 +416,62 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
         .dr-fade-up-5 { animation-delay: 240ms; }
       `}</style>
 
-      {/* ─────────────────────────────────────────────────────────────────────
-          MOBILE LAYOUT  (hidden md+)
-      ───────────────────────────────────────────────────────────────────── */}
-      <div className="relative flex md:hidden flex-col gap-2 h-[calc(100dvh-80px)] overflow-hidden px-2 pt-2">
+      {/* ── MOBILE LAYOUT (hidden md+) ── */}
+      <div className="relative flex md:hidden flex-col h-[calc(100dvh-80px)] overflow-hidden">
 
-        <div className="relative z-10 flex flex-col gap-2 h-full">
-          <div className="dr-fade-up dr-fade-up-1">
-            <ConnectionBanner
-              connectionState={connectionState}
-              error={wsError}
-              onReconnect={reconnect}
-            />
-          </div>
+        <div className="relative z-10 flex flex-col h-full">
+          {/* Connection banner */}
+          <ConnectionBanner
+            connectionState={connectionState}
+            error={wsError}
+            onReconnect={reconnect}
+          />
+
+          {/* Draft complete banner */}
           {draft.status === "COMPLETE" && (
-            <div className="dr-fade-up dr-fade-up-1">
+            <div className="px-2 pt-2">
               <DraftCompleteBanner />
             </div>
           )}
 
-          <div className="dr-fade-up dr-fade-up-2">
-            <DraftHeader {...headerProps} />
+          {/* Floating timer */}
+          <MobileFloatingTimer timeLeft={timeLeft} />
+
+          {/* Status banner */}
+          <div className="px-2 pt-2">
+            <MobileStatusBanner
+              isMyTurn={!!isMyTurn}
+              currentPickerName={currentPicker?.userName ?? null}
+              currentPickerImage={currentPicker?.userImage ?? null}
+              selectedSlotData={selectedSlotData}
+              onConfirmPick={handleConfirmPick}
+            />
           </div>
-          <div className="dr-fade-up dr-fade-up-3">
-            <OnTheClockBanner {...clockProps} />
+
+          {/* Action bar */}
+          <div className="py-2">
+            <MobileActionBar
+              pickCount={myParticipant?.picks.length ?? 0}
+              queueCount={draftQueue.length}
+              searchQuery={mobileSearchQuery}
+              onSearchChange={setMobileSearchQuery}
+              onOpenMyPicks={() => setShowMyPicksDrawer(true)}
+              onOpenBoard={() => setShowBoardDrawer(true)}
+              onOpenQueue={() => setShowQueueDrawer(true)}
+            />
           </div>
 
-          {/* Team picker fills all remaining space */}
-          <div className="dr-fade-up dr-fade-up-4 flex-1 min-h-0">
-            <TeamPickerPanel {...pickerProps} />
-          </div>
-
-          {/* ── Mobile bottom action bar ── */}
-          <div className={cn(
-            "flex-shrink-0 flex items-center gap-2 px-4 py-2.5",
-            "border-t border-border",
-            "bg-card",
-            "backdrop-blur-sm",
-          )}>
-            {/* Seed weight — left anchor */}
-            <div className="flex-1 flex items-baseline gap-1 min-w-0">
-              {seedWeight > 0 ? (
-                <>
-                  <span
-                    className="text-sm font-bold tabular-nums font-mono"
-                    style={{
-                      background: "linear-gradient(135deg, #3B82F6 0%, #60A5FA 50%, #3B82F6 100%)",
-                      backgroundSize: "200% auto",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                      backgroundClip: "text",
-                      animation: "dr-shimmer 3s linear infinite",
-                    }}
-                  >
-                    {seedWeight}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground/60 font-mono">pts/w</span>
-                </>
-              ) : (
-                <span className="text-[10px] text-muted-foreground/40 font-mono">No picks yet</span>
-              )}
-            </div>
-
-            {/* Pick progress — center */}
-            <div className="text-xs tabular-nums flex-shrink-0">
-              <span className="text-muted-foreground text-[10px]">Rd</span>
-              <span className="text-foreground font-semibold ml-0.5">{currentRound}</span>
-              <span className="text-muted-foreground/40 mx-1">·</span>
-              <span className="text-muted-foreground text-[10px]">P</span>
-              <span className="text-foreground font-semibold">{draft.currentPickNumber}</span>
-              <span className="text-muted-foreground/40">/{draft.totalPicks}</span>
-            </div>
-
-            {/* Board button */}
-            <button
-              onClick={() => setShowBoardDrawer(true)}
-              className={cn(
-                "flex items-center gap-1.5 h-9 px-3 rounded-xl flex-shrink-0",
-                "text-xs font-medium transition-all duration-200",
-                "bg-secondary border border-border text-muted-foreground",
-                "hover:bg-secondary/80 hover:text-foreground hover:border-border",
-                "active:scale-[0.98]",
-              )}
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              Board
-            </button>
-
-            {/* Queue button */}
-            <button
-              onClick={() => setShowQueueDrawer(true)}
-              className={cn(
-                "relative flex items-center gap-1.5 h-9 px-3 rounded-xl flex-shrink-0",
-                "text-xs font-medium transition-all duration-200",
-                draftQueue.length > 0
-                  ? "bg-[#3B82F6]/15 border border-[#3B82F6]/25 text-[#3B82F6]"
-                  : "bg-secondary border border-border text-muted-foreground",
-                "active:scale-[0.98]",
-              )}
-            >
-              <List className="w-3.5 h-3.5" />
-              Queue
-              {draftQueue.length > 0 && (
-                <span
-                  className="w-4 h-4 text-white text-[10px] rounded-full flex items-center justify-center font-bold"
-                  style={{ background: "#3B82F6" }}
-                >
-                  {draftQueue.length}
-                </span>
-              )}
-            </button>
+          {/* Team grid — fills remaining space */}
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <MobileTeamGrid
+              slots={draft.availableSlots}
+              selectedSlot={selectedSlot}
+              draftQueue={draftQueue}
+              isMyTurn={!!isMyTurn}
+              searchQuery={mobileSearchQuery}
+              onSelectSlot={handleSelectSlot}
+              onToggleQueue={handleToggleQueue}
+            />
           </div>
         </div>
       </div>
@@ -563,6 +520,14 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
           </div>
         </DrawerContent>
       </Drawer>
+
+      {/* ── MOBILE: My Picks Drawer ── */}
+      <MobileMyPicksDrawer
+        open={showMyPicksDrawer}
+        onOpenChange={setShowMyPicksDrawer}
+        picks={myParticipant?.picks ?? []}
+        rosterSize={draft.rosterSize}
+      />
 
       {/* ─────────────────────────────────────────────────────────────────────
           DESKTOP LAYOUT  (hidden below md)
