@@ -445,8 +445,9 @@ model Draft {
   inviteCode   String? @db.Text @unique(map: "ux_drafts_invite_code") @map("invite_code")
   pickTimerSec Int? @map("pick_timer_sec")
 
-  lockAt       DateTime? @db.Timestamptz(6) @map("lock_at")
-  startAt      DateTime? @db.Timestamptz(6) @map("start_at")
+  lockAt              DateTime? @db.Timestamptz(6) @map("lock_at")
+  startAt             DateTime? @db.Timestamptz(6) @map("start_at")
+  countdownStartedAt  DateTime? @db.Timestamptz(6) @map("countdown_started_at")
 
   createdAt    DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
   updatedAt    DateTime @updatedAt @db.Timestamptz(6) @map("updated_at")

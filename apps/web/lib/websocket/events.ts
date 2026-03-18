@@ -46,6 +46,18 @@ export type ServerEvent =
         slotIds: string[];
         autoPickEnabled: boolean;
       };
+    }
+  | {
+      type: 'draft:countdown';
+      payload: {
+        countdownEndsAt: string;
+      };
+    }
+  | {
+      type: 'draft:startFailed';
+      payload: {
+        reason: string;
+      };
     };
 
 /**
@@ -68,6 +80,10 @@ export type ClientEvent =
         slotIds: string[];
         autoPickEnabled: boolean;
       };
+    }
+  | {
+      type: 'state:request';
+      payload?: Record<string, never>;
     };
 
 /**
@@ -76,5 +92,5 @@ export type ClientEvent =
 export function isClientEvent(data: unknown): data is ClientEvent {
   if (!data || typeof data !== 'object') return false;
   const event = data as Record<string, unknown>;
-  return typeof event.type === 'string' && ['pick:submit', 'ping', 'queue:update'].includes(event.type);
+  return typeof event.type === 'string' && ['pick:submit', 'ping', 'queue:update', 'state:request'].includes(event.type);
 }

@@ -18,6 +18,7 @@ export interface UseDraftWebSocketReturn {
   error: string | null;
   submitPick: (slotId: string) => void;
   updateQueue: (queue: QueueState) => void;
+  requestState: () => void;
   savedQueue: QueueState | null;
   reconnect: () => void;
 }
@@ -70,6 +71,14 @@ export function useDraftWebSocket({
   const submitPick = useCallback((slotId: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const event: ClientEvent = { type: "pick:submit", payload: { slotId } };
+      wsRef.current.send(JSON.stringify(event));
+    }
+  }, []);
+
+  // Request fresh state from server
+  const requestState = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      const event: ClientEvent = { type: "state:request" };
       wsRef.current.send(JSON.stringify(event));
     }
   }, []);
@@ -216,6 +225,28 @@ export function useDraftWebSocket({
               }
               break;
 
+            case "draft:countdown":
+              console.log("[WS] Countdown started:", serverEvent.payload.countdownEndsAt);
+              setState((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      phase: "COUNTDOWN" as const,
+                      countdownEndsAt: serverEvent.payload.countdownEndsAt,
+                    }
+                  : prev
+              );
+              break;
+
+            case "draft:startFailed":
+              console.error("[WS] Draft start failed:", serverEvent.payload.reason);
+              setError(
+                serverEvent.payload.reason === "NOT_ENOUGH_PARTICIPANTS"
+                  ? "Not enough participants to start the draft."
+                  : `Draft could not auto-start: ${serverEvent.payload.reason}`
+              );
+              break;
+
             case "pong":
               // Heartbeat response
               break;
@@ -304,6 +335,7 @@ export function useDraftWebSocket({
     error,
     submitPick,
     updateQueue,
+    requestState,
     savedQueue,
     reconnect,
   };

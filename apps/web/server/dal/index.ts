@@ -37,6 +37,8 @@ export * from "./mutations/drafts.makePick";
 export * from "./mutations/drafts.update";
 export * from "./mutations/drafts.removeParticipant";
 export * from "./mutations/drafts.start";
+export * from "./mutations/drafts.startSystem";
+export * from "./mutations/drafts.startCountdown";
 export * from "./mutations/drafts.savePickQueue";
 
 // Web mutations - Leagues

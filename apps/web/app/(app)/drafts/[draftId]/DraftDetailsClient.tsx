@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { TimePicker } from "@/components/ui/time-picker";
 import { ImageWithFallback } from "@/components/figma/ImageWithFallback";
 import { startDraftAction } from "@/server/actions/drafts";
 import { cn } from "@/lib/utils";
-import { formatDateTime, formatDateTimeInput } from "@/lib/date";
-import { parseISO } from "date-fns";
+import { formatDateTime, formatLongDate } from "@/lib/date";
+import { buildLocalISOString } from "@/lib/time-utils";
+import { startOfDay } from "date-fns";
 import {
   ArrowLeft,
   Users,
@@ -22,6 +25,7 @@ import {
   Edit2,
   Trophy,
   Clock,
+  CalendarIcon,
   Zap,
   Lock,
   Globe,
@@ -55,6 +59,7 @@ interface DraftSettings {
   name: string;
   type: "private" | "public";
   status: "upcoming" | "drafting" | "active" | "completed";
+  phase?: string;
   maxParticipants: number;
   startAt: string | null;
   pickTimeLimit: number;
@@ -181,7 +186,34 @@ export function DraftDetailsClient({
   const [participants, setParticipants] = useState(initialParticipants);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const router = useRouter();
+
+  // Derive editable date/time from settings.startAt
+  const editDate = useMemo<Date | undefined>(() => {
+    if (!settings.startAt) return undefined;
+    return new Date(settings.startAt);
+  }, [settings.startAt]);
+
+  const editTime = useMemo<string>(() => {
+    if (!settings.startAt) return "12:00";
+    const d = new Date(settings.startAt);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }, [settings.startAt]);
+
+  const handleEditDateChange = (date: Date | undefined) => {
+    if (!date) {
+      setSettings({ ...settings, startAt: null });
+      return;
+    }
+    const time = editTime;
+    setSettings({ ...settings, startAt: buildLocalISOString(date, time) });
+  };
+
+  const handleEditTimeChange = (time: string) => {
+    const date = editDate ?? new Date();
+    setSettings({ ...settings, startAt: buildLocalISOString(date, time) });
+  };
 
   // -- handlers (unchanged logic) --
 
@@ -292,7 +324,8 @@ export function DraftDetailsClient({
             <StatusPill status={settings.status} />
           </div>
 
-          {isHost && settings.status === "upcoming" && (
+          {/* Host manual start — only for non-scheduled drafts (no startAt) or override */}
+          {isHost && settings.status === "upcoming" && settings.phase === "WAITING" && (
             <button
               onClick={handleStartDraft}
               disabled={isStarting}
@@ -317,7 +350,23 @@ export function DraftDetailsClient({
             </button>
           )}
 
-          {settings.status === "drafting" && (
+          {/* Enter lobby — shown during LOBBY or COUNTDOWN phases */}
+          {(settings.phase === "LOBBY" || settings.phase === "COUNTDOWN") && (
+            <Link
+              href={`/drafts/${settings.id}/room`}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white",
+                "bg-primary hover:bg-primary/90",
+                "active:scale-[0.98] transition-all duration-200",
+              )}
+            >
+              <Users className="w-4 h-4" />
+              Enter Lobby
+            </Link>
+          )}
+
+          {/* Enter active draft room */}
+          {settings.phase === "DRAFTING" && (
             <Link
               href={`/drafts/${settings.id}/room`}
               className={cn(
@@ -576,29 +625,62 @@ export function DraftDetailsClient({
                   <span>{settings.maxParticipants} players</span>
                 </SettingsRow>
 
-                <SettingsRow label="Start Time">
-                  {isEditingSettings ? (
-                    <Input
-                      type="datetime-local"
-                      value={formatDateTimeInput(settings.startAt)}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          startAt: e.target.value
-                            ? parseISO(e.target.value).toISOString()
-                            : null,
-                        })
-                      }
-                      className={cn(
-                        "h-7 text-sm",
-                        "bg-input border-border focus-visible:border-primary focus-visible:ring-0",
-                        "text-foreground",
-                      )}
+                {isEditingSettings ? (
+                  <div className="py-3 border-b border-border last:border-0 space-y-3">
+                    <span className="text-xs font-mono tracking-widest uppercase text-muted-foreground">
+                      Start Time
+                    </span>
+
+                    {/* Date picker */}
+                    <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className={cn(
+                            "w-full h-9 px-3 rounded-lg text-sm text-left",
+                            "bg-input border border-border",
+                            "flex items-center gap-2",
+                            "focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20",
+                            "hover:border-border/80",
+                            "transition-colors duration-150",
+                            editDate ? "text-foreground" : "text-muted-foreground",
+                          )}
+                        >
+                          <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                          <span className="truncate text-sm">
+                            {editDate ? formatLongDate(editDate) : "Pick a date"}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-auto p-0 border border-border rounded-2xl bg-card shadow-lg"
+                        align="start"
+                      >
+                        <Calendar
+                          mode="single"
+                          selected={editDate}
+                          onSelect={(d) => {
+                            handleEditDateChange(d);
+                            setCalendarOpen(false);
+                          }}
+                          disabled={(date) => date < startOfDay(new Date())}
+                          fromDate={startOfDay(new Date())}
+                          autoFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+
+                    {/* Time picker */}
+                    <TimePicker
+                      value={editTime}
+                      onChange={handleEditTimeChange}
                     />
-                  ) : (
+                  </div>
+                ) : (
+                  <SettingsRow label="Start Time">
                     <span>{formatStartAt(settings.startAt)}</span>
-                  )}
-                </SettingsRow>
+                  </SettingsRow>
+                )}
 
                 <SettingsRow label="Visibility">
                   <span className="flex items-center gap-1.5">
@@ -714,11 +796,11 @@ export function DraftDetailsClient({
           <div
             className={cn(
               "bg-card border border-border rounded-lg p-6",
-              settings.status === "drafting" && "border-primary/20",
+              (settings.phase === "DRAFTING" || settings.phase === "LOBBY" || settings.phase === "COUNTDOWN") && "border-primary/20",
             )}
           >
             <div className="relative">
-              {settings.status === "upcoming" && (
+              {settings.status === "upcoming" && settings.phase === "WAITING" && (
                 <>
                   <div className="flex items-center gap-2 mb-4">
                     <Clock className="w-4 h-4 text-muted-foreground" />
@@ -735,7 +817,32 @@ export function DraftDetailsClient({
                 </>
               )}
 
-              {settings.status === "drafting" && (
+              {(settings.phase === "LOBBY" || settings.phase === "COUNTDOWN") && (
+                <>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Users className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-mono tracking-widest uppercase text-primary font-display">
+                      Draft Lobby
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-foreground mb-4">
+                    {settings.phase === "COUNTDOWN" ? "Draft starting now!" : "Lobby is open — join the room!"}
+                  </p>
+                  <Link
+                    href={`/drafts/${settings.id}/room`}
+                    className={cn(
+                      "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white",
+                      "bg-primary hover:bg-primary/90",
+                      "active:scale-[0.98] transition-all duration-200",
+                    )}
+                  >
+                    <Users className="w-4 h-4" />
+                    Enter Lobby
+                  </Link>
+                </>
+              )}
+
+              {settings.phase === "DRAFTING" && (
                 <>
                   <div className="flex items-center gap-2 mb-4">
                     <Zap className="w-4 h-4 text-primary" />

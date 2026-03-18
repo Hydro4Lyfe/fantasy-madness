@@ -4,6 +4,8 @@ import { requireUserId } from "@/server/auth/guards";
 import { getDraftRoomState } from "@/server/dal";
 import { DomainError } from "@fantasy-madness/domain";
 
+const ROOM_ALLOWED_PHASES = new Set(["LOBBY", "COUNTDOWN", "DRAFTING"]);
+
 export default async function DraftRoomPage({
   params,
 }: {
@@ -22,8 +24,8 @@ export default async function DraftRoomPage({
     throw error;
   }
 
-  // Only allow entry to actively drafting rooms
-  if (initialState.status !== "DRAFTING") {
+  // Allow entry during LOBBY (30min before start), COUNTDOWN, and DRAFTING phases
+  if (!ROOM_ALLOWED_PHASES.has(initialState.phase)) {
     redirect(`/drafts/${draftId}`);
   }
 

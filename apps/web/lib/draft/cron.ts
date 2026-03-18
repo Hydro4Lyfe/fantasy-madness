@@ -1,6 +1,8 @@
 import { processExpiredTimers } from './timer-worker';
+import { processScheduledDrafts } from './auto-start-worker';
 
 let timerInterval: NodeJS.Timeout | null = null;
+let autoStartInterval: NodeJS.Timeout | null = null;
 
 export function startTimerWorker(intervalMs: number = 5000): void {
   if (timerInterval) {
@@ -20,6 +22,22 @@ export function startTimerWorker(intervalMs: number = 5000): void {
       console.error('[Cron] Timer worker error:', err);
     }
   }, intervalMs);
+
+  // Auto-start worker: polls every 5s for drafts that need countdown or start
+  if (!autoStartInterval) {
+    console.log('[Cron] Starting auto-start worker (interval: 5000ms)');
+
+    autoStartInterval = setInterval(async () => {
+      try {
+        const { countdownsStarted, draftsStarted } = await processScheduledDrafts();
+        if (countdownsStarted > 0 || draftsStarted > 0) {
+          console.log(`[Cron] Auto-start: ${countdownsStarted} countdowns started, ${draftsStarted} drafts started`);
+        }
+      } catch (err) {
+        console.error('[Cron] Auto-start worker error:', err);
+      }
+    }, 5000);
+  }
 }
 
 export function stopTimerWorker(): void {
@@ -27,6 +45,11 @@ export function stopTimerWorker(): void {
     clearInterval(timerInterval);
     timerInterval = null;
     console.log('[Cron] Timer worker stopped');
+  }
+  if (autoStartInterval) {
+    clearInterval(autoStartInterval);
+    autoStartInterval = null;
+    console.log('[Cron] Auto-start worker stopped');
   }
 }
 

@@ -15,4 +15,5 @@ if (process.env.NODE_ENV !== 'test' && !isBuildTime && typeof window === 'undefi
 }
 
 export { processExpiredTimers } from './timer-worker';
+export { processScheduledDrafts } from './auto-start-worker';
 export { startTimerWorker, stopTimerWorker } from './cron';

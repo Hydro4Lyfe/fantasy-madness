@@ -160,6 +160,10 @@ export class DraftWebSocketHandler {
           await this.handleQueueUpdate(ws, userId, draftId, event.payload);
           break;
 
+        case 'state:request':
+          await this.handleStateRequest(ws, draftId);
+          break;
+
         case 'ping':
           await this.handlePing(ws);
           break;
@@ -284,6 +288,25 @@ export class DraftWebSocketHandler {
     } catch (err) {
       console.error('[WebSocket] Queue update error:', err);
       this.sendError(ws, 'Failed to save queue');
+    }
+  }
+
+  /**
+   * Handle state refresh request from client
+   */
+  private async handleStateRequest(ws: WebSocket, draftId: string): Promise<void> {
+    try {
+      const state = await getDraftRoomState({ db: prisma, draftId });
+      const stateEvent: ServerEvent = {
+        type: 'draft:state',
+        payload: state,
+      };
+      if (ws.readyState === 1) {
+        ws.send(JSON.stringify(stateEvent));
+      }
+    } catch (err) {
+      console.error('[WebSocket] State request error:', err);
+      this.sendError(ws, 'Failed to fetch state');
     }
   }
 

@@ -8,20 +8,23 @@ import {
   type DraftParticipantResultDTO,
 } from "@/server/dal";
 import { DomainError } from "@fantasy-madness/domain";
+import type { DraftPhase } from "@fantasy-madness/domain";
 
-// Map DAL status to UI status
-function mapStatus(
-  dalStatus: string
+// Map DAL phase to UI status
+function mapPhaseToStatus(
+  phase: DraftPhase
 ): "upcoming" | "drafting" | "active" | "completed" {
-  switch (dalStatus) {
+  switch (phase) {
     case "LOBBY":
-      return "upcoming";
+    case "COUNTDOWN":
+      return "drafting"; // Treat lobby/countdown as "drafting" for enter room button
     case "DRAFTING":
       return "drafting";
-    case "LIVE":
+    case "LOCKED":
       return "active";
     case "COMPLETE":
       return "completed";
+    case "WAITING":
     default:
       return "upcoming";
   }
@@ -33,7 +36,8 @@ function transformDraftSettings(roomState: DraftRoomStateDTO) {
     id: roomState.id,
     name: roomState.name,
     type: roomState.isPrivate ? ("private" as const) : ("public" as const),
-    status: mapStatus(roomState.status),
+    status: mapPhaseToStatus(roomState.phase),
+    phase: roomState.phase,
     maxParticipants: roomState.rosterSize,
     startAt: roomState.startAt,
     pickTimeLimit: roomState.pickTimerSec ?? 0,

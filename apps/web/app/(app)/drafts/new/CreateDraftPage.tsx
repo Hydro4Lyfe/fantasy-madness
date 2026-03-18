@@ -6,7 +6,9 @@ import Link from "next/link";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, startOfDay } from "date-fns";
+import { TimePicker } from "@/components/ui/time-picker";
+import { buildLocalISOString } from "@/lib/time-utils";
+import { startOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { formatLongDate } from "@/lib/date";
 import {
@@ -250,7 +252,7 @@ export function CreateDraftPage({ tournamentId }: CreateDraftPageProps) {
             <input
               type="hidden"
               name="startAt"
-              value={`${format(selectedDate, "yyyy-MM-dd")}T${selectedTime}`}
+              value={buildLocalISOString(selectedDate, selectedTime)}
             />
           )}
 
@@ -367,18 +369,18 @@ export function CreateDraftPage({ tournamentId }: CreateDraftPageProps) {
                 onCheckedChange={setShowStartAt}
               />
               <RevealPanel visible={showStartAt}>
-                <div className="py-3">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">
-                    Start Date &amp; Time
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {/* Date picker trigger */}
+                <div className="py-3 space-y-4">
+                  {/* Date picker */}
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                      Date
+                    </label>
                     <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                       <PopoverTrigger asChild>
                         <button
                           type="button"
                           className={cn(
-                            "flex-1 min-w-[180px] h-10 px-3 rounded-lg text-sm text-left",
+                            "w-full h-10 px-3 rounded-lg text-sm text-left",
                             "bg-input border border-border",
                             "flex items-center gap-2",
                             "focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20",
@@ -397,49 +399,35 @@ export function CreateDraftPage({ tournamentId }: CreateDraftPageProps) {
                         className="w-auto p-0 border border-border rounded-2xl bg-card shadow-lg"
                         align="start"
                       >
-                        {/* Override CSS variables so the calendar renders with our accent color */}
-                        <div
-                          style={{
-                            "--primary": "#3B82F6",
-                            "--primary-foreground": "#ffffff",
-                            "--ring": "#3B82F6",
-                          } as React.CSSProperties}
-                        >
-                          <Calendar
-                            mode="single"
-                            selected={selectedDate}
-                            onSelect={(d) => {
-                              setSelectedDate(d);
-                              setCalendarOpen(false);
-                            }}
-                            disabled={(date) => date < startOfDay(new Date())}
-                            fromDate={startOfDay(new Date())}
-                            initialFocus
-                          />
-                        </div>
+                        <Calendar
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={(d) => {
+                            setSelectedDate(d);
+                            setCalendarOpen(false);
+                          }}
+                          disabled={(date) => date < startOfDay(new Date())}
+                          fromDate={startOfDay(new Date())}
+                          autoFocus
+                        />
                       </PopoverContent>
                     </Popover>
+                  </div>
 
-                    {/* Time input */}
-                    <input
-                      type="time"
+                  {/* Time picker */}
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+                      Time
+                    </label>
+                    <TimePicker
                       value={selectedTime}
-                      onChange={(e) => setSelectedTime(e.target.value)}
-                      className={cn(
-                        "w-32 h-10 px-3 rounded-lg text-sm",
-                        "bg-input border border-border",
-                        "text-foreground",
-                        "focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20",
-                        "hover:border-border/80",
-                        "transition-colors duration-150",
-                        "[color-scheme:dark]",
-                      )}
+                      onChange={setSelectedTime}
                     />
                   </div>
 
                   {/* Validation hint — shown only when no date is selected yet */}
                   {!selectedDate && (
-                    <p className="mt-1.5 text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Select a date and time for the draft to begin.
                     </p>
                   )}

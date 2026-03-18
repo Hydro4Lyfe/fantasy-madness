@@ -16,13 +16,16 @@
     "build:ingest": "npm run build -w @fantasy-madness/ingest",
     "build": "npm run build:db && npm run build:domain && npm run build:web && npm run build:ingest",
     "start:web": "npm run start -w @fantasy-madness/web",
-    "start:ingest": "npm run start -w @fantasy-madness/ingest"
+    "start:ingest": "npm run start -w @fantasy-madness/ingest",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "overrides": {
     "lodash": "^4.17.23"
   },
   "devDependencies": {
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "vitest": "^4.1.0"
   },
   "dependencies": {
     "date-fns": "^4.1.0"

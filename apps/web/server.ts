@@ -23,6 +23,7 @@ import {
 } from './lib/websocket/server';
 import { startMetricsLogging } from './lib/websocket/monitoring';
 import { validateSetup } from './lib/websocket/validate-setup';
+import { startTimerWorker, stopTimerWorker } from './lib/draft/cron';
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = process.env.HOSTNAME || 'localhost';
@@ -186,6 +187,9 @@ async function main() {
     console.log(`[Server] Ready on http://${hostname}:${port}`);
     console.log(`[Server] WebSocket support enabled for /api/draft/:draftId/ws`);
 
+    // Start draft timer + auto-start workers
+    startTimerWorker();
+
     // Start metrics logging (every minute)
     const metricsInterval = startMetricsLogging(60000);
 
@@ -198,6 +202,9 @@ async function main() {
   // Graceful shutdown
   const shutdown = async (signal: string) => {
     console.log(`[Server] ${signal} received, shutting down gracefully...`);
+
+    // Stop draft workers
+    stopTimerWorker();
 
     // Close WebSocket server
     await closeWebSocketServer();

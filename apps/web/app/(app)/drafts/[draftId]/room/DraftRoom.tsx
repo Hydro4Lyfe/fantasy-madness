@@ -15,6 +15,8 @@ import { TeamPickerPanel } from "./components/TeamPickerPanel"
 import { SeedWeightCard } from "./components/SeedWeightCard"
 import { DraftBoard } from "./components/DraftBoard"
 import { DraftQueuePanel } from "./components/DraftQueuePanel"
+import { DraftLobby } from "./components/DraftLobby"
+import { DraftCountdown } from "./components/DraftCountdown"
 import {
   Drawer,
   DrawerContent,
@@ -38,6 +40,7 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
     error: wsError,
     submitPick,
     updateQueue,
+    requestState,
     savedQueue,
     reconnect,
   } = useDraftWebSocket({ draftId, initialState, enabled: true })
@@ -53,6 +56,43 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
   const [showQueueDrawer, setShowQueueDrawer] = useState(false)
 
   const draft = state
+
+  // --- Poll for state when a phase transition is expected ---
+  useEffect(() => {
+    if (!draft) return
+
+    // LOBBY phase: poll once startAt has passed (waiting for countdown to begin)
+    if (draft.phase === "LOBBY" && draft.startAt) {
+      const startMs = new Date(draft.startAt).getTime()
+      const now = Date.now()
+
+      if (now >= startMs) {
+        // startAt already passed — poll every 3s for countdown/start
+        const interval = setInterval(() => requestState(), 3000)
+        return () => clearInterval(interval)
+      }
+
+      // Set a timeout to start polling when startAt arrives
+      const timeout = setTimeout(() => requestState(), startMs - now + 500)
+      return () => clearTimeout(timeout)
+    }
+
+    // COUNTDOWN phase: poll once countdownEndsAt has passed (waiting for DRAFTING)
+    if (draft.phase === "COUNTDOWN" && draft.countdownEndsAt) {
+      const endMs = new Date(draft.countdownEndsAt).getTime()
+      const now = Date.now()
+
+      if (now >= endMs) {
+        // Countdown already expired — poll every 2s for DRAFTING transition
+        const interval = setInterval(() => requestState(), 2000)
+        return () => clearInterval(interval)
+      }
+
+      // Set a timeout to start polling when countdown ends
+      const timeout = setTimeout(() => requestState(), endMs - now + 500)
+      return () => clearTimeout(timeout)
+    }
+  }, [draft?.phase, draft?.startAt, draft?.countdownEndsAt, requestState])
 
   // --- Derived values ---
   const isMyTurn = draft?.currentPickerUserId === userId
@@ -242,6 +282,37 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
           </p>
         </div>
       </div>
+    )
+  }
+
+  // --- Lobby phase: waiting for draft to start ---
+  if (draft.phase === "LOBBY") {
+    return (
+      <>
+        <ConnectionBanner
+          connectionState={connectionState}
+          error={wsError}
+          onReconnect={reconnect}
+        />
+        <DraftLobby draft={draft} userId={userId} />
+      </>
+    )
+  }
+
+  // --- Countdown phase: 30-second countdown before draft begins ---
+  if (draft.phase === "COUNTDOWN" && draft.countdownEndsAt) {
+    return (
+      <>
+        <ConnectionBanner
+          connectionState={connectionState}
+          error={wsError}
+          onReconnect={reconnect}
+        />
+        <DraftCountdown
+          countdownEndsAt={draft.countdownEndsAt}
+          draftName={draft.name}
+        />
+      </>
     )
   }
 

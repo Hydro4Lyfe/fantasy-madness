@@ -1,6 +1,7 @@
 import type { DbClient } from "@fantasy-madness/db";
 import { prisma } from "@fantasy-madness/db";
-import { DomainError } from "@fantasy-madness/domain";
+import { DomainError, computeDraftPhase, COUNTDOWN_DURATION_MS } from "@fantasy-madness/domain";
+import type { DraftPhase } from "@fantasy-madness/domain";
 
 export type DraftParticipantDTO = {
   oduserId: string;
@@ -33,6 +34,7 @@ export type DraftRoomStateDTO = {
   id: string;
   name: string;
   status: string;
+  phase: DraftPhase;
   draftType: string;
   rosterSize: number;
   pickTimerSec: number | null;
@@ -41,6 +43,7 @@ export type DraftRoomStateDTO = {
   isPrivate: boolean;
   inviteCode: string | null;
   startAt: string | null;
+  countdownEndsAt: string | null;
   currentPickNumber: number;
   currentPickerUserId: string | null;
   participants: DraftParticipantDTO[];
@@ -69,6 +72,7 @@ export async function getDraftRoomState(args: {
       isPrivate: true,
       inviteCode: true,
       startAt: true,
+      countdownStartedAt: true,
       tournament: { select: { name: true } },
       participants: {
         select: {
@@ -245,10 +249,25 @@ export async function getDraftRoomState(args: {
     timerSecondsRemaining = Math.max(0, Math.floor(remaining / 1000));
   }
 
+  // Compute draft phase
+  const phase = computeDraftPhase({
+    status: String(draft.status),
+    startAt: draft.startAt,
+    countdownStartedAt: draft.countdownStartedAt,
+  });
+
+  let countdownEndsAt: string | null = null;
+  if (draft.countdownStartedAt) {
+    countdownEndsAt = new Date(
+      draft.countdownStartedAt.getTime() + COUNTDOWN_DURATION_MS
+    ).toISOString();
+  }
+
   return {
     id: draft.id,
     name: draft.name,
     status: String(draft.status),
+    phase,
     draftType: String(draft.draftType),
     rosterSize: draft.rosterSize,
     pickTimerSec: draft.pickTimerSec,
@@ -257,6 +276,7 @@ export async function getDraftRoomState(args: {
     isPrivate: draft.isPrivate,
     inviteCode: draft.inviteCode,
     startAt: draft.startAt?.toISOString() ?? null,
+    countdownEndsAt,
     currentPickNumber,
     currentPickerUserId,
     participants,

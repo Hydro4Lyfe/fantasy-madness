@@ -3,6 +3,15 @@ import { TZDate } from "@date-fns/tz";
 
 type DateInput = Date | string | null | undefined;
 
+/** Get the user's IANA timezone (e.g. "America/Chicago"). Falls back to UTC. */
+function getUserTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return "UTC";
+  }
+}
+
 /** Coerce any input to a Date, or return null. */
 function toDate(value: DateInput): Date | null {
   if (!value) return null;
@@ -32,25 +41,25 @@ export function formatLongDate(value: DateInput): string {
 }
 
 /**
- * "Mar 15, 2026, 2:30 PM" — date + time in local timezone.
- * Pass `tz` (e.g. "America/New_York") to pin to a specific timezone.
+ * "Mar 15, 2026, 2:30 PM CST" — date + time with timezone abbreviation.
+ * Auto-detects the user's timezone, or pass `tz` to pin to a specific one.
  */
 export function formatDateTime(value: DateInput, tz?: string): string {
   const d = toDate(value);
   if (!d) return "Not scheduled";
-  if (tz) return format(new TZDate(d, tz), "MMM d, yyyy, h:mm a zzz");
-  return format(d, "MMM d, yyyy, h:mm a");
+  const timezone = tz ?? getUserTimezone();
+  return format(new TZDate(d, timezone), "MMM d, yyyy, h:mm a zzz");
 }
 
 /**
- * "2:30 PM" in local timezone.
- * Pass `tz` (e.g. "America/New_York") for a specific timezone — shows abbreviation.
+ * "2:30 PM CST" in the user's local timezone.
+ * Pass `tz` (e.g. "America/New_York") to pin to a specific timezone.
  */
 export function formatTime(value: DateInput, tz?: string): string {
   const d = toDate(value);
   if (!d) return "TBD";
-  if (tz) return format(new TZDate(d, tz), "h:mm a zzz");
-  return format(d, "h:mm a");
+  const timezone = tz ?? getUserTimezone();
+  return format(new TZDate(d, timezone), "h:mm a zzz");
 }
 
 /** "2026-03-15T14:30" — value string for datetime-local inputs. Local timezone. */
