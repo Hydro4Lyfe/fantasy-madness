@@ -22,6 +22,7 @@ import { MobileStatusBanner } from "./components/MobileStatusBanner"
 import { MobileActionBar } from "./components/MobileActionBar"
 import { MobileTeamGrid } from "./components/MobileTeamGrid"
 import { MobileMyPicksDrawer } from "./components/MobileMyPicksDrawer"
+import { MobileDraftBoard } from "./components/MobileDraftBoard"
 import {
   Drawer,
   DrawerContent,
@@ -493,7 +494,7 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
             </span>
           </div>
           <div className="flex-1 overflow-y-auto p-3">
-            <DraftBoard {...boardProps} className="h-auto" />
+            <MobileDraftBoard {...boardProps} />
           </div>
         </DrawerContent>
       </Drawer>
@@ -504,11 +505,10 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
       <Drawer open={showQueueDrawer} onOpenChange={setShowQueueDrawer} direction="bottom">
         <DrawerContent className={cn(
           "bg-card border-border",
-          "max-h-[75dvh] flex flex-col",
+          "max-h-[80dvh] flex flex-col",
         )}>
           <div className="mx-auto mt-3 mb-1 h-1 w-10 flex-shrink-0 rounded-full bg-border" />
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            {myParticipant && <SeedWeightCard picks={myParticipant.picks} />}
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <DraftQueuePanel
               {...queueProps}
               onClose={() => setShowQueueDrawer(false)}
@@ -572,7 +572,11 @@ export function DraftRoom({ draftId, userId, initialState }: DraftRoomProps) {
                 <DraftBoard {...boardProps} />
               </div>
               {showQueue && (
-                <DraftQueuePanel {...queueProps} />
+                <div className="h-60 rounded-2xl overflow-hidden border border-border bg-card"
+                  style={{ boxShadow: "0 0 0 1px rgba(59,130,246,0.12), 0 2px 20px rgba(0,0,0,0.4)" }}
+                >
+                  <DraftQueuePanel {...queueProps} />
+                </div>
               )}
             </div>
           </div>
