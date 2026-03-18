@@ -30,6 +30,7 @@ export async function startCountdown(args: {
       status: true,
       startAt: true,
       countdownStartedAt: true,
+      tournamentId: true,
       _count: { select: { participants: true } },
     },
   });
@@ -40,6 +41,15 @@ export async function startCountdown(args: {
 
   if (draft.status !== "OPEN") {
     throw new DomainError("INVALID_STATE", "Draft has already started or completed");
+  }
+
+  // Check tournament time-based lock (first Round 1 game)
+  const tournament = await db.tournament.findUnique({
+    where: { id: draft.tournamentId },
+    select: { picksLockAt: true },
+  });
+  if (tournament?.picksLockAt && tournament.picksLockAt.getTime() <= Date.now()) {
+    throw new DomainError("INVALID_STATE", "Cannot start draft after the first round has started");
   }
 
   // Idempotent: if countdown already started, return existing

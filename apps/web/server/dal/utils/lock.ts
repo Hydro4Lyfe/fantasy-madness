@@ -19,9 +19,9 @@ import { Pool, type PoolClient } from "pg";
  * - Falls back to DATABASE_URL if DIRECT_DATABASE_URL is not set.
  */
 
+// Prefer direct connection for advisory locks (pgbouncer breaks session-level locks)
 const connectionString =
   process.env.DIRECT_DATABASE_URL ??
-  process.env.DATABASE_URL ??
   process.env.DIRECT_URL ??
   process.env.DATABASE_URL;
 

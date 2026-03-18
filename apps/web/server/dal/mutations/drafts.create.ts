@@ -29,10 +29,15 @@ export async function createDraft(args: { db: DbClient; input: CreateDraftInput 
   try {
     const tournament = await (db as any).tournament.findUnique({
       where: { id: input.tournamentId },
-      select: { id: true, syncState: true },
+      select: { id: true, syncState: true, picksLockAt: true },
     });
 
     if (!tournament) throw new DomainError("NOT_FOUND", "Tournament not found");
+
+    // Check tournament time-based lock (first Round 1 game)
+    if (tournament.picksLockAt && tournament.picksLockAt.getTime() <= Date.now()) {
+      throw new DomainError("INVALID_STATE", "Cannot create draft after the first round has started");
+    }
 
     const inviteCode = input.isPrivate !== false ? generateInviteCode() : null;
 

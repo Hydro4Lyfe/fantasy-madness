@@ -11,8 +11,9 @@ const redis = getRedisPubSub();
  * 1. Drafts where startAt has arrived → set countdownStartedAt (begin 30s countdown)
  * 2. Drafts where countdown has expired → transition to DRAFTING
  */
-export async function processScheduledDrafts(): Promise<{ countdownsStarted: number; draftsStarted: number }> {
-  const { ran, result } = await withAdvisoryLock('draft:auto-start-worker', async () => {
+const EMPTY_RESULT = { countdownsStarted: 0, draftsStarted: 0 };
+
+async function findAndProcessScheduledDrafts(): Promise<{ countdownsStarted: number; draftsStarted: number }> {
     let countdownsStarted = 0;
     let draftsStarted = 0;
 
@@ -115,7 +116,19 @@ export async function processScheduledDrafts(): Promise<{ countdownsStarted: num
     }
 
     return { countdownsStarted, draftsStarted };
-  });
+}
 
-  return ran ? (result ?? { countdownsStarted: 0, draftsStarted: 0 }) : { countdownsStarted: 0, draftsStarted: 0 };
+export async function processScheduledDrafts(): Promise<{ countdownsStarted: number; draftsStarted: number }> {
+  try {
+    const { ran, result } = await withAdvisoryLock('draft:auto-start-worker', findAndProcessScheduledDrafts);
+    return ran ? (result ?? EMPTY_RESULT) : EMPTY_RESULT;
+  } catch (lockErr) {
+    console.warn('[Auto-Start] Advisory lock failed, running without lock:', lockErr);
+    try {
+      return await findAndProcessScheduledDrafts();
+    } catch (err) {
+      console.error('[Auto-Start] Failed even without lock:', err);
+      return EMPTY_RESULT;
+    }
+  }
 }

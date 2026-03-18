@@ -38,11 +38,20 @@ export async function joinDraft(args: { db: DbClient; input: JoinDraftInput }): 
       // 2) ensure draft exists + joinable
       const draft = await tx.draft.findUnique({
         where: { id: input.draftId },
-        select: { id: true, status: true, lockAt: true, rosterSize: true },
+        select: { id: true, status: true, lockAt: true, rosterSize: true, tournamentId: true },
       });
       if (!draft) throw new DomainError("NOT_FOUND", "Draft not found");
       if (draft.status !== "OPEN") throw new DomainError("INVALID_STATE", "Draft is no longer accepting participants");
       if (draft.lockAt && draft.lockAt <= new Date()) throw new DomainError("INVALID_STATE", "Draft is locked");
+
+      // Check tournament time-based lock (first Round 1 game)
+      const tournament = await tx.tournament.findUnique({
+        where: { id: draft.tournamentId },
+        select: { picksLockAt: true },
+      });
+      if (tournament?.picksLockAt && tournament.picksLockAt.getTime() <= Date.now()) {
+        throw new DomainError("INVALID_STATE", "Cannot join draft after the first round has started");
+      }
 
       // 3) claim next pickOrder safely (unique index handles contention)
       for (let attempt = 0; attempt < 10; attempt++) {

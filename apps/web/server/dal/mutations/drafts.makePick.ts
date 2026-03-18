@@ -47,6 +47,10 @@ export async function makePick(args: {
         throw new DomainError("INVALID_STATE", "Draft is not in progress");
       }
 
+      // Note: no tournament.picksLockAt check here — once a draft is DRAFTING,
+      // it should be allowed to complete even if Round 1 has started.
+      // The lock is enforced on create/join/start, not on in-progress picks.
+
       // 2. Check if user is a participant
       const participant = draft.participants.find((p: any) => p.userId === input.userId);
       if (!participant) {

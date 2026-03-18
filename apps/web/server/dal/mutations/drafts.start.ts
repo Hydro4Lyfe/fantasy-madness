@@ -49,6 +49,15 @@ export async function startDraft(args: {
       throw new DomainError("INVALID_STATE", "Draft has already started or completed");
     }
 
+    // Check tournament time-based lock (first Round 1 game)
+    const tournament = await tx.tournament.findUnique({
+      where: { id: draft.tournamentId },
+      select: { picksLockAt: true },
+    });
+    if (tournament?.picksLockAt && tournament.picksLockAt.getTime() <= Date.now()) {
+      throw new DomainError("INVALID_STATE", "Cannot start draft after the first round has started");
+    }
+
     if (draft._count.participants < 2) {
       throw new DomainError("INVALID_STATE", "Need at least 2 participants to start");
     }

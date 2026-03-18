@@ -4,41 +4,58 @@ import { getRedisPubSub } from '../redis/pubsub';
 
 const redis = getRedisPubSub();
 
-export async function processExpiredTimers(): Promise<{ processed: number }> {
-  const { ran, result } = await withAdvisoryLock('draft:timer-worker', async () => {
-    const now = new Date();
-    let processedCount = 0;
+async function findAndProcessExpiredTimers(): Promise<number> {
+  const now = new Date();
+  let processedCount = 0;
 
-    // Find all drafts with expired timers
-    const expiredTimers = await prisma.draftTurnTimer.findMany({
-      where: {
-        deadlineAt: { lte: now },
-        timerPausedAt: null,
-        draft: { status: 'DRAFTING' },
-      },
-      select: {
-        draftId: true,
-        currentPickNumber: true,
-        deadlineAt: true,
-      },
-      take: 10, // Process max 10 at a time to avoid long-running transactions
-    });
-
-    console.log(`[Timer Worker] Found ${expiredTimers.length} expired timers`);
-
-    for (const timer of expiredTimers) {
-      try {
-        await executeAutoPick(timer.draftId, timer.currentPickNumber);
-        processedCount++;
-      } catch (err: any) {
-        console.error(`[Timer Worker] Failed to auto-pick for draft ${timer.draftId}:`, err.message);
-      }
-    }
-
-    return processedCount;
+  // Find all drafts with expired timers
+  const expiredTimers = await prisma.draftTurnTimer.findMany({
+    where: {
+      deadlineAt: { lte: now },
+      timerPausedAt: null,
+      draft: { status: 'DRAFTING' },
+    },
+    select: {
+      draftId: true,
+      currentPickNumber: true,
+      deadlineAt: true,
+    },
+    take: 10,
   });
 
-  return { processed: ran ? (result ?? 0) : 0 };
+  if (expiredTimers.length > 0) {
+    console.log(`[Timer Worker] Found ${expiredTimers.length} expired timer(s)`);
+  }
+
+  for (const timer of expiredTimers) {
+    try {
+      await executeAutoPick(timer.draftId, timer.currentPickNumber);
+      processedCount++;
+    } catch (err: any) {
+      console.error(`[Timer Worker] Failed to auto-pick for draft ${timer.draftId}:`, err.message);
+    }
+  }
+
+  return processedCount;
+}
+
+export async function processExpiredTimers(): Promise<{ processed: number }> {
+  try {
+    const { ran, result } = await withAdvisoryLock('draft:timer-worker', findAndProcessExpiredTimers);
+    return { processed: ran ? (result ?? 0) : 0 };
+  } catch (lockErr) {
+    // Advisory lock failed (e.g. DB connection issue) — fall back to running without lock.
+    // Safe in single-process; in multi-pod, worst case is duplicate auto-pick attempt
+    // which makePick's pick-number check will reject.
+    console.warn('[Timer Worker] Advisory lock failed, running without lock:', lockErr);
+    try {
+      const processed = await findAndProcessExpiredTimers();
+      return { processed };
+    } catch (err) {
+      console.error('[Timer Worker] Failed even without lock:', err);
+      return { processed: 0 };
+    }
+  }
 }
 
 async function executeAutoPick(draftId: string, expectedPickNumber: number): Promise<void> {
