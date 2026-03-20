@@ -329,48 +329,60 @@ export function MobileBracket({ games, onPick }: MobileBracketProps) {
   return (
     <div className="pb-10">
       <style>{`
+        /* Forward: peek cards slide left into main position */
         @keyframes bracketScrollRight {
           0% {
-            opacity: 0;
-            transform: translateX(100px);
+            opacity: 0.3;
+            transform: translateX(32%);
           }
-          40% {
+          30% {
             opacity: 1;
           }
           100% {
             transform: translateX(0);
           }
         }
+        /* Backward: main cards slide right back to peek position */
         @keyframes bracketScrollLeft {
           0% {
-            opacity: 0;
-            transform: translateX(-100px);
+            opacity: 0.3;
+            transform: translateX(-32%);
           }
-          40% {
+          30% {
             opacity: 1;
           }
           100% {
             transform: translateX(0);
           }
         }
-        /* Animate the gap between matchup cards within pairs */
+        /* Gap between paired matchups compresses as they settle */
         .bracket-round-enter .m-pair-stack {
           animation: gapCompress 500ms ease-out;
         }
         @keyframes gapCompress {
-          from { gap: 2rem; }
+          from { gap: 2.5rem; }
           to { gap: 1rem; }
         }
-        /* Animate individual matchup cards staggered */
+        /* Staggered vertical settle for each matchup pair */
         .bracket-round-enter .matchup-anim {
-          animation: matchupSlideIn 400ms ease-out both;
+          animation: matchupSettle 450ms ease-out both;
         }
-        .bracket-round-enter .matchup-anim:nth-child(2) { animation-delay: 50ms; }
-        .bracket-round-enter .matchup-anim:nth-child(3) { animation-delay: 100ms; }
-        .bracket-round-enter .matchup-anim:nth-child(4) { animation-delay: 150ms; }
-        @keyframes matchupSlideIn {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
+        .bracket-round-enter .matchup-anim:nth-child(2) { animation-delay: 60ms; }
+        .bracket-round-enter .matchup-anim:nth-child(3) { animation-delay: 120ms; }
+        .bracket-round-enter .matchup-anim:nth-child(4) { animation-delay: 180ms; }
+        .bracket-round-enter .matchup-anim:nth-child(5) { animation-delay: 240ms; }
+        .bracket-round-enter .matchup-anim:nth-child(6) { animation-delay: 300ms; }
+        @keyframes matchupSettle {
+          0% {
+            opacity: 0;
+            transform: translateY(20px) scale(0.97);
+          }
+          50% {
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(0) scale(1);
+          }
         }
       `}</style>
       <RoundSelector

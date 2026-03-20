@@ -15,10 +15,10 @@ interface MatchupCardProps {
 
 export function MatchupCard({ game, onPick, className, style, size = "sm", showConnector = false }: MatchupCardProps) {
   return (
-    <div className={cn("flex items-stretch", className)} style={style}>
-      {/* Optional left-side incoming connector (mobile) */}
+    <div className={cn("flex items-center", className)} style={style}>
+      {/* Optional left-side incoming connector — straight line from screen edge */}
       {showConnector && (
-        <div className="relative w-4 shrink-0">
+        <div className="relative w-8 shrink-0 -ml-8">
           <div className="absolute left-0 top-1/2 w-full border-t border-[#30363D]" />
         </div>
       )}
