@@ -116,7 +116,7 @@ export function deriveGameState(
     ...g,
     topTeam: g.topTeam ? { ...g.topTeam } : null,
     bottomTeam: g.bottomTeam ? { ...g.bottomTeam } : null,
-    winner: null,
+    winner: null as number | null,
   }));
 
   for (const [gameIndex, winnerId] of picks) {

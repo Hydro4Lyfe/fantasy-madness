@@ -1,6 +1,9 @@
 "use client";
 
 import type { BracketSlotWithTeamDTO } from "@/server/dal";
+import { useBracketState } from "@/components/bracket/useBracketState";
+import { DesktopBracket } from "@/components/bracket/DesktopBracket";
+import { MobileBracket } from "@/components/bracket/MobileBracket";
 
 interface BracketClientProps {
   tournamentId: string;
@@ -10,13 +13,22 @@ interface BracketClientProps {
 }
 
 export default function BracketClient({
-  tournamentName,
+  tournamentId,
   slots,
 }: BracketClientProps) {
+  const { games, makePick } = useBracketState(tournamentId, slots);
+
   return (
-    <div className="w-full max-w-[1536px] mx-auto px-4">
-      <h1 className="text-xl font-bold py-4">{tournamentName} Bracket</h1>
-      <p className="text-muted-foreground">{slots.length} slots loaded</p>
+    <div className="w-full pb-8 md:pb-4">
+      {/* Desktop */}
+      <div className="hidden md:block">
+        <DesktopBracket games={games} onPick={makePick} />
+      </div>
+
+      {/* Mobile */}
+      <div className="md:hidden pb-20">
+        <MobileBracket games={games} onPick={makePick} />
+      </div>
     </div>
   );
 }
