@@ -18,7 +18,7 @@ export function RoundSelector({
   const isLast = currentRound === 6;
 
   return (
-    <div className="sticky top-[45px] z-[90] flex items-stretch justify-center border-b border-[#21262D] bg-[#0d1117]">
+    <div className="sticky top-14 z-[40] flex items-stretch justify-center border-b border-[#21262D] bg-[#0d1117]">
       {/* Left arrow */}
       <button
         type="button"

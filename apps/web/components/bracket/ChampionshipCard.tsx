@@ -43,7 +43,6 @@ export function ChampionshipCard({
               : undefined
           }
           size="lg"
-          className="border-l-4"
         />
         <div className="border-t border-[rgba(59,130,246,0.15)]" />
         <TeamRow
@@ -58,7 +57,6 @@ export function ChampionshipCard({
               : undefined
           }
           size="lg"
-          className="border-l-4"
         />
       </div>
     </div>

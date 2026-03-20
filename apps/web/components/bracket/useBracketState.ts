@@ -82,14 +82,20 @@ export function useBracketState(
     return buildInitialGames(data);
   }, [slots]);
 
-  const [picks, setPicks] = useState<BracketPicks>(() =>
-    loadPicks(tournamentId)
-  );
+  const [picks, setPicks] = useState<BracketPicks>(() => new Map());
+  const [hydrated, setHydrated] = useState(false);
 
-  // Persist picks to localStorage on change
+  // Load picks from localStorage after mount (avoids hydration mismatch)
   useEffect(() => {
-    savePicks(tournamentId, picks);
-  }, [tournamentId, picks]);
+    const saved = loadPicks(tournamentId);
+    if (saved.size > 0) setPicks(saved);
+    setHydrated(true);
+  }, [tournamentId]);
+
+  // Persist picks to localStorage on change (only after hydration)
+  useEffect(() => {
+    if (hydrated) savePicks(tournamentId, picks);
+  }, [tournamentId, picks, hydrated]);
 
   const games = useMemo(
     () => deriveGameState(baseGames, picks),

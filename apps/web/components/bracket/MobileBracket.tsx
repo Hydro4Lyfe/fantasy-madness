@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
+import { cn } from "@/lib/utils";
 import { MatchupCard } from "./MatchupCard";
 import { ChampionshipCard } from "./ChampionshipCard";
 import { TeamRow } from "./TeamRow";
@@ -108,19 +109,20 @@ function MatchupPair({
   peekGame: BracketGame | undefined;
   onPick: (gameIndex: number, teamId: number) => void;
 }) {
+  const showConn = game1.round > 1;
   return (
-    <div className="mb-2.5 flex items-stretch overflow-hidden">
+    <div className="mb-4 flex items-stretch overflow-hidden matchup-anim">
       {/* Matchup stack: two cards stacked vertically */}
-      <div className="flex w-[68%] shrink-0 flex-col gap-1">
+      <div className="flex w-[68%] shrink-0 flex-col gap-4 m-pair-stack">
         <MatchupCard
           game={game1}
           onPick={onPick}
-          className="w-full [&>div]:h-[42px] [&>div]:px-2.5 [&>div]:gap-[7px] [&>div]:text-[13px] [&>div]:border-l-4"
+          className="w-full" size="md" showConnector={showConn}
         />
         <MatchupCard
           game={game2}
           onPick={onPick}
-          className="w-full [&>div]:h-[42px] [&>div]:px-2.5 [&>div]:gap-[7px] [&>div]:text-[13px] [&>div]:border-l-4"
+          className="w-full" size="md" showConnector={showConn}
         />
       </div>
 
@@ -136,20 +138,24 @@ function MatchupPair({
 /* ------------------------------------------------------------------ */
 /*  Single matchup (for rounds where pairing doesn't apply — odd counts */
 /* ------------------------------------------------------------------ */
-function SingleMatchup({
+function SingleWithPeek({
   game,
+  peekGame,
   onPick,
 }: {
   game: BracketGame;
+  peekGame: BracketGame | undefined;
   onPick: (gameIndex: number, teamId: number) => void;
 }) {
   return (
-    <div className="mb-2.5 pl-3">
-      <MatchupCard
-        game={game}
-        onPick={onPick}
-        className="w-[68%] [&>div]:h-[42px] [&>div]:px-2.5 [&>div]:gap-[7px] [&>div]:text-[13px] [&>div]:border-l-4"
-      />
+    <div className="mb-4 flex items-stretch overflow-hidden">
+      <div className="w-[68%] shrink-0">
+        <MatchupCard game={game} onPick={onPick} className="w-full" size="md" showConnector />
+      </div>
+      <div className="relative w-7 shrink-0">
+        <div className="absolute right-0 top-1/2 w-full border-t border-[#30363D]" />
+      </div>
+      <PeekCard game={peekGame} />
     </div>
   );
 }
@@ -159,6 +165,15 @@ function SingleMatchup({
 /* ------------------------------------------------------------------ */
 export function MobileBracket({ games, onPick }: MobileBracketProps) {
   const [currentRound, setCurrentRound] = useState(1);
+  const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
+  const [animKey, setAnimKey] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const handleRoundChange = useCallback((newRound: number) => {
+    setSlideDir(newRound > currentRound ? "left" : "right");
+    setAnimKey((k) => k + 1);
+    setCurrentRound(newRound);
+  }, [currentRound]);
 
   const roundMeta = ROUNDS[currentRound - 1];
 
@@ -194,86 +209,94 @@ export function MobileBracket({ games, onPick }: MobileBracketProps) {
     return groups;
   }, [roundGames, currentRound]);
 
-  // Championship round
+  // Build round content
+  let roundContent: React.ReactNode;
+
   if (currentRound === 6) {
     const champGame = roundGames[0];
-    return (
-      <div className="overflow-x-hidden pb-10">
-        <RoundSelector
-          currentRound={currentRound}
-          onRoundChange={setCurrentRound}
-        />
-        <div className="py-2 text-center text-[11px] text-[#6e7681]">
-          {picksMade} / {roundMeta.gameCount} picks made
+    roundContent = champGame ? (
+      <div className="px-4 pt-4">
+        <ChampionshipCard game={champGame} onPick={onPick} />
+      </div>
+    ) : null;
+  } else if (currentRound === 5) {
+    // Final Four: 2 games feed into 1 Championship — show as a pair with Championship peek
+    const champGame = games[62];
+    if (roundGames.length === 2) {
+      roundContent = (
+        <div className="pl-3 pt-2">
+          <MatchupPair
+            game1={roundGames[0]}
+            game2={roundGames[1]}
+            peekGame={champGame}
+            onPick={onPick}
+          />
         </div>
-        {champGame && (
-          <div className="px-4 pt-4">
-            <ChampionshipCard game={champGame} onPick={onPick} />
+      );
+    } else {
+      roundContent = (
+        <div className="px-3 pt-2">
+          {roundGames.map((game) => (
+            <div key={game.index} className="mb-4 pl-3">
+              <MatchupCard game={game} onPick={onPick} className="w-full" size="md" showConnector />
+            </div>
+          ))}
+        </div>
+      );
+    }
+  } else {
+    // Check if every region has exactly 1 game (Elite 8 case)
+    // If so, group by shared advancement target across regions instead of per-region
+    const isCrossRegionPairing = regionGroups != null && regionGroups.every(rg => rg.games.length === 1);
+
+    if (isCrossRegionPairing && regionGroups) {
+      // Group games by their shared next-round target
+      const byTarget = new Map<number, { games: BracketGame[]; regions: string[] }>();
+      for (const { region, games: rGames } of regionGroups) {
+        const g = rGames[0];
+        const target = getAdvancementIndex(g.index) ?? -1;
+        const entry = byTarget.get(target);
+        if (entry) {
+          entry.games.push(g);
+          entry.regions.push(region);
+        } else {
+          byTarget.set(target, { games: [g], regions: [region] });
+        }
+      }
+
+      roundContent = Array.from(byTarget.entries()).map(([target, { games: pairGames, regions }]) => {
+        const peekGame = target >= 0 ? games[target] : undefined;
+        return (
+          <div key={target} className="mb-1 pl-3">
+            <div className="px-1 pb-2 pt-3.5 text-sm font-bold italic text-[#8B949E] uppercase">
+              {regions.join(" / ")}
+            </div>
+            {pairGames.length === 2 ? (
+              <MatchupPair
+                game1={pairGames[0]}
+                game2={pairGames[1]}
+                peekGame={peekGame}
+                onPick={onPick}
+              />
+            ) : (
+              <SingleWithPeek game={pairGames[0]} peekGame={peekGame} onPick={onPick} />
+            )}
           </div>
-        )}
-      </div>
-    );
-  }
-
-  // Final Four (round 5) — no regions, just list the matchups
-  if (currentRound === 5) {
-    return (
-      <div className="overflow-x-hidden pb-10">
-        <RoundSelector
-          currentRound={currentRound}
-          onRoundChange={setCurrentRound}
-        />
-        <div className="py-2 text-center text-[11px] text-[#6e7681]">
-          {picksMade} / {roundMeta.gameCount} picks made
-        </div>
-        <div className="px-3">
-          {roundGames.map((game) => {
-            const peekIndex = getAdvancementIndex(game.index);
-            const peekGame = peekIndex != null ? games[peekIndex] : undefined;
-            return (
-              <div key={game.index} className="mb-2.5 pl-3">
-                <MatchupCard
-                  game={game}
-                  onPick={onPick}
-                  className="w-full [&>div]:h-[42px] [&>div]:px-2.5 [&>div]:gap-[7px] [&>div]:text-[13px] [&>div]:border-l-4"
-                />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  // Rounds 1-4 — grouped by region with paired matchups + peek cards
-  return (
-    <div className="overflow-x-hidden pb-10">
-      <RoundSelector
-        currentRound={currentRound}
-        onRoundChange={setCurrentRound}
-      />
-      <div className="py-2 text-center text-[11px] text-[#6e7681]">
-        {picksMade} / {roundMeta.gameCount} picks made
-      </div>
-
-      {regionGroups?.map(({ region, quadrant, games: regionGames }) => (
+        );
+      });
+    } else {
+      roundContent = regionGroups?.map(({ region, quadrant, games: regionGames }) => (
         <div key={quadrant} className="mb-1 pl-3">
-          {/* Region header */}
           <div className="px-1 pb-2 pt-3.5 text-sm font-bold italic text-[#8B949E] uppercase">
             {region}
           </div>
-
-          {/* Pair consecutive games */}
           {Array.from(
             { length: Math.floor(regionGames.length / 2) },
             (_, i) => {
               const game1 = regionGames[i * 2];
               const game2 = regionGames[i * 2 + 1];
-              // Both games in a pair feed into the same next-round game
               const peekIndex = getAdvancementIndex(game1.index);
-              const peekGame =
-                peekIndex != null ? games[peekIndex] : undefined;
-
+              const peekGame = peekIndex != null ? games[peekIndex] : undefined;
               return (
                 <MatchupPair
                   key={game1.index}
@@ -285,16 +308,81 @@ export function MobileBracket({ games, onPick }: MobileBracketProps) {
               );
             }
           )}
-
-          {/* Handle odd game out (shouldn't happen but be safe) */}
-          {regionGames.length % 2 !== 0 && (
-            <SingleMatchup
-              game={regionGames[regionGames.length - 1]}
-              onPick={onPick}
-            />
-          )}
+          {regionGames.length % 2 !== 0 && (() => {
+            const g = regionGames[regionGames.length - 1];
+            const peekIndex = getAdvancementIndex(g.index);
+            const peekGame = peekIndex != null ? games[peekIndex] : undefined;
+            return <SingleWithPeek key={g.index} game={g} peekGame={peekGame} onPick={onPick} />;
+          })()}
         </div>
-      ))}
+      ));
+    }
+  }
+
+  const slideClass =
+    slideDir === "left"
+      ? "animate-[bracketScrollRight_400ms_ease-out]"
+      : slideDir === "right"
+        ? "animate-[bracketScrollLeft_400ms_ease-out]"
+        : "";
+
+  return (
+    <div className="pb-10">
+      <style>{`
+        @keyframes bracketScrollRight {
+          0% {
+            opacity: 0;
+            transform: translateX(100px);
+          }
+          40% {
+            opacity: 1;
+          }
+          100% {
+            transform: translateX(0);
+          }
+        }
+        @keyframes bracketScrollLeft {
+          0% {
+            opacity: 0;
+            transform: translateX(-100px);
+          }
+          40% {
+            opacity: 1;
+          }
+          100% {
+            transform: translateX(0);
+          }
+        }
+        /* Animate the gap between matchup cards within pairs */
+        .bracket-round-enter .m-pair-stack {
+          animation: gapCompress 500ms ease-out;
+        }
+        @keyframes gapCompress {
+          from { gap: 2rem; }
+          to { gap: 1rem; }
+        }
+        /* Animate individual matchup cards staggered */
+        .bracket-round-enter .matchup-anim {
+          animation: matchupSlideIn 400ms ease-out both;
+        }
+        .bracket-round-enter .matchup-anim:nth-child(2) { animation-delay: 50ms; }
+        .bracket-round-enter .matchup-anim:nth-child(3) { animation-delay: 100ms; }
+        .bracket-round-enter .matchup-anim:nth-child(4) { animation-delay: 150ms; }
+        @keyframes matchupSlideIn {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+      <RoundSelector
+        currentRound={currentRound}
+        onRoundChange={handleRoundChange}
+      />
+      <div className="py-3 text-center text-[11px] text-[#6e7681]">
+        {picksMade} / {roundMeta.gameCount} picks made
+      </div>
+      <div key={animKey} ref={contentRef} className={cn("pt-1 bracket-round-enter", slideClass)}>
+        {roundContent}
+      </div>
     </div>
   );
 }

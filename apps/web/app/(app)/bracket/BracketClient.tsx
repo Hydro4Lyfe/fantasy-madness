@@ -25,8 +25,8 @@ export default function BracketClient({
         <DesktopBracket games={games} onPick={makePick} />
       </div>
 
-      {/* Mobile */}
-      <div className="md:hidden pb-20">
+      {/* Mobile — negative margin to eliminate gap between navbar and round selector */}
+      <div className="md:hidden pb-20 -mt-6">
         <MobileBracket games={games} onPick={makePick} />
       </div>
     </div>

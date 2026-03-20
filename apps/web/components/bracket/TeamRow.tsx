@@ -10,8 +10,14 @@ interface TeamRowProps {
   isLoser: boolean;
   onClick?: () => void;
   className?: string;
-  size?: "sm" | "lg";
+  size?: "sm" | "md" | "lg";
 }
+
+const sizeConfig = {
+  sm: { row: "h-[26px] px-1.5 gap-1.5 text-[11px] border-l-[3px]", logo: "w-4 h-4", seed: "w-4 text-[10px]" },
+  md: { row: "h-[42px] px-2.5 gap-2 text-[13px] border-l-4", logo: "w-[22px] h-[22px]", seed: "w-[18px] text-[11px]" },
+  lg: { row: "h-12 px-3 gap-2.5 text-sm border-l-4", logo: "w-7 h-7", seed: "w-5 text-sm" },
+};
 
 export function TeamRow({
   team,
@@ -22,7 +28,7 @@ export function TeamRow({
   size = "sm",
 }: TeamRowProps) {
   const isTbd = !team;
-  const isLg = size === "lg";
+  const s = sizeConfig[size];
 
   return (
     <div
@@ -41,10 +47,8 @@ export function TeamRow({
             }
       }
       className={cn(
-        "flex items-center border-l-[3px] border-l-transparent transition-colors",
-        isLg
-          ? "h-12 px-3 gap-2.5 text-sm"
-          : "h-[26px] px-1.5 gap-1.5 text-[11px]",
+        "flex items-center border-l-transparent transition-colors",
+        s.row,
         !isTbd && "cursor-pointer hover:bg-[#1c2333]",
         isWinner && "bg-[#1c2333] border-l-[#3B82F6]",
         isLoser && "opacity-50",
@@ -56,20 +60,15 @@ export function TeamRow({
         <TeamLogo
           teamId={team.teamId}
           label={team.abbreviation ?? team.fullName}
-          className={cn(isLg ? "w-7 h-7" : "w-4 h-4")}
+          className={s.logo}
         />
       ) : (
-        <div
-          className={cn(
-            "rounded bg-white/[0.04]",
-            isLg ? "w-7 h-7" : "w-4 h-4"
-          )}
-        />
+        <div className={cn("rounded bg-white/[0.04]", s.logo)} />
       )}
       <span
         className={cn(
           "font-bold text-[#8B949E] text-right shrink-0",
-          isLg ? "w-5 text-sm" : "w-4 text-[10px]",
+          s.seed,
           isWinner && "text-[#E6EDF3]"
         )}
       >

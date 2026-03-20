@@ -9,38 +9,44 @@ interface MatchupCardProps {
   onPick: (gameIndex: number, teamId: number) => void;
   className?: string;
   style?: React.CSSProperties;
+  size?: "sm" | "md";
+  showConnector?: boolean;
 }
 
-export function MatchupCard({ game, onPick, className, style }: MatchupCardProps) {
+export function MatchupCard({ game, onPick, className, style, size = "sm", showConnector = false }: MatchupCardProps) {
   return (
-    <div
-      className={cn(
-        "border border-[#30363D] rounded bg-[#161B22] overflow-hidden",
-        className
+    <div className={cn("flex items-stretch", className)} style={style}>
+      {/* Optional left-side incoming connector (mobile) */}
+      {showConnector && (
+        <div className="relative w-4 shrink-0">
+          <div className="absolute left-0 top-1/2 w-full border-t border-[#30363D]" />
+        </div>
       )}
-      style={style}
-    >
-      <TeamRow
-        team={game.topTeam}
-        isWinner={game.winner === game.topTeam?.teamId}
-        isLoser={game.winner != null && game.winner !== game.topTeam?.teamId}
-        onClick={
-          game.topTeam
-            ? () => onPick(game.index, game.topTeam!.teamId)
-            : undefined
-        }
-      />
-      <div className="border-t border-[#30363D]" />
-      <TeamRow
-        team={game.bottomTeam}
-        isWinner={game.winner === game.bottomTeam?.teamId}
-        isLoser={game.winner != null && game.winner !== game.bottomTeam?.teamId}
-        onClick={
-          game.bottomTeam
-            ? () => onPick(game.index, game.bottomTeam!.teamId)
-            : undefined
-        }
-      />
+      <div className="flex-1 border border-[#30363D] rounded bg-[#161B22] overflow-hidden">
+        <TeamRow
+          team={game.topTeam}
+          isWinner={game.winner === game.topTeam?.teamId}
+          isLoser={game.winner != null && game.winner !== game.topTeam?.teamId}
+          onClick={
+            game.topTeam
+              ? () => onPick(game.index, game.topTeam!.teamId)
+              : undefined
+          }
+          size={size === "md" ? "md" : "sm"}
+        />
+        <div className="border-t border-[#30363D]" />
+        <TeamRow
+          team={game.bottomTeam}
+          isWinner={game.winner === game.bottomTeam?.teamId}
+          isLoser={game.winner != null && game.winner !== game.bottomTeam?.teamId}
+          onClick={
+            game.bottomTeam
+              ? () => onPick(game.index, game.bottomTeam!.teamId)
+              : undefined
+          }
+          size={size === "md" ? "md" : "sm"}
+        />
+      </div>
     </div>
   );
 }

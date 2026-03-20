@@ -9,7 +9,7 @@ import type { BracketGame } from "@/lib/bracket/types";
 /*  Constants (ported from bracket-v5.html mockup)                     */
 /* ------------------------------------------------------------------ */
 const MH = 53; // matchup height: 26px row * 2 + 1px border
-const GAP = 5; // gap between R64 matchups
+const GAP = 10; // gap between R64 matchups
 const UNIT = MH + GAP; // 58px per matchup slot
 const CW = 32; // connector column width
 const REGION_GAP = 100; // vertical gap between upper/lower regions
