@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bracket Component Mockup v2</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    color: #E6EDF3;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+    overflow-x: auto;
+  }
+
+  .tab-bar {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    padding: 16px 16px 0;
+    border-bottom: 1px solid #30363D;
+    background: #0d1117;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .tab {
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #8B949E;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .tab:hover { color: #E6EDF3; }
+  .tab.active { color: #E6EDF3; border-bottom-color: #3B82F6; }
+
+  .view-label {
+    text-align: center;
+    padding: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: #3B82F6;
+  }
+
+  /* ====== MATCHUP CARD (shared) ====== */
+  .matchup {
+    border: 1px solid #30363D;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #161B22;
+    width: 180px;
+    flex-shrink: 0;
+  }
+  .team-row {
+    display: flex;
+    align-items: center;
+    padding: 4px 6px;
+    gap: 5px;
+    cursor: pointer;
+    transition: background 0.1s;
+    font-size: 11px;
+    height: 26px;
+  }
+  .team-row:first-child { border-bottom: 1px solid #30363D; }
+  .team-row:hover { background: #1c2333; }
+  .team-row.winner { background: #1c2333; }
+  .team-row.loser { color: #6e7681; }
+  .team-row.tbd { color: #484f58; cursor: default; }
+
+  .seed {
+    font-size: 10px;
+    font-weight: 700;
+    color: #8B949E;
+    width: 16px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .team-row.winner .seed { color: #E6EDF3; }
+  .team-row.loser .seed { color: #6e7681; }
+
+  .team-logo {
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.08);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 7px;
+    color: #8B949E;
+  }
+
+  .team-name {
+    flex: 1;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Radio toggle */
+  .pick-radio {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid #30363D;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+  .team-row:hover .pick-radio { border-color: #8B949E; }
+  .team-row.winner .pick-radio {
+    border-color: #3B82F6;
+    background: #3B82F6;
+  }
+  .team-row.winner .pick-radio::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: white;
+  }
+  .team-row.loser .pick-radio { border-color: #21262D; }
+  .team-row.tbd .pick-radio { border-color: #21262D; opacity: 0.4; }
+
+  /* ====== DESKTOP BRACKET ====== */
+  .desktop-view { padding: 0 20px 40px; }
+
+  .round-headers {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    padding: 0 0 12px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #21262D;
+  }
+  .rh { text-align: center; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #8B949E; flex-shrink: 0; }
+  .rh-sub { font-size: 9px; color: #6e7681; font-weight: 400; margin-top: 1px; }
+  .rh-round { width: 180px; }
+  .rh-conn { width: 32px; }
+  .rh-center { width: 190px; }
+
+  .bracket-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-width: 1500px;
+  }
+
+  /* Region label */
+  .region-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #6e7681;
+    padding: 0 4px 4px;
+  }
+
+  /* === ROUND COLUMNS with proper alignment === */
+  /* Each matchup is 53px tall (26px row * 2 + 1px border) */
+  /* R64: matchups spaced with 5px gap between them */
+  /* R32: each matchup vertically centered between its 2 R64 parents */
+  /* S16: centered between 2 R32 parents, etc. */
+
+  .half { display: flex; }
+  .half.right { direction: rtl; }
+  .half.right > * { direction: ltr; }
+
+  .round-col {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    width: 180px;
+  }
+
+  .region-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* R64: 8 matchups, 53px each + 5px gap = 58px per slot, total ~464px per region */
+  .r64-matchup { margin-bottom: 5px; }
+  .r64-matchup:last-child { margin-bottom: 0; }
+
+  /* R32: 4 matchups. Each centers between 2 R64s.
+     R64 pair height = 53 + 5 + 53 = 111px. Center matchup (53px): top margin = (111-53)/2 = 29px
+     Between pairs: gap = 5px carried from R64 = extra 5px */
+  .r32-matchup { margin-bottom: 5px; }
+  .r32-matchup:first-child { margin-top: 29px; }
+  .r32-matchup + .r32-matchup { margin-top: 111px - 53px - 5px; } /* Not valid CSS — use calc or fixed */
+
+  /* Connector column */
+  .conn-col {
+    width: 32px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .conn-region { display: flex; flex-direction: column; }
+
+  /* Connector pair: draws bracket lines connecting 2 matchups to 1 */
+  .conn-pair {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .conn-pair::before {
+    content: '';
+    position: absolute;
+    border-color: #30363D;
+    border-style: solid;
+  }
+
+  /* ===== PRECISE LAYOUT USING A GRID-LIKE APPROACH ===== */
+  /* Let's use a simpler approach: flex with computed spacing */
+
+  .bracket-grid {
+    display: flex;
+    justify-content: center;
+    min-width: 1500px;
+  }
+
+  /* Each column uses flex with specific gaps */
+  .col { display: flex; flex-direction: column; flex-shrink: 0; }
+  .col-round { width: 180px; }
+  .col-conn { width: 32px; position: relative; }
+
+  /* Spacer trick: matchup heights + spacers to align rounds */
+  .matchup-h { height: 53px; } /* 2 rows of 26px + 1px border */
+  .sp { flex-shrink: 0; }
+
+  /* ===== REBUILT WITH ABSOLUTE POSITIONING FOR PRECISION ===== */
+  /* Matchup = 53px tall. Gap between R64 matchups = 5px. */
+  /* Total unit = 58px. 8 matchups per region = 464px. Gap between regions = 20px. */
+  /* Total height = 464 + 20 + 464 = 948px */
+
+  .bracket-field {
+    position: relative;
+    min-width: 1500px;
+    height: 960px;
+    margin: 0 auto;
+  }
+
+  .bracket-field .matchup {
+    position: absolute;
+  }
+
+  /* Connector lines */
+  .bracket-field .conn-line {
+    position: absolute;
+    border-color: #30363D;
+    border-style: solid;
+    border-width: 0;
+  }
+  /* Horizontal line from matchup to connector */
+  .conn-h {
+    height: 0;
+    border-top-width: 1px !important;
+  }
+  /* Vertical line connecting two horizontals */
+  .conn-v {
+    width: 0;
+    border-left-width: 1px !important;
+  }
+
+  /* Center column */
+  .center-area {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 190px;
+  }
+  .center-area .matchup {
+    position: relative;
+    width: 180px;
+  }
+  .ff-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #6e7681;
+    margin-bottom: 4px;
+    text-align: center;
+  }
+
+  /* Best 8 Panel */
+  .best8-panel {
+    position: fixed;
+    right: 16px;
+    top: 70px;
+    width: 210px;
+    background: #161B22;
+    border: 1px solid #30363D;
+    border-radius: 6px;
+    overflow: hidden;
+    z-index: 50;
+  }
+  .best8-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid #30363D;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .best8-score { color: #3B82F6; font-size: 13px; }
+  .best8-list { padding: 6px 0; }
+  .best8-item {
+    display: flex;
+    align-items: center;
+    padding: 4px 12px;
+    font-size: 11px;
+    gap: 6px;
+  }
+  .best8-rank { color: #6e7681; font-size: 10px; width: 14px; }
+  .best8-seed-badge {
+    background: rgba(59,130,246,0.15);
+    color: #3B82F6;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 1px 4px;
+    border-radius: 3px;
+    min-width: 18px;
+    text-align: center;
+  }
+  .best8-team-name { flex: 1; font-weight: 500; }
+  .best8-pts { color: #8B949E; font-size: 10px; }
+  .best8-import-btn {
+    margin: 6px 12px 10px;
+    padding: 7px;
+    width: calc(100% - 24px);
+    background: #3B82F6;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    opacity: 0.4;
+  }
+
+  /* ====== MOBILE VIEW ====== */
+  .mobile-view {
+    display: none;
+    padding: 0 0 100px;
+  }
+  .round-selector {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid #21262D;
+    background: #0d1117;
+    position: sticky;
+    top: 45px;
+    z-index: 90;
+  }
+  .round-selector-arrow {
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    color: #8B949E; cursor: pointer; border-radius: 4px; font-size: 18px;
+  }
+  .round-selector-arrow:hover { background: #21262D; }
+  .round-selector-name { font-size: 14px; font-weight: 700; text-align: center; }
+  .round-selector-date { font-size: 11px; color: #8B949E; margin-top: 2px; text-align: center; }
+  .round-progress { font-size: 11px; color: #6e7681; text-align: center; padding: 8px 0; }
+  .mobile-region { padding: 0 12px; margin-bottom: 8px; }
+  .mobile-region-header {
+    font-size: 13px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; color: #8B949E; padding: 12px 4px 6px;
+  }
+  .mobile-matchup {
+    margin: 4px 0; border: 1px solid #30363D;
+    border-radius: 4px; overflow: hidden; background: #161B22;
+    width: 100%;
+  }
+  .mobile-matchup .team-row {
+    height: 40px; padding: 6px 12px; gap: 8px; font-size: 14px;
+  }
+  .mobile-matchup .seed { font-size: 12px; width: 20px; }
+  .mobile-matchup .team-logo { width: 22px; height: 22px; }
+  .mobile-matchup .pick-radio { width: 20px; height: 20px; }
+  .mobile-matchup .team-row.winner .pick-radio::after { width: 8px; height: 8px; }
+
+  .mobile-best8 {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #161B22; border-top: 1px solid #30363D; z-index: 200;
+  }
+  .mobile-best8-bar {
+    display: flex; justify-content: space-between;
+    align-items: center; padding: 14px 16px;
+  }
+  .mobile-best8-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  .mobile-best8-score-pill {
+    background: rgba(59,130,246,0.15); color: #3B82F6;
+    font-size: 13px; font-weight: 700; padding: 4px 12px; border-radius: 12px;
+  }
+
+  body.show-mobile .desktop-view,
+  body.show-mobile .best8-panel { display: none; }
+  body.show-mobile .mobile-view,
+  body.show-mobile .mobile-best8 { display: block; }
+</style>
+</head>
+<body>
+  <div class="tab-bar">
+    <div class="tab active" onclick="showDesktop()">Desktop View</div>
+    <div class="tab" onclick="showMobile()">Mobile View</div>
+  </div>
+
+  <!-- ==================== DESKTOP ==================== -->
+  <div class="desktop-view">
+    <div class="view-label">Desktop Bracket Layout</div>
+
+    <div class="round-headers">
+      <div class="rh rh-round">R64<div class="rh-sub">Mar 19-20</div></div>
+      <div class="rh rh-conn"></div>
+      <div class="rh rh-round">R32<div class="rh-sub">Mar 21-22</div></div>
+      <div class="rh rh-conn"></div>
+      <div class="rh rh-round">Sweet 16<div class="rh-sub">Mar 26-27</div></div>
+      <div class="rh rh-conn"></div>
+      <div class="rh rh-round">Elite 8<div class="rh-sub">Mar 28-29</div></div>
+      <div class="rh rh-conn"></div>
+      <div class="rh rh-center">Final Four / Champ<div class="rh-sub">Apr 5 / Apr 7</div></div>
+      <div class="rh rh-conn"></div>
+      <div class="rh rh-round">Elite 8<div class="rh-sub">Mar 28-29</div></div>
+      <div class="rh rh-conn"></div>
+      <div class="rh rh-round">Sweet 16<div class="rh-sub">Mar 26-27</div></div>
+      <div class="rh rh-conn"></div>
+      <div class="rh rh-round">R32<div class="rh-sub">Mar 21-22</div></div>
+      <div class="rh rh-conn"></div>
+      <div class="rh rh-round">R64<div class="rh-sub">Mar 19-20</div></div>
+    </div>
+
+    <div id="bracket" class="bracket-field"></div>
+  </div>
+
+  <!-- Best 8 Panel -->
+  <div class="best8-panel">
+    <div class="best8-header"><span>Your Best 8</span><span class="best8-score">87 pts</span></div>
+    <div class="best8-list">
+      <div class="best8-item"><span class="best8-rank">1.</span><span class="best8-seed-badge">13</span><span class="best8-team-name">CA Baptist</span><span class="best8-pts">52</span></div>
+      <div class="best8-item"><span class="best8-rank">2.</span><span class="best8-seed-badge">6</span><span class="best8-team-name">Louisville</span><span class="best8-pts">12</span></div>
+      <div class="best8-item"><span class="best8-rank">3.</span><span class="best8-seed-badge">9</span><span class="best8-team-name">TCU</span><span class="best8-pts">9</span></div>
+      <div class="best8-item"><span class="best8-rank">4.</span><span class="best8-seed-badge">1</span><span class="best8-team-name">Duke</span><span class="best8-pts">5</span></div>
+      <div class="best8-item"><span class="best8-rank">5.</span><span class="best8-seed-badge">5</span><span class="best8-team-name">St. John's</span><span class="best8-pts">5</span></div>
+      <div class="best8-item"><span class="best8-rank">6.</span><span class="best8-seed-badge">1</span><span class="best8-team-name">Florida</span><span class="best8-pts">3</span></div>
+      <div class="best8-item"><span class="best8-rank">7.</span><span class="best8-seed-badge">1</span><span class="best8-team-name">Arizona</span><span class="best8-pts">1</span></div>
+      <div class="best8-item" style="color:#484f58"><span class="best8-rank">8.</span><span class="best8-seed-badge" style="opacity:0.3">-</span><span class="best8-team-name">---</span><span class="best8-pts">-</span></div>
+    </div>
+    <button class="best8-import-btn" disabled>Import These Picks</button>
+  </div>
+
+  <!-- ==================== MOBILE ==================== -->
+  <div class="mobile-view" style="max-width: 420px; margin: 0 auto;">
+    <div class="view-label">Mobile Bracket Layout</div>
+    <div class="round-selector">
+      <div class="round-selector-arrow" style="opacity:0.3">&larr;</div>
+      <div><div class="round-selector-name">Round of 64</div><div class="round-selector-date">Mar 19 - 20</div></div>
+      <div class="round-selector-arrow">&rarr;</div>
+    </div>
+    <div class="round-progress">12 / 32 picks made</div>
+
+    <div class="mobile-region">
+      <div class="mobile-region-header">East</div>
+      <div class="mobile-matchup">
+        <div class="team-row winner"><span class="seed">1</span><div class="team-logo">D</div><span class="team-name">Duke</span><div class="pick-radio"></div></div>
+        <div class="team-row loser"><span class="seed">16</span><div class="team-logo">S</div><span class="team-name">Siena</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row loser"><span class="seed">8</span><div class="team-logo">O</div><span class="team-name">Ohio State</span><div class="pick-radio"></div></div>
+        <div class="team-row winner"><span class="seed">9</span><div class="team-logo">T</div><span class="team-name">TCU</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row winner"><span class="seed">5</span><div class="team-logo">S</div><span class="team-name">St. John's</span><div class="pick-radio"></div></div>
+        <div class="team-row loser"><span class="seed">12</span><div class="team-logo">N</div><span class="team-name">Northern Iowa</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row loser"><span class="seed">4</span><div class="team-logo">K</div><span class="team-name">Kansas</span><div class="pick-radio"></div></div>
+        <div class="team-row winner"><span class="seed">13</span><div class="team-logo">C</div><span class="team-name">CA Baptist</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row winner"><span class="seed">6</span><div class="team-logo">L</div><span class="team-name">Louisville</span><div class="pick-radio"></div></div>
+        <div class="team-row loser"><span class="seed">11</span><div class="team-logo">S</div><span class="team-name">South Florida</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row winner"><span class="seed">3</span><div class="team-logo">M</div><span class="team-name">Michigan State</span><div class="pick-radio"></div></div>
+        <div class="team-row loser"><span class="seed">14</span><div class="team-logo">N</div><span class="team-name">North Dakota St</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row"><span class="seed">7</span><div class="team-logo">U</div><span class="team-name">UCLA</span><div class="pick-radio"></div></div>
+        <div class="team-row"><span class="seed">10</span><div class="team-logo">-</div><span class="team-name">Play-in TBD</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row"><span class="seed">2</span><div class="team-logo">U</div><span class="team-name">UConn</span><div class="pick-radio"></div></div>
+        <div class="team-row"><span class="seed">15</span><div class="team-logo">F</div><span class="team-name">Furman</span><div class="pick-radio"></div></div>
+      </div>
+    </div>
+
+    <div class="mobile-region">
+      <div class="mobile-region-header">West</div>
+      <div class="mobile-matchup">
+        <div class="team-row winner"><span class="seed">1</span><div class="team-logo">A</div><span class="team-name">Arizona</span><div class="pick-radio"></div></div>
+        <div class="team-row loser"><span class="seed">16</span><div class="team-logo">L</div><span class="team-name">Long Island</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row"><span class="seed">8</span><div class="team-logo">V</div><span class="team-name">Villanova</span><div class="pick-radio"></div></div>
+        <div class="team-row"><span class="seed">9</span><div class="team-logo">U</div><span class="team-name">Utah State</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row"><span class="seed">5</span><div class="team-logo">W</div><span class="team-name">Wisconsin</span><div class="pick-radio"></div></div>
+        <div class="team-row"><span class="seed">12</span><div class="team-logo">H</div><span class="team-name">High Point</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row"><span class="seed">4</span><div class="team-logo">A</div><span class="team-name">Arkansas</span><div class="pick-radio"></div></div>
+        <div class="team-row"><span class="seed">13</span><div class="team-logo">H</div><span class="team-name">Hawaii</span><div class="pick-radio"></div></div>
+      </div>
+    </div>
+
+    <div class="mobile-region">
+      <div class="mobile-region-header">South</div>
+      <div class="mobile-matchup">
+        <div class="team-row winner"><span class="seed">1</span><div class="team-logo">F</div><span class="team-name">Florida</span><div class="pick-radio"></div></div>
+        <div class="team-row loser"><span class="seed">16</span><div class="team-logo">P</div><span class="team-name">Prairie View</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row"><span class="seed">8</span><div class="team-logo">W</div><span class="team-name">Wisconsin</span><div class="pick-radio"></div></div>
+        <div class="team-row"><span class="seed">9</span><div class="team-logo">C</div><span class="team-name">Creighton</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row"><span class="seed">5</span><div class="team-logo">O</div><span class="team-name">Oregon</span><div class="pick-radio"></div></div>
+        <div class="team-row"><span class="seed">12</span><div class="team-logo">L</div><span class="team-name">Liberty</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row"><span class="seed">4</span><div class="team-logo">A</div><span class="team-name">Arizona St</span><div class="pick-radio"></div></div>
+        <div class="team-row"><span class="seed">13</span><div class="team-logo">Y</div><span class="team-name">Yale</span><div class="pick-radio"></div></div>
+      </div>
+    </div>
+
+    <div class="mobile-region">
+      <div class="mobile-region-header">Midwest</div>
+      <div class="mobile-matchup">
+        <div class="team-row"><span class="seed">1</span><div class="team-logo">H</div><span class="team-name">Houston</span><div class="pick-radio"></div></div>
+        <div class="team-row"><span class="seed">16</span><div class="team-logo">S</div><span class="team-name">SIU-Ed.</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row"><span class="seed">8</span><div class="team-logo">N</div><span class="team-name">Nebraska</span><div class="pick-radio"></div></div>
+        <div class="team-row"><span class="seed">9</span><div class="team-logo">C</div><span class="team-name">Colorado</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row"><span class="seed">5</span><div class="team-logo">M</div><span class="team-name">Memphis</span><div class="pick-radio"></div></div>
+        <div class="team-row"><span class="seed">12</span><div class="team-logo">C</div><span class="team-name">Col. of Chas.</span><div class="pick-radio"></div></div>
+      </div>
+      <div class="mobile-matchup">
+        <div class="team-row"><span class="seed">4</span><div class="team-logo">M</div><span class="team-name">Maryland</span><div class="pick-radio"></div></div>
+        <div class="team-row"><span class="seed">13</span><div class="team-logo">G</div><span class="team-name">Grand Canyon</span><div class="pick-radio"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mobile-best8">
+    <div class="mobile-best8-bar">
+      <span class="mobile-best8-title">Your Best 8</span>
+      <span class="mobile-best8-score-pill">87 pts</span>
+    </div>
+  </div>
+
+  <script>
+    // ==================== BUILD DESKTOP BRACKET WITH JS ====================
+    const MH = 53;   // matchup height (26*2 + 1px border)
+    const GAP = 5;    // gap between R64 matchups
+    const UNIT = MH + GAP; // 58px
+    const MW = 180;   // matchup width
+    const CW = 32;    // connector column width
+    const REGION_GAP = 24; // gap between East/South or West/Midwest
+    const REGION_H = 8 * UNIT - GAP; // 8 matchups: 459px
+
+    const field = document.getElementById('bracket');
+    const totalH = REGION_H + REGION_GAP + REGION_H;
+    field.style.height = totalH + 'px';
+
+    // Sample teams for East
+    const eastTeams = [
+      [['1','D','Duke','w'],['16','S','Siena','l']],
+      [['8','O','Ohio St','l'],['9','T','TCU','w']],
+      [['5','S',"St. John's",'w'],['12','N','N. Iowa','l']],
+      [['4','K','Kansas','l'],['13','C','CA Baptist','w']],
+      [['6','L','Louisville','w'],['11','S','S. Florida','l']],
+      [['3','M','Michigan St','w'],['14','N','N Dakota St','l']],
+      [['7','U','UCLA',''],['10','-','Play-in','']],
+      [['2','U','UConn',''],['15','F','Furman','']]
+    ];
+    const southTeams = [
+      [['1','F','Florida','w'],['16','P','Prairie View','l']],
+      [['8','W','Wisconsin',''],['9','C','Creighton','']],
+      [['5','O','Oregon',''],['12','L','Liberty','']],
+      [['4','A','Arizona St',''],['13','Y','Yale','']],
+      [['6','I','Illinois',''],['11','T','Texas A&M','']],
+      [['3','T','Texas Tech',''],['14','U','UNC Wilm.','']],
+      [['7','C','Clemson',''],['10','N','New Mexico','']],
+      [['2','A','Alabama',''],['15','R','R. Morris','']]
+    ];
+    const westTeams = [
+      [['1','A','Arizona','w'],['16','L','Long Island','l']],
+      [['8','V','Villanova',''],['9','U','Utah State','']],
+      [['5','W','Wisconsin',''],['12','H','High Point','']],
+      [['4','A','Arkansas',''],['13','H','Hawaii','']],
+      [['6','B','BYU',''],['11','T','Texas','']],
+      [['3','G','Gonzaga',''],['14','K','Kennesaw','']],
+      [['7','M','Miami',''],['10','M','Missouri','']],
+      [['2','P','Purdue',''],['15','Q','Quinnipiac','']]
+    ];
+    const midwestTeams = [
+      [['1','H','Houston',''],['16','S','SIU-Ed.','']],
+      [['8','N','Nebraska',''],['9','C','Colorado','']],
+      [['5','M','Memphis',''],['12','C','Col. Chas.','']],
+      [['4','M','Maryland',''],['13','G','Grand Canyon','']],
+      [['6','M','Michigan',''],['11','S','Saint Louis','']],
+      [['3','T','Tennessee',''],['14','W','Wofford','']],
+      [['7','U','USC',''],['10','X','Xavier','']],
+      [['2','M','Michigan',''],['15','D','Drake','']]
+    ];
+
+    // Pre-filled picks for demo
+    const eastR32 = [
+      [['1','D','Duke','w'],['9','T','TCU','l']],
+      [['5','S',"St. John's",''],['13','C','CA Baptist','']],
+      [['6','L','Louisville','w'],['3','M','Michigan St','l']],
+      [['-','','---','t'],['-','','---','t']]
+    ];
+    const eastS16 = [
+      [['1','D','Duke','w'],['-','','---','t']],
+      [['6','L','Louisville','w'],['-','','---','t']]
+    ];
+    const eastE8 = [
+      [['1','D','Duke','w'],['6','L','Louisville','l']]
+    ];
+    const southR32 = [
+      [['1','F','Florida','w'],['-','','---','t']],
+      [['-','','---','t'],['-','','---','t']],
+      [['-','','---','t'],['-','','---','t']],
+      [['-','','---','t'],['-','','---','t']]
+    ];
+    const southS16 = [
+      [['1','F','Florida','w'],['-','','---','t']],
+      [['-','','---','t'],['-','','---','t']]
+    ];
+    const southE8 = [
+      [['1','F','Florida','w'],['-','','---','t']]
+    ];
+
+    const westR32 = [
+      [['1','A','Arizona','w'],['-','','---','t']],
+      [['-','','---','t'],['-','','---','t']],
+      [['-','','---','t'],['-','','---','t']],
+      [['-','','---','t'],['-','','---','t']]
+    ];
+    const westS16 = [
+      [['1','A','Arizona','w'],['-','','---','t']],
+      [['-','','---','t'],['-','','---','t']]
+    ];
+    const westE8 = [
+      [['1','A','Arizona','w'],['-','','---','t']]
+    ];
+    const midR32 = Array(4).fill([['-','','---','t'],['-','','---','t']]);
+    const midS16 = Array(2).fill([['-','','---','t'],['-','','---','t']]);
+    const midE8 = [[['-','','---','t'],['-','','---','t']]];
+
+    function makeMatchup(teams, x, y) {
+      const m = document.createElement('div');
+      m.className = 'matchup';
+      m.style.left = x + 'px';
+      m.style.top = y + 'px';
+      teams.forEach((t, i) => {
+        const cls = t[3] === 'w' ? ' winner' : t[3] === 'l' ? ' loser' : t[3] === 't' ? ' tbd' : '';
+        m.innerHTML += `<div class="team-row${cls}"><span class="seed">${t[0]}</span><div class="team-logo">${t[1]}</div><span class="team-name">${t[2]}</span><div class="pick-radio"></div></div>`;
+      });
+      field.appendChild(m);
+    }
+
+    function makeLabel(text, x, y, align) {
+      const d = document.createElement('div');
+      d.className = 'region-label';
+      d.textContent = text;
+      d.style.position = 'absolute';
+      d.style.left = x + 'px';
+      d.style.top = y + 'px';
+      if (align === 'right') { d.style.textAlign = 'right'; d.style.width = MW + 'px'; }
+      field.appendChild(d);
+    }
+
+    // Draw connector: horizontal from matchup edge, vertical between pair, horizontal to next
+    function drawConn(x1, y1top, y1bot, x2, y2, side) {
+      // side: 'left' = connectors go right, 'right' = connectors go left
+      const midY1 = y1top + MH / 2;
+      const midY2 = y1bot + MH / 2;
+      const outY = y2 + MH / 2;
+
+      if (side === 'left') {
+        // Horizontal from top matchup right edge to connector
+        addLine(x1 + MW, midY1, x1 + MW + CW/2, midY1);
+        // Horizontal from bottom matchup right edge to connector
+        addLine(x1 + MW, midY2, x1 + MW + CW/2, midY2);
+        // Vertical connecting them
+        addLine(x1 + MW + CW/2, midY1, x1 + MW + CW/2, midY2);
+        // Horizontal from connector center to next matchup
+        addLine(x1 + MW + CW/2, outY, x2, outY);
+      } else {
+        // Right side: connectors go left
+        addLine(x1, midY1, x1 - CW/2, midY1);
+        addLine(x1, midY2, x1 - CW/2, midY2);
+        addLine(x1 - CW/2, midY1, x1 - CW/2, midY2);
+        addLine(x1 - CW/2, outY, x2 + MW, outY);
+      }
+    }
+
+    function addLine(x1, y1, x2, y2) {
+      const line = document.createElement('div');
+      line.className = 'conn-line';
+      if (y1 === y2) {
+        // Horizontal
+        line.style.left = Math.min(x1, x2) + 'px';
+        line.style.top = y1 + 'px';
+        line.style.width = Math.abs(x2 - x1) + 'px';
+        line.style.borderTopWidth = '1px';
+      } else {
+        // Vertical
+        line.style.left = x1 + 'px';
+        line.style.top = Math.min(y1, y2) + 'px';
+        line.style.height = Math.abs(y2 - y1) + 'px';
+        line.style.borderLeftWidth = '1px';
+      }
+      field.appendChild(line);
+    }
+
+    // Column X positions (left half)
+    const centerX = 750 - 90; // center of bracket field
+    const leftR64x = 0;
+    const leftR32x = MW + CW;
+    const leftS16x = (MW + CW) * 2;
+    const leftE8x = (MW + CW) * 3;
+
+    // Right half (mirrored)
+    const rightR64x = centerX + 190 + (MW + CW) * 3 + CW;
+    const rightR32x = centerX + 190 + (MW + CW) * 2 + CW;
+    const rightS16x = centerX + 190 + (MW + CW) * 1 + CW;
+    const rightE8x = centerX + 190 + CW;
+
+    // Update field width
+    field.style.minWidth = (rightR64x + MW) + 'px';
+
+    // ---- LEFT HALF: EAST (top) ----
+    const eastBaseY = 0;
+    // R64
+    eastTeams.forEach((t, i) => makeMatchup(t, leftR64x, eastBaseY + i * UNIT));
+    makeLabel('East', leftR64x, eastBaseY - 18);
+
+    // R32 - center between pairs
+    eastR32.forEach((t, i) => {
+      const parentTop = eastBaseY + (i * 2) * UNIT;
+      const parentBot = eastBaseY + (i * 2 + 1) * UNIT;
+      const y = (parentTop + parentBot + MH) / 2 - MH / 2;
+      makeMatchup(t, leftR32x, y);
+      drawConn(leftR64x, parentTop, parentBot, leftR32x, y, 'left');
+    });
+
+    // S16 - center between R32 pairs
+    eastS16.forEach((t, i) => {
+      const p0 = eastBaseY + (i * 4) * UNIT;
+      const p1 = eastBaseY + (i * 4 + 1) * UNIT;
+      const p2 = eastBaseY + (i * 4 + 2) * UNIT;
+      const p3 = eastBaseY + (i * 4 + 3) * UNIT;
+      const r32top = (p0 + p1 + MH) / 2 - MH / 2;
+      const r32bot = (p2 + p3 + MH) / 2 - MH / 2;
+      const y = (r32top + r32bot + MH) / 2 - MH / 2;
+      makeMatchup(t, leftS16x, y);
+      drawConn(leftR32x, r32top, r32bot, leftS16x, y, 'left');
+    });
+
+    // E8 - center between S16 pair
+    {
+      const s16_0_y = (() => { const p0=eastBaseY; const p1=eastBaseY+UNIT; const p2=eastBaseY+2*UNIT; const p3=eastBaseY+3*UNIT; return ((p0+p1+MH)/2-MH/2 + (p2+p3+MH)/2-MH/2 + MH)/2-MH/2; })();
+      const s16_1_y = (() => { const p0=eastBaseY+4*UNIT; const p1=eastBaseY+5*UNIT; const p2=eastBaseY+6*UNIT; const p3=eastBaseY+7*UNIT; return ((p0+p1+MH)/2-MH/2 + (p2+p3+MH)/2-MH/2 + MH)/2-MH/2; })();
+      const y = (s16_0_y + s16_1_y + MH) / 2 - MH / 2;
+      makeMatchup(eastE8[0], leftE8x, y);
+      drawConn(leftS16x, s16_0_y, s16_1_y, leftE8x, y, 'left');
+    }
+
+    // ---- LEFT HALF: SOUTH (bottom) ----
+    const southBaseY = REGION_H + REGION_GAP;
+    southTeams.forEach((t, i) => makeMatchup(t, leftR64x, southBaseY + i * UNIT));
+    makeLabel('South', leftR64x, southBaseY - 18);
+
+    southR32.forEach((t, i) => {
+      const parentTop = southBaseY + (i * 2) * UNIT;
+      const parentBot = southBaseY + (i * 2 + 1) * UNIT;
+      const y = (parentTop + parentBot + MH) / 2 - MH / 2;
+      makeMatchup(t, leftR32x, y);
+      drawConn(leftR64x, parentTop, parentBot, leftR32x, y, 'left');
+    });
+
+    southS16.forEach((t, i) => {
+      const p0 = southBaseY + (i * 4) * UNIT;
+      const p1 = southBaseY + (i * 4 + 1) * UNIT;
+      const p2 = southBaseY + (i * 4 + 2) * UNIT;
+      const p3 = southBaseY + (i * 4 + 3) * UNIT;
+      const r32top = (p0 + p1 + MH) / 2 - MH / 2;
+      const r32bot = (p2 + p3 + MH) / 2 - MH / 2;
+      const y = (r32top + r32bot + MH) / 2 - MH / 2;
+      makeMatchup(t, leftS16x, y);
+      drawConn(leftR32x, r32top, r32bot, leftS16x, y, 'left');
+    });
+
+    {
+      const s16_0_y = (() => { const p0=southBaseY; const p1=southBaseY+UNIT; const p2=southBaseY+2*UNIT; const p3=southBaseY+3*UNIT; return ((p0+p1+MH)/2-MH/2 + (p2+p3+MH)/2-MH/2 + MH)/2-MH/2; })();
+      const s16_1_y = (() => { const p0=southBaseY+4*UNIT; const p1=southBaseY+5*UNIT; const p2=southBaseY+6*UNIT; const p3=southBaseY+7*UNIT; return ((p0+p1+MH)/2-MH/2 + (p2+p3+MH)/2-MH/2 + MH)/2-MH/2; })();
+      const y = (s16_0_y + s16_1_y + MH) / 2 - MH / 2;
+      makeMatchup(southE8[0], leftE8x, y);
+      drawConn(leftS16x, s16_0_y, s16_1_y, leftE8x, y, 'left');
+    }
+
+    // ---- RIGHT HALF: WEST (top) ----
+    westTeams.forEach((t, i) => makeMatchup(t, rightR64x, eastBaseY + i * UNIT));
+    makeLabel('West', rightR64x, eastBaseY - 18, 'right');
+
+    westR32.forEach((t, i) => {
+      const parentTop = eastBaseY + (i * 2) * UNIT;
+      const parentBot = eastBaseY + (i * 2 + 1) * UNIT;
+      const y = (parentTop + parentBot + MH) / 2 - MH / 2;
+      makeMatchup(t, rightR32x, y);
+      drawConn(rightR64x, parentTop, parentBot, rightR32x, y, 'right');
+    });
+
+    westS16.forEach((t, i) => {
+      const p0 = eastBaseY + (i * 4) * UNIT;
+      const p1 = eastBaseY + (i * 4 + 1) * UNIT;
+      const p2 = eastBaseY + (i * 4 + 2) * UNIT;
+      const p3 = eastBaseY + (i * 4 + 3) * UNIT;
+      const r32top = (p0 + p1 + MH) / 2 - MH / 2;
+      const r32bot = (p2 + p3 + MH) / 2 - MH / 2;
+      const y = (r32top + r32bot + MH) / 2 - MH / 2;
+      makeMatchup(t, rightS16x, y);
+      drawConn(rightR32x, r32top, r32bot, rightS16x, y, 'right');
+    });
+
+    {
+      const s16_0_y = (() => { const p0=eastBaseY; const p1=eastBaseY+UNIT; const p2=eastBaseY+2*UNIT; const p3=eastBaseY+3*UNIT; return ((p0+p1+MH)/2-MH/2 + (p2+p3+MH)/2-MH/2 + MH)/2-MH/2; })();
+      const s16_1_y = (() => { const p0=eastBaseY+4*UNIT; const p1=eastBaseY+5*UNIT; const p2=eastBaseY+6*UNIT; const p3=eastBaseY+7*UNIT; return ((p0+p1+MH)/2-MH/2 + (p2+p3+MH)/2-MH/2 + MH)/2-MH/2; })();
+      const y = (s16_0_y + s16_1_y + MH) / 2 - MH / 2;
+      makeMatchup(westE8[0], rightE8x, y);
+      drawConn(rightS16x, s16_0_y, s16_1_y, rightE8x, y, 'right');
+    }
+
+    // ---- RIGHT HALF: MIDWEST (bottom) ----
+    midwestTeams.forEach((t, i) => makeMatchup(t, rightR64x, southBaseY + i * UNIT));
+    makeLabel('Midwest', rightR64x, southBaseY - 18, 'right');
+
+    midR32.forEach((t, i) => {
+      const parentTop = southBaseY + (i * 2) * UNIT;
+      const parentBot = southBaseY + (i * 2 + 1) * UNIT;
+      const y = (parentTop + parentBot + MH) / 2 - MH / 2;
+      makeMatchup(t, rightR32x, y);
+      drawConn(rightR64x, parentTop, parentBot, rightR32x, y, 'right');
+    });
+
+    midS16.forEach((t, i) => {
+      const p0 = southBaseY + (i * 4) * UNIT;
+      const p1 = southBaseY + (i * 4 + 1) * UNIT;
+      const p2 = southBaseY + (i * 4 + 2) * UNIT;
+      const p3 = southBaseY + (i * 4 + 3) * UNIT;
+      const r32top = (p0 + p1 + MH) / 2 - MH / 2;
+      const r32bot = (p2 + p3 + MH) / 2 - MH / 2;
+      const y = (r32top + r32bot + MH) / 2 - MH / 2;
+      makeMatchup(t, rightS16x, y);
+      drawConn(rightR32x, r32top, r32bot, rightS16x, y, 'right');
+    });
+
+    {
+      const s16_0_y = (() => { const p0=southBaseY; const p1=southBaseY+UNIT; const p2=southBaseY+2*UNIT; const p3=southBaseY+3*UNIT; return ((p0+p1+MH)/2-MH/2 + (p2+p3+MH)/2-MH/2 + MH)/2-MH/2; })();
+      const s16_1_y = (() => { const p0=southBaseY+4*UNIT; const p1=southBaseY+5*UNIT; const p2=southBaseY+6*UNIT; const p3=southBaseY+7*UNIT; return ((p0+p1+MH)/2-MH/2 + (p2+p3+MH)/2-MH/2 + MH)/2-MH/2; })();
+      const y = (s16_0_y + s16_1_y + MH) / 2 - MH / 2;
+      makeMatchup(midE8[0], rightE8x, y);
+      drawConn(rightS16x, s16_0_y, s16_1_y, rightE8x, y, 'right');
+    }
+
+    // ---- CENTER: Final Four + Championship ----
+    // East E8 Y
+    const eastE8y = (() => {
+      const s0 = (() => { const p0=0;const p1=UNIT;const p2=2*UNIT;const p3=3*UNIT; return ((p0+p1+MH)/2-MH/2+(p2+p3+MH)/2-MH/2+MH)/2-MH/2; })();
+      const s1 = (() => { const p0=4*UNIT;const p1=5*UNIT;const p2=6*UNIT;const p3=7*UNIT; return ((p0+p1+MH)/2-MH/2+(p2+p3+MH)/2-MH/2+MH)/2-MH/2; })();
+      return (s0+s1+MH)/2-MH/2;
+    })();
+    const southE8y = (() => {
+      const s0 = (() => { const p0=southBaseY;const p1=southBaseY+UNIT;const p2=southBaseY+2*UNIT;const p3=southBaseY+3*UNIT; return ((p0+p1+MH)/2-MH/2+(p2+p3+MH)/2-MH/2+MH)/2-MH/2; })();
+      const s1 = (() => { const p0=southBaseY+4*UNIT;const p1=southBaseY+5*UNIT;const p2=southBaseY+6*UNIT;const p3=southBaseY+7*UNIT; return ((p0+p1+MH)/2-MH/2+(p2+p3+MH)/2-MH/2+MH)/2-MH/2; })();
+      return (s0+s1+MH)/2-MH/2;
+    })();
+
+    // FF left = East vs South champion
+    const ffLeftY = (eastE8y + southE8y + MH) / 2 - MH / 2;
+    const ffX = centerX;
+    makeMatchup([['1','D','Duke','w'],['-','','---','t']], ffX, ffLeftY);
+    // Connector from E8 left to FF left
+    drawConn(leftE8x, eastE8y, southE8y, ffX, ffLeftY, 'left');
+
+    // FF right = West vs Midwest champion
+    const westE8y = eastE8y; // same position mirrored
+    const midE8y = southE8y;
+    const ffRightY = (westE8y + midE8y + MH) / 2 - MH / 2;
+    makeMatchup([['-','','---','t'],['-','','---','t']], ffX, ffRightY + 120);
+    // Actually let's position them better - FF top and FF bottom
+    // Remove the last one and redo
+
+    // Championship in the true center
+    const champY = (ffLeftY + ffRightY + 120 + MH) / 2 - MH / 2;
+
+    // Add FF label
+    const ffLabel = document.createElement('div');
+    ffLabel.className = 'ff-label';
+    ffLabel.textContent = 'CHAMPIONSHIP';
+    ffLabel.style.position = 'absolute';
+    ffLabel.style.left = ffX + 'px';
+    ffLabel.style.top = (champY - 16) + 'px';
+    ffLabel.style.width = MW + 'px';
+    field.appendChild(ffLabel);
+
+    makeMatchup([['1','D','Duke','w'],['-','','---','t']], ffX, champY);
+
+    // Connectors from E8 right to FF right
+    drawConn(rightE8x, westE8y, midE8y, ffX, ffRightY + 120, 'right');
+
+    // Connectors from FF pair to Championship
+    drawConn(ffX, ffLeftY, ffRightY + 120, ffX, champY, 'left');
+
+    // Extend field height if needed
+    field.style.height = Math.max(totalH, champY + MH + 40) + 'px';
+
+    function showDesktop() {
+      document.body.classList.remove('show-mobile');
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab')[0].classList.add('active');
+    }
+    function showMobile() {
+      document.body.classList.add('show-mobile');
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab')[1].classList.add('active');
+    }
+  </script>
+</body>
+</html>
