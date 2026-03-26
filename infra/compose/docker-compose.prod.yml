@@ -1,25 +1,4 @@
 services:
-  caddy:
-    image: caddy:2-alpine
-    container_name: caddy
-    restart: unless-stopped
-    environment:
-      DOMAIN: ${DOMAIN}
-      ACME_EMAIL: ${ACME_EMAIL}
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    networks:
-      - fm-network
-    depends_on:
-      web:
-        condition: service_healthy
-
   redis:
     image: redis:7-alpine
     container_name: fm-redis
@@ -54,6 +33,7 @@ services:
         condition: service_healthy
     networks:
       - fm-network
+      - proxy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/"]
       interval: 30s
@@ -80,8 +60,8 @@ services:
 networks:
   fm-network:
     driver: bridge
+  proxy:
+    external: true
 
 volumes:
   redis-data:
-  caddy-data:
-  caddy-config:

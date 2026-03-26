@@ -302,18 +302,28 @@ export async function runSyncOnce(params: {
   // Play-in fix: BallDontLie bracket_location for round-0 (First Four) games
   // uses 1..4, which naively maps to quadrant 1. But play-in winners feed into
   // round-1 games across different quadrants. We build a lookup from the
-  // round-1 games that have a null/TBD team slot (the play-in destination)
-  // to derive the correct bracket_location for quadrant assignment.
+  // round-1 games to derive the correct bracket_location for quadrant assignment.
+  //
+  // We match on BOTH TBD placeholders (null id) and resolved play-in winners
+  // (real id that appeared in a round-0 game). Once BDL resolves play-in
+  // results, the round-1 slots no longer have null ids, so we must also
+  // check by team id to handle the post-resolution case.
+  const playInTeamIds = new Set<number>();
+  for (const game of bracketGames) {
+    if (game.round !== 0) continue;
+    if (game.home_team.id != null) playInTeamIds.add(game.home_team.id);
+    if (game.away_team.id != null) playInTeamIds.add(game.away_team.id);
+  }
+
   const playInSeedToR1Location = new Map<string, number>();
   for (const game of bracketGames) {
     if (game.round !== 1) continue;
-    // A round-1 game with a null-id team is waiting for a play-in winner.
-    // The TBD placeholder still carries the seed value we can match on.
-    if (game.home_team.id == null && game.home_team.seed) {
-      playInSeedToR1Location.set(`${game.bracket_location}:${game.home_team.seed}`, game.bracket_location);
-    }
-    if (game.away_team.id == null && game.away_team.seed) {
-      playInSeedToR1Location.set(`${game.bracket_location}:${game.away_team.seed}`, game.bracket_location);
+    for (const team of [game.home_team, game.away_team]) {
+      if (!team.seed) continue;
+      // TBD placeholder (unresolved) OR a team that appeared in a round-0 game (resolved)
+      if (team.id == null || playInTeamIds.has(team.id)) {
+        playInSeedToR1Location.set(`${game.bracket_location}:${team.seed}`, game.bracket_location);
+      }
     }
   }
 
