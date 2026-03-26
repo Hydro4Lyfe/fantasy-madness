@@ -44,7 +44,7 @@ export async function getGlobalContestPicksState(args: {
   const db = (args.db ?? prisma) as any;
 
   const contest = await db.globalContest.findFirst({
-    where: { status: "OPEN" },
+    where: { status: { in: ["OPEN", "LOCKED"] } },
     select: {
       id: true,
       status: true,
