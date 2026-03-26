@@ -51,6 +51,16 @@ export async function getGlobalContestOverview(args: {
           createdAt: true,
           user: { select: { username: true, name: true, image: true } },
           score: { select: { score: true } },
+          picks: {
+            select: {
+              slot: {
+                select: {
+                  seed: true,
+                  assignedTeamId: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -70,14 +80,30 @@ export async function getGlobalContestOverview(args: {
     String(contest.tournament?.syncState ?? "")
   );
 
+  // Fetch team stats for on-the-fly score calculation
+  const teamStats = await db.teamTournamentStats.findMany({
+    where: { tournamentId: contest.tournamentId },
+    select: { teamId: true, wins: true },
+  });
+  const winsMap = new Map<string, number>(
+    teamStats.map((ts: any) => [ts.teamId, ts.wins])
+  );
+
   const leaderboard = contest.entries
-    .map((entry: any) => ({
-      userId: entry.userId,
-      name: entry.user?.username ?? entry.user?.name ?? "Anonymous",
-      image: (entry.user?.image as string | null) ?? null,
-      points: Number(entry.score?.score ?? 0),
-      createdAt: entry.createdAt as Date,
-    }))
+    .map((entry: any) => {
+      const calculatedScore = entry.picks.reduce((sum: number, p: any) => {
+        const wins = p.slot.assignedTeamId ? (winsMap.get(p.slot.assignedTeamId) ?? 0) : 0;
+        return sum + p.slot.seed * wins;
+      }, 0);
+
+      return {
+        userId: entry.userId,
+        name: entry.user?.username ?? entry.user?.name ?? "Anonymous",
+        image: (entry.user?.image as string | null) ?? null,
+        points: entry.score?.score != null ? Number(entry.score.score) : calculatedScore,
+        createdAt: entry.createdAt as Date,
+      };
+    })
     .sort((a: any, b: any) => {
       if (b.points !== a.points) return b.points - a.points;
       return a.createdAt.getTime() - b.createdAt.getTime();
