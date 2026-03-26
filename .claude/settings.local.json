@@ -15,7 +15,8 @@
       "Bash(npx prisma migrate dev:*)",
       "Bash(npx prisma migrate deploy:*)",
       "Bash(ls:*)",
-      "Bash(npx shadcn@latest add:*)"
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

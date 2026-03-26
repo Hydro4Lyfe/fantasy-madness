@@ -9,13 +9,13 @@ function normalize(name: string): string {
 }
 
 /**
- * Resolve a team logo URL by full name (e.g., "Duke Blue Devils").
- * Returns the ESPN CDN URL if found, or null.
+ * Resolve a team logo URL by name or abbreviation (e.g., "Duke Blue Devils" or "MICH").
+ * Tries the normalized name first, then an `abbr:` prefixed lookup.
  */
 export function getTeamLogoByName(fullName: string | null | undefined): string | null {
   if (!fullName) return null
   const key = normalize(fullName)
-  return ESPN_LOGO_MAP[key] ?? null
+  return ESPN_LOGO_MAP[key] ?? ESPN_LOGO_MAP[`abbr:${key}`] ?? null
 }
 
 /**

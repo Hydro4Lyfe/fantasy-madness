@@ -15,6 +15,7 @@ import {
   upsertTournamentFromSummary,
   upsertTeamAndTournamentTeam,
   maybeMaterializeBracketSlotsOnce,
+  repairSlotAssignments,
   resolvePlayInSlots,
   findExistingGamesLite,
   upsertGame,
@@ -465,8 +466,13 @@ export async function runSyncOnce(params: {
     });
   }
 
-  // G) Resolve play-in winners into canonical slots
-  await resolvePlayInSlots({ db: prisma, tournamentId: params.tournamentId });
+  // G) Repair slot assignments from corrected TournamentTeam data, then
+  //    resolve play-in winners into canonical slots.
+  const repairResult = await repairSlotAssignments({ db: prisma, tournamentId: params.tournamentId });
+  log.info({ repairResult }, "slot assignments repaired");
+
+  const playInResult = await resolvePlayInSlots({ db: prisma, tournamentId: params.tournamentId });
+  log.info({ playInResult }, "play-in slots resolved");
 
   // H) Recompute stats if needed
   if (shouldRecalcStats) {
